@@ -34,15 +34,15 @@ export async function POST(request) {
       const branchId = sale.branchId;
       const refundAmount = returnItems.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0);
 
-      // 1. Create the Return record
+      // 1. Create the Return record — variantId, totalAmount
       const returnRecord = await tx.return.create({
         data: {
           saleId,
           cashierId: user.id,
-          totalSaved: refundAmount,
+          totalAmount: refundAmount,
           items: {
             create: returnItems.map((item) => ({
-              productId: item.productId,
+              variantId: item.variantId || item.productId,
               quantity: item.quantity,
               unitPrice: item.unitPrice,
             })),
@@ -61,73 +61,75 @@ export async function POST(request) {
 
       // 3. Sync branch inventory & log movement
       for (const item of returnItems) {
+        const variantId = item.variantId || item.productId;
+
         await tx.inventory.upsert({
           where: {
-            productId_branchId: {
-              productId: item.productId,
+            variantId_branchId: {
+              variantId,
               branchId,
             },
           },
           update: {
-            stock: { increment: item.quantity },
+            quantity: { increment: item.quantity },
           },
           create: {
-            productId: item.productId,
+            variantId,
             branchId,
-            stock: item.quantity,
-          },
-        });
-
-        // Sync fallback global stock
-        const updatedProduct = await tx.product.update({
-          where: { id: item.productId },
-          data: {
-            stock: { increment: item.quantity },
+            quantity: item.quantity,
           },
         });
 
         const updatedInventory = await tx.inventory.findUnique({
           where: {
-            productId_branchId: {
-              productId: item.productId,
+            variantId_branchId: {
+              variantId,
               branchId,
             },
           },
         });
 
         await createInventoryMovement(tx, {
-          productId: item.productId,
+          variantId,
           branchId,
           saleId: sale.id,
-          type: "RETURN",
+          type: "STOCK_IN",
           channel: "POS",
           quantity: item.quantity,
-          previousStock: Number(updatedInventory.stock) - item.quantity,
-          nextStock: Number(updatedInventory.stock),
+          previousStock: Number(updatedInventory.quantity) - item.quantity,
+          nextStock: Number(updatedInventory.quantity),
           note: `Returned from sale: ${sale.id}`,
           userId: user.id,
         });
 
         // 4. Reverse container deposits if a customer is linked
         if (sale.customerId) {
-          const productDeposits = await tx.productDeposit.findMany({
-            where: { productId: item.productId },
+          // Find productId through the variant
+          const variant = await tx.productVariant.findUnique({
+            where: { id: variantId },
           });
+          const productId = variant?.productId;
 
-          for (const dep of productDeposits) {
-            const containerReturnQty = item.quantity * dep.quantity;
-            
-            // Log empty container return transaction
-            await tx.containerTransaction.create({
-              data: {
-                customerId: sale.customerId,
-                depositTypeId: dep.depositTypeId,
-                branchId,
-                saleId: sale.id,
-                type: "RETURN",
-                quantity: containerReturnQty,
-              },
+          if (productId) {
+            const productDeposits = await tx.productDeposit.findMany({
+              where: { productId },
             });
+
+            for (const dep of productDeposits) {
+              const containerReturnQty = item.quantity * dep.quantity;
+              
+              // Log empty container return transaction
+              await tx.containerTransaction.create({
+                data: {
+                  customerId: sale.customerId,
+                  depositTypeId: dep.depositTypeId,
+                  branchId,
+                  saleId: sale.id,
+                  type: "RETURN",
+                  quantity: containerReturnQty,
+                },
+              });
+            }
           }
         }
       }
@@ -156,7 +158,7 @@ export async function POST(request) {
               saleId,
               type: "PAYMENT",
               amount: refundAmount,
-              balance: nextBalance,
+              balance: Math.max(nextBalance, 0),
               note: `Deduction from POS returned sale refund`,
             },
           });

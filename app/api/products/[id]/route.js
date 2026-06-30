@@ -85,9 +85,15 @@ export async function PATCH(request, { params }) {
       });
 
       if (body.stock !== undefined && existing.stock !== product.stock) {
+        // For simplicity, log a product-level inventory movement using the first variant as proxy
+        const firstVariant = await tx.productVariant.findFirst({
+          where: { productId: product.id },
+        });
+        const variantId = firstVariant?.id || product.id;
+
         await createInventoryMovement(tx, {
-          productId: product.id,
-          type: product.stock > existing.stock ? "STOCK_IN" : "ADJUSTMENT",
+          variantId,
+          type: product.stock > existing.stock ? "STOCK_IN" : "ADJUSTMENT_DECREASE",
           channel: "POS",
           quantity: Math.abs(product.stock - existing.stock),
           previousStock: existing.stock,

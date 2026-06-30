@@ -9,15 +9,24 @@ async function main() {
   const tableNames = [
     'AuditLog', 'SystemSettings', 'Refund', 'ReturnItem', 'Return',
     'Payment', 'PaymentMethod', 'SaleItem', 'Sale', 'OrderLine',
-    'OrderStatusHistory', 'Order', 'InventoryMovement', 'Inventory',
-    'PurchaseOrderItem', 'GoodsReceipt', 'PurchaseOrder', 'Supplier',
+    'OrderStatusHistory', 'OrderItem', 'Order', 'InventoryMovement', 'Inventory',
+    'PurchaseOrderItem', 'GoodsReceiptItem', 'GoodsReceipt', 'PurchaseOrder', 'Supplier',
     'ProductDeposit', 'DepositType', 'ProductPriceTier', 'ProductVariant',
     'VariantImage', 'VariantAttributeValue', 'VariantAttribute',
     'Favorite', 'Comment', 'SupportMessage', 'SupportTicket', 'Coupon',
     'ProductTagItem', 'ProductTag', 'ProductBarcode', 'ProductImage', 'Product',
     'Brand', 'Category', 'CustomerNote', 'CustomerCredit', 'CustomerAddress',
     'Customer', 'CustomerType', 'Shift', 'User', 'RolePermission',
-    'Permission', 'Role', 'Branch'
+    'Permission', 'Role', 'Branch', 'Notification', 'Expense',
+    'ExpenseCategory', 'DeliveryZone', 'Driver', 'Delivery',
+    'Wishlist', 'WishlistItem', 'LoyaltyAccount', 'LoyaltyTransaction',
+    'Cart', 'CartItem', 'InventoryBatch', 'InventoryCostHistory',
+    'StockReservation', 'StockTransfer', 'StockTransferItem',
+    'StockCount', 'StockCountItem', 'InventoryAdjustment',
+    'InventoryAdjustmentItem', 'SyncQueue', 'SyncConflict',
+    'ProductReview', 'Promotion', 'PromotionItem', 'ExchangeRate',
+    'CustomerPayment', 'SupplierPayment', 'PurchaseReturn',
+    'PurchaseReturnItem', 'ContainerTransaction',
   ];
   
   for (const tableName of tableNames) {
@@ -42,9 +51,12 @@ async function main() {
   });
 
   console.log("Seeding system settings...");
-  await prisma.systemSettings.create({
+  // Use Setting model (SystemSettings is legacy)
+  await prisma.setting.create({
     data: {
-      usdToKhrRate: 4000,
+      key: "exchange-rate",
+      value: { usdToKhr: 4000 },
+      description: "Default exchange rate",
     },
   });
 
@@ -114,7 +126,10 @@ async function main() {
   }
 
   console.log("Seeding system users...");
-  const bcryptHash = "$2a$10$r8h77FkI5U.NqE04L2Yee.n.6aW.9m.GqG9p3e7m6c7d8e9f0g1h2"; // "password"
+
+  // Generate proper bcrypt hashes — we use a pre-computed hash for "password"
+  // In production, generate with bcrypt.hash()
+  const bcryptHash = "$2a$10$r8h77FkI5U.NqE04L2Yee.n.6aW.9m.GqG9p3e7m6c7d8e9f0g1h2";
 
   const adminUser = await prisma.user.create({
     data: {
@@ -124,11 +139,11 @@ async function main() {
       roleId: adminRole.id,
       branchId: mainBranch.id,
       name: "System Administrator",
-      status: "ACTIVE"
+      status: "ACTIVE",
     },
   });
 
-  const cashierUser = await prisma.user.create({
+  await prisma.user.create({
     data: {
       email: "cashier@example.com",
       passwordHash: bcryptHash,
@@ -136,11 +151,11 @@ async function main() {
       roleId: cashierRole.id,
       branchId: mainBranch.id,
       name: "Sreysor Cashier",
-      status: "ACTIVE"
+      status: "ACTIVE",
     },
   });
 
-  const clientUser = await prisma.user.create({
+  await prisma.user.create({
     data: {
       email: "client@example.com",
       passwordHash: bcryptHash,
@@ -148,23 +163,27 @@ async function main() {
       roleId: clientRole.id,
       branchId: mainBranch.id,
       name: "Visal Customer",
-      status: "ACTIVE"
+      status: "ACTIVE",
     },
   });
 
   console.log("Seeding configurable payment methods...");
-  const paymentMethods = ["Cash", "KHQR", "Bank Transfer", "Customer Credit"];
-  for (const name of paymentMethods) {
-    await prisma.paymentMethod.create({
-      data: { name, active: true },
-    });
+  const paymentMethods = [
+    { name: "Cash", type: "CASH", isActive: true, sortOrder: 1 },
+    { name: "KHQR", type: "QR", isActive: true, sortOrder: 2 },
+    { name: "Bank Transfer", type: "TRANSFER", isActive: true, sortOrder: 3 },
+    { name: "Customer Credit", type: "CREDIT", isActive: true, sortOrder: 4 },
+  ];
+  for (const pm of paymentMethods) {
+    await prisma.paymentMethod.create({ data: pm });
   }
 
   console.log("Seeding customer categories...");
-  const retailType = await prisma.customerType.create({ data: { name: "RETAIL", code: "RETAIL" } });
-  const wholesaleType = await prisma.customerType.create({ data: { name: "WHOLESALE", code: "WHOLESALE" } });
+  await prisma.customerType.create({ data: { code: "RETAIL", name: "RETAIL", nameKh: "លក់រាយ" } });
+  await prisma.customerType.create({ data: { code: "WHOLESALE", name: "WHOLESALE", nameKh: "លក់ដុំ" } });
 
   console.log("Seeding customer accounts...");
+  const wholesaleType = await prisma.customerType.findFirst({ where: { code: "WHOLESALE" } });
   const customer1 = await prisma.customer.create({
     data: {
       name: "Heng Wholesale Beverage",
@@ -188,8 +207,8 @@ async function main() {
   });
 
   console.log("Seeding categories & brands...");
-  const catBeer = await prisma.category.create({ data: { name: "Beer", slug: "beer" } });
-  const catWater = await prisma.category.create({ data: { name: "Water", slug: "water" } });
+  const catBeer = await prisma.category.create({ data: { name: "Beer", slug: "beer", nameKh: "ស្រាបៀរ" } });
+  const catWater = await prisma.category.create({ data: { name: "Water", slug: "water", nameKh: "ទឹក" } });
   
   const brandAngkor = await prisma.brand.create({ data: { name: "Angkor", slug: "angkor" } });
   const brandVital = await prisma.brand.create({ data: { name: "Vital", slug: "vital" } });
@@ -217,7 +236,7 @@ async function main() {
       costPrice: 10.0,
       wholesalePrice: 11.0,
       vipPrice: 10.5,
-    }
+    },
   });
 
   await prisma.inventory.create({
@@ -226,6 +245,7 @@ async function main() {
       branchId: mainBranch.id,
       quantity: 120,
       availableQuantity: 120,
+      minStockLevel: 10,
     },
   });
 
@@ -250,7 +270,7 @@ async function main() {
       costPrice: 2.0,
       wholesalePrice: 2.5,
       vipPrice: 2.2,
-    }
+    },
   });
 
   await prisma.inventory.create({
@@ -259,6 +279,7 @@ async function main() {
       branchId: mainBranch.id,
       quantity: 150,
       availableQuantity: 150,
+      minStockLevel: 10,
     },
   });
 
@@ -271,6 +292,25 @@ async function main() {
       minPurchase: 0,
       description: "Opening promo discount for 10% off purchases.",
       isActive: true,
+    },
+  });
+
+  // Seed default POS settings
+  console.log("Seeding default POS settings...");
+  await prisma.setting.upsert({
+    where: { key: "pos-settings" },
+    update: {},
+    create: {
+      key: "pos-settings",
+      value: {
+        currency: { primaryCurrency: "USD", showBothCurrencies: true, exchangeRate: 4100, lastUpdated: new Date().toISOString() },
+        tax: { enabled: true, taxName: "VAT", taxRate: 10, taxType: "exclusive" },
+        discount: { enabled: true, allowPercentDiscount: true, allowFixedDiscount: true, maxDiscountPercent: 20, managerPinThresholdPercent: 10, presets: [5, 10, 15] },
+        storeInfo: { storeName: "MyShop", storeAddress: "Phnom Penh, Cambodia", receiptHeaderNote: "No. X, Street Y, Phnom Penh", receiptFooterMessage: "Thank you for shopping!" },
+        appearance: { theme: "light", posLayout: "comfortable", defaultLanguage: "en", receiptLanguage: "en" },
+        printer: { printerType: "thermal-80", autoPrintAfterSale: false, receiptCopies: 1 },
+        cashiers: { list: [], managerPin: "" },
+      },
     },
   });
 

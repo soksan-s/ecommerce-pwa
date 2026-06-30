@@ -49,7 +49,7 @@ export async function GET(request) {
     const orders = await prisma.order.findMany({
       where,
       include: {
-        lines: true,
+        items: true,
       },
       orderBy: {
         createdAt: "desc",
@@ -82,36 +82,68 @@ export async function POST(request) {
       return fail("Invalid order payload.", 422);
     }
 
-    const productIds = lines.map((line) => line.productId);
-    const uniqueProductIds = [...new Set(productIds)];
-    const products = await prisma.product.findMany({
+    // Lines now reference variantId — resolve variants with products
+    const variantIds = [...new Set(lines.map((line) => line.variantId || line.productId).filter(Boolean))];
+    const variants = await prisma.productVariant.findMany({
       where: {
-        id: {
-          in: uniqueProductIds,
-        },
+        id: { in: variantIds },
         isActive: true,
+      },
+      include: {
+        product: true,
       },
     });
 
-    if (products.length !== uniqueProductIds.length) {
+    if (variants.length !== variantIds.length) {
       return fail("Some products are unavailable.", 422);
     }
 
-    const productMap = new Map(products.map((product) => [product.id, product]));
+    const variantMap = new Map(variants.map((v) => [v.id, v]));
     const normalizedLines = lines.map((line) => {
-      const product = productMap.get(line.productId);
+      const variantId = line.variantId || line.productId;
+      const variant = variantMap.get(variantId);
       const quantity = Number(line.quantity || 0);
-      const unitPrice = Number(product.price) * (1 - product.discountPercent / 100);
+      const unitPrice = Number(variant.price) * (1 - variant.discountPercent / 100);
 
       return {
-        product,
+        variant,
         quantity,
         unitPrice: Number(unitPrice.toFixed(2)),
       };
     });
 
-    if (normalizedLines.some((line) => line.quantity <= 0 || line.quantity > line.product.stock)) {
+    // Check inventory via variant
+    if (normalizedLines.some((line) => line.quantity <= 0)) {
       return fail("Invalid quantity for one or more products.", 422);
+    }
+
+    // Verify stock for each variant at the branch
+    let branchId = body.branchId;
+    if (!branchId) {
+      const defaultBranch = await prisma.branch.findFirst({
+        where: { code: "HQ" },
+      });
+      branchId = defaultBranch?.id;
+    }
+
+    if (!branchId) {
+      return fail("Store branch is not configured. Please contact support.", 503);
+    }
+
+    // Check stock levels for variants
+    for (const line of normalizedLines) {
+      const inv = await prisma.inventory.findUnique({
+        where: {
+          variantId_branchId: {
+            variantId: line.variant.id,
+            branchId,
+          },
+        },
+      });
+      const availQty = inv ? (inv.availableQuantity > 0 ? inv.availableQuantity : inv.quantity) : 0;
+      if (line.quantity > availQty) {
+        return fail(`Insufficient stock for ${line.variant.product.name}.`, 422);
+      }
     }
 
     const subtotal = normalizedLines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
@@ -149,19 +181,6 @@ export async function POST(request) {
         : Number(Math.min(Number(coupon.value), subtotal).toFixed(2))
       : 0;
 
-    // Resolve branchId
-    let branchId = body.branchId;
-    if (!branchId) {
-      const defaultBranch = await prisma.branch.findFirst({
-        where: { code: "HQ" },
-      });
-      branchId = defaultBranch?.id;
-    }
-
-    if (!branchId) {
-      return fail("Store branch is not configured. Please contact support.", 503);
-    }
-
     const order = await prisma.$transaction(async (tx) => {
       // Resolve Customer profile by user email
       const customer = await tx.customer.findFirst({
@@ -170,7 +189,7 @@ export async function POST(request) {
 
       // Calculate deposits
       const { totalDeposit } = await calculateDeposits(tx, normalizedLines.map(line => ({
-        productId: line.product.id,
+        productId: line.variant.productId,
         quantity: line.quantity,
       })));
 
@@ -189,39 +208,40 @@ export async function POST(request) {
           couponType: coupon ? mapCouponType(coupon.type) : null,
           couponValue: coupon ? Number(coupon.value) : null,
           couponDiscount,
-          lines: {
+          items: {
             create: normalizedLines.map((line) => ({
-              productId: line.product.id,
-              productName: line.product.name,
+              variantId: line.variant.id,
+              productName: line.variant.product.name,
+              variantName: line.variant.name,
+              sku: line.variant.sku,
               quantity: line.quantity,
               unitPrice: line.unitPrice,
-              discountPercent: line.product.discountPercent,
             })),
           },
         },
         include: {
-          lines: true,
+          items: true,
         },
       });
 
       for (const line of normalizedLines) {
         // Ensure branch inventory record exists
         await tx.inventory.upsert({
-          where: { productId_branchId: { productId: line.product.id, branchId } },
+          where: { variantId_branchId: { variantId: line.variant.id, branchId } },
           update: {},
-          create: { productId: line.product.id, branchId, stock: line.product.stock },
+          create: { variantId: line.variant.id, branchId, quantity: 0, availableQuantity: 0 },
         });
 
         const stockUpdate = await tx.inventory.updateMany({
           where: {
-            productId: line.product.id,
+            variantId: line.variant.id,
             branchId,
-            stock: {
+            quantity: {
               gte: line.quantity,
             },
           },
           data: {
-            stock: {
+            quantity: {
               decrement: line.quantity,
             },
           },
@@ -231,34 +251,27 @@ export async function POST(request) {
           throw new Error("INSUFFICIENT_STOCK");
         }
 
-        // Sync fallback global stock
-        await tx.product.update({
-          where: { id: line.product.id },
-          data: {
-            stock: {
-              decrement: line.quantity,
-            },
-          },
-        });
-
         const updatedInventory = await tx.inventory.findUnique({
           where: {
-            productId_branchId: { productId: line.product.id, branchId },
+            variantId_branchId: { variantId: line.variant.id, branchId },
           },
         });
 
         await createInventoryMovement(tx, {
-          productId: line.product.id,
+          variantId: line.variant.id,
           branchId,
           orderId: created.id,
           type: "RESERVATION",
           channel: "ONLINE",
           quantity: line.quantity,
-          previousStock: Number(updatedInventory.stock) + line.quantity,
-          nextStock: Number(updatedInventory.stock),
+          previousStock: Number(updatedInventory.quantity) + line.quantity,
+          nextStock: Number(updatedInventory.quantity),
           note: "Online order inventory reservation",
           userId: user.id,
         });
+
+        // Also update the product variant's overall inventory concept if needed
+        // We no longer update legacy product.stock — that field is a backward-compat fallback
       }
 
       await createAuditLog(tx, {

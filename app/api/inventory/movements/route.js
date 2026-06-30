@@ -19,10 +19,13 @@ export async function GET(request) {
         createdAt: "desc",
       },
       include: {
-        product: {
-          select: {
-            name: true,
-            sku: true,
+        variant: {
+          include: {
+            product: {
+              select: {
+                name: true,
+              },
+            },
           },
         },
       },
@@ -31,14 +34,14 @@ export async function GET(request) {
     return ok({
       data: movements.map((movement) => ({
         id: movement.id,
-        productId: movement.productId,
-        productName: movement.product?.name || "Unknown product",
-        sku: movement.product?.sku || movement.productId,
+        variantId: movement.variantId,
+        productName: movement.variant?.product?.name || movement.variant?.name || "Unknown product",
+        sku: movement.variant?.sku || movement.variantId,
         type: movement.type.toLowerCase(),
-        channel: movement.channel.toLowerCase(),
-        quantity: movement.quantity,
-        previousStock: movement.previousStock,
-        nextStock: movement.nextStock,
+        channel: movement.channel?.toLowerCase() || "",
+        quantityBefore: movement.quantityBefore,
+        quantityChange: movement.quantityChange,
+        quantityAfter: movement.quantityAfter,
         note: movement.note || "",
         createdAt: movement.createdAt,
       })),

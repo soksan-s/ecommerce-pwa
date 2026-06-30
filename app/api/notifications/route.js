@@ -2,23 +2,24 @@ import { fail, handleRouteError, ok } from "@/lib/api-response";
 import { requireAdminUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-function productName(product) {
-  return product?.nameKh || product?.name || "Unknown product";
+function variantProductName(variant) {
+  if (!variant) return "Unknown product";
+  return variant.nameKh || variant.product?.nameKh || variant.product?.name || variant.name || "Unknown product";
 }
 
 function stockMessage(type, inventory) {
-  const name = productName(inventory.product);
+  const name = variantProductName(inventory.variant);
   const branch = inventory.branch?.name || "Main";
 
   if (type === "low_stock") {
-    return `ស្តុកទាប / Low stock: ${name} [${branch}] នៅសល់ ${inventory.stock}`;
+    return `ស្តុកទាប / Low stock: ${name} [${branch}] នៅសល់ ${inventory.quantity}`;
   }
 
   return `អស់ស្តុក / Out of stock: ${name} [${branch}]`;
 }
 
 function expiryMessage(type, batch) {
-  const name = productName(batch.product);
+  const name = variantProductName(batch.variant);
   const branch = batch.branch?.name || "Main";
 
   if (type === "expired") {
@@ -43,13 +44,17 @@ export async function GET() {
     const [inventoryRows, expiryRows] = await Promise.all([
       prisma.inventory.findMany({
         include: {
-          product: true,
+          variant: {
+            include: {
+              product: true,
+            },
+          },
           branch: true,
         },
       }),
       prisma.inventoryBatch.findMany({
         where: {
-          qty: {
+          remainingQty: {
             gt: 0,
           },
           expiryDate: {
@@ -57,7 +62,11 @@ export async function GET() {
           },
         },
         include: {
-          product: true,
+          variant: {
+            include: {
+              product: true,
+            },
+          },
           branch: true,
         },
         orderBy: {
@@ -66,8 +75,9 @@ export async function GET() {
       }),
     ]);
 
+    // Use the product's minStockAlert as reference, or fall back to variant-level
     const lowStock = inventoryRows
-      .filter((row) => row.stock > 0 && row.stock <= (row.product?.minStockAlert || 5))
+      .filter((row) => row.quantity > 0 && row.quantity <= (row.variant?.product?.minStockAlert || 5))
       .map((row) => ({
         id: `low-stock-${row.id}`,
         type: "low_stock",
@@ -78,7 +88,7 @@ export async function GET() {
       }));
 
     const outOfStock = inventoryRows
-      .filter((row) => row.stock === 0)
+      .filter((row) => row.quantity === 0)
       .map((row) => ({
         id: `out-stock-${row.id}`,
         type: "out_of_stock",

@@ -44,25 +44,30 @@ export async function POST(request) {
       return fail("Store branch must be configured.", 422);
     }
 
-    const productIds = [...new Set(items.map((item) => item.productId).filter(Boolean))];
-    const products = await prisma.product.findMany({
+    // Resolve variants — items now reference variantId (the variant is the sellable unit)
+    const variantIds = [...new Set(items.map((item) => item.variantId || item.productId).filter(Boolean))];
+    const variants = await prisma.productVariant.findMany({
       where: {
-        id: { in: productIds },
+        id: { in: variantIds },
         isActive: true,
+      },
+      include: {
+        product: true,
       },
     });
 
-    if (products.length !== productIds.length) {
+    if (variants.length !== variantIds.length) {
       return fail("One or more products are unavailable.", 422);
     }
 
-    const productMap = new Map(products.map((product) => [product.id, product]));
+    const variantMap = new Map(variants.map((v) => [v.id, v]));
     const normalizedItems = items.map((item) => {
-      const product = productMap.get(item.productId);
+      const variantId = item.variantId || item.productId;
+      const variant = variantMap.get(variantId);
       const quantity = Number(item.qty || item.quantity || 0);
 
       return {
-        product,
+        variant,
         quantity,
         note: item.note || null,
       };
@@ -125,10 +130,13 @@ export async function POST(request) {
         where: { name: { equals: paymentMethodName, mode: "insensitive" } },
       });
 
-      // 2.5 Calculate deposits
-      const { totalDeposit, itemsList: depositItems } = await calculateDeposits(tx, normalizedItems);
+      // 2.5 Calculate deposits — uses productId from variant.productId
+      const { totalDeposit, itemsList: depositItems } = await calculateDeposits(tx, normalizedItems.map(item => ({
+        productId: item.variant.productId,
+        quantity: item.quantity,
+      })));
 
-      // 3. Create the POS Sale record
+      // 3. Create the POS Sale record — items now reference variantId
       const created = await tx.sale.create({
         data: {
           ...(body.id ? { id: String(body.id) } : {}),
@@ -146,11 +154,11 @@ export async function POST(request) {
           synced: true,
           items: {
             create: normalizedItems.map((item) => ({
-              productId: item.product.id,
-              name: item.product.name,
-              sku: item.product.sku || item.product.id,
+              variantId: item.variant.id,
+              name: item.variant.product.name,
+              sku: item.variant.sku,
               quantity: item.quantity,
-              unitPrice: Number(item.product.price),
+              unitPrice: Number(item.variant.price),
               note: item.note,
             })),
           },
@@ -186,29 +194,29 @@ export async function POST(request) {
         // Ensure inventory record exists for the branch (initialize to 0 if not present)
         await tx.inventory.upsert({
           where: {
-            productId_branchId: {
-              productId: item.product.id,
+            variantId_branchId: {
+              variantId: item.variant.id,
               branchId,
             },
           },
           update: {},
           create: {
-            productId: item.product.id,
+            variantId: item.variant.id,
             branchId,
-            stock: 0,
+            quantity: 0,
           },
         });
 
         const stockUpdate = await tx.inventory.updateMany({
           where: {
-            productId: item.product.id,
+            variantId: item.variant.id,
             branchId,
-            stock: {
+            quantity: {
               gte: item.quantity,
             },
           },
           data: {
-            stock: {
+            quantity: {
               decrement: item.quantity,
             },
           },
@@ -218,34 +226,24 @@ export async function POST(request) {
           throw new Error("INSUFFICIENT_STOCK");
         }
 
-        // Keep fallback global product stock synchronized
-        await tx.product.update({
-          where: { id: item.product.id },
-          data: {
-            stock: {
-              decrement: item.quantity,
-            },
-          },
-        });
-
         const updatedInventory = await tx.inventory.findUnique({
           where: {
-            productId_branchId: {
-              productId: item.product.id,
+            variantId_branchId: {
+              variantId: item.variant.id,
               branchId,
             },
           },
         });
 
         await createInventoryMovement(tx, {
-          productId: item.product.id,
+          variantId: item.variant.id,
           branchId,
           saleId: created.id,
           type: "SALE",
           channel: "POS",
           quantity: item.quantity,
-          previousStock: Number(updatedInventory.stock) + item.quantity,
-          nextStock: Number(updatedInventory.stock),
+          previousStock: Number(updatedInventory.quantity) + item.quantity,
+          nextStock: Number(updatedInventory.quantity),
           note: "POS sale",
           userId: user.id,
         });

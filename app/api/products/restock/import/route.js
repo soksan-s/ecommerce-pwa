@@ -22,7 +22,7 @@ export async function POST(request) {
     let skippedCount = 0;
 
     for (const row of rows) {
-      const identifier = row.productId || row.id || row.name;
+      const identifier = row.variantId || row.productId || row.id || row.sku || row.name;
       const quantity = Number(row.quantity || row.quantityAdded || row.stock || 0);
 
       if (!identifier || !Number.isInteger(quantity) || quantity <= 0) {
@@ -30,23 +30,74 @@ export async function POST(request) {
         continue;
       }
 
-      const product = row.productId || row.id
-        ? await prisma.product.findUnique({ where: { id: identifier } })
-        : await prisma.product.findFirst({ where: { name: identifier } });
-
-      if (!product) {
-        skippedCount += 1;
-        continue;
+      // Try to find the variant first, then fall back to product
+      let variant = null;
+      if (row.variantId || row.sku) {
+        variant = await prisma.productVariant.findFirst({
+          where: {
+            OR: [
+              ...(row.variantId ? [{ id: row.variantId }] : []),
+              ...(row.sku ? [{ sku: row.sku }] : []),
+            ],
+          },
+        });
       }
 
-      await prisma.product.update({
-        where: { id: product.id },
-        data: {
-          stock: {
-            increment: quantity,
-          },
-        },
+      if (!variant) {
+        // Try as a product identifier
+        const product = row.productId || row.id
+          ? await prisma.product.findUnique({ where: { id: identifier } })
+          : await prisma.product.findFirst({ where: { name: identifier } });
+
+        if (!product) {
+          skippedCount += 1;
+          continue;
+        }
+
+        // If product found but no variant, use the product's first variant, or create one
+        variant = await prisma.productVariant.findFirst({
+          where: { productId: product.id },
+        });
+
+        if (!variant) {
+          // Create a default variant for this product
+          variant = await prisma.productVariant.create({
+            data: {
+              productId: product.id,
+              sku: product.sku || `VAR-${product.id}`,
+              name: "Default Variant",
+              price: product.price || 0,
+              costPrice: product.costPrice,
+              wholesalePrice: product.wholesalePrice,
+            },
+          });
+        }
+      }
+
+      // Update variant-level inventory for the HQ branch
+      const branch = await prisma.branch.findFirst({
+        where: { code: "HQ" },
       });
+      const branchId = branch?.id;
+
+      if (branchId) {
+        await prisma.inventory.upsert({
+          where: {
+            variantId_branchId: {
+              variantId: variant.id,
+              branchId,
+            },
+          },
+          update: {
+            quantity: { increment: quantity },
+          },
+          create: {
+            variantId: variant.id,
+            branchId,
+            quantity,
+          },
+        });
+      }
 
       importedCount += 1;
     }

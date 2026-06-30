@@ -32,13 +32,14 @@ async function allocateFefoBatches(tx, { order, userId }) {
     return;
   }
 
-  for (const line of order.lines) {
+  for (const line of order.items || order.lines || []) {
     let remaining = line.quantity;
+    const variantId = line.variantId;
     const batches = await tx.inventoryBatch.findMany({
       where: {
-        productId: line.productId,
+        variantId,
         branchId: order.branchId,
-        qty: {
+        remainingQty: {
           gt: 0,
         },
       },
@@ -57,16 +58,16 @@ async function allocateFefoBatches(tx, { order, userId }) {
         break;
       }
 
-      const deductQty = Math.min(batch.qty, remaining);
+      const deductQty = Math.min(batch.remainingQty, remaining);
       const batchUpdate = await tx.inventoryBatch.updateMany({
         where: {
           id: batch.id,
-          qty: {
+          remainingQty: {
             gte: deductQty,
           },
         },
         data: {
-          qty: {
+          remainingQty: {
             decrement: deductQty,
           },
         },
@@ -77,15 +78,15 @@ async function allocateFefoBatches(tx, { order, userId }) {
       }
 
       await createInventoryMovement(tx, {
-        productId: line.productId,
+        variantId,
         branchId: order.branchId,
         batchId: batch.id,
         orderId: order.id,
         type: "STOCK_OUT",
         channel: "ONLINE",
         quantity: deductQty,
-        previousStock: batch.qty,
-        nextStock: batch.qty - deductQty,
+        previousStock: batch.remainingQty,
+        nextStock: batch.remainingQty - deductQty,
         note: "FEFO picking batch allocation",
         userId,
       });
@@ -121,7 +122,7 @@ export async function PATCH(request, { params }) {
           id,
         },
         include: {
-          lines: true,
+          items: true,
         },
       });
 
@@ -150,7 +151,7 @@ export async function PATCH(request, { params }) {
             : {}),
         },
         include: {
-          lines: true,
+          items: true,
         },
       });
 
