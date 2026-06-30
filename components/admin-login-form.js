@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, ShieldCheck } from "lucide-react";
 
@@ -14,17 +14,23 @@ export function AdminLoginForm() {
   const [hidePassword, setHidePassword] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const submittingRef = useRef(false);
 
   async function handleSubmit(event) {
     event.preventDefault();
 
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+
     const trimmedEmail = email.trim();
     if (!trimmedEmail) {
+      submittingRef.current = false;
       setError("Enter admin email.");
       return;
     }
 
     if (!password) {
+      submittingRef.current = false;
       setError("Enter password.");
       return;
     }
@@ -57,6 +63,7 @@ export function AdminLoginForm() {
       setError("Unable to login right now.");
     } finally {
       setLoading(false);
+      submittingRef.current = false;
     }
   }
 

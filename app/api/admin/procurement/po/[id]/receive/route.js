@@ -41,8 +41,19 @@ export async function POST(request, { params }) {
       // 2. Log Goods Receipt
       const receipt = await tx.goodsReceipt.create({
         data: {
+          grNumber: `GR-${Date.now()}`,
           purchaseOrderId: id,
+          branchId: po.branchId,
           receivedById: user.id,
+          status: "COMPLETED",
+          items: {
+            create: po.items.map((item) => ({
+              variantId: item.variantId,
+              orderedQty: item.orderedQty,
+              receivedQty: item.orderedQty, // default full receipt for now
+              unitCost: item.unitCost,
+            })),
+          },
         },
       });
 
@@ -51,33 +62,35 @@ export async function POST(request, { params }) {
         // Upsert inventory record for the branch
         await tx.inventory.upsert({
           where: {
-            productId_branchId: {
-              productId: item.productId,
+            variantId_branchId: {
+              variantId: item.variantId,
               branchId: po.branchId,
             },
           },
           update: {
-            stock: { increment: item.quantity },
+            quantity: { increment: item.orderedQty },
+            availableQuantity: { increment: item.orderedQty },
           },
           create: {
-            productId: item.productId,
+            variantId: item.variantId,
             branchId: po.branchId,
-            stock: item.quantity,
+            quantity: item.orderedQty,
+            availableQuantity: item.orderedQty,
           },
         });
 
-        // Increment global product fallback stock
-        const updatedProduct = await tx.product.update({
-          where: { id: item.productId },
+        // Update receivedQty on PurchaseOrderItem
+        await tx.purchaseOrderItem.update({
+          where: { id: item.id },
           data: {
-            stock: { increment: item.quantity },
+            receivedQty: item.orderedQty,
           },
         });
 
         const updatedInventory = await tx.inventory.findUnique({
           where: {
-            productId_branchId: {
-              productId: item.productId,
+            variantId_branchId: {
+              variantId: item.variantId,
               branchId: po.branchId,
             },
           },
@@ -85,14 +98,14 @@ export async function POST(request, { params }) {
 
         // Log Stock-in Inventory Movement
         await createInventoryMovement(tx, {
-          productId: item.productId,
+          variantId: item.variantId,
           branchId: po.branchId,
           type: "STOCK_IN",
           channel: "POS",
-          quantity: item.quantity,
-          previousStock: Number(updatedInventory.stock) - item.quantity,
-          nextStock: Number(updatedInventory.stock),
-          note: `Received PO: ${po.id}`,
+          quantity: item.orderedQty,
+          previousStock: Number(updatedInventory.quantity) - item.orderedQty,
+          nextStock: Number(updatedInventory.quantity),
+          note: `Received PO: ${po.poNumber}`,
           userId: user.id,
         });
       }

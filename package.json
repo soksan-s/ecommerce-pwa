@@ -27,6 +27,7 @@
     "lucide-react": "^0.542.0",
     "next": "16.1.7",
     "pg": "^8.21.0",
+    "playwright": "^1.41.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-hook-form": "^7.62.0",

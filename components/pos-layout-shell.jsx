@@ -10,6 +10,7 @@ import { useOffline } from "@/hooks/useOffline";
 import { usePosStore } from "@/store/posStore";
 import { usePOSSettings } from "@/hooks/usePOSSettings";
 import { useTranslation } from "@/lib/translations";
+import { requestBackgroundSync } from "@/lib/sync";
 
 const navItems = [
   { label: "Dashboard", href: "/pos", icon: Home },
@@ -27,6 +28,13 @@ export function PosLayoutShell({ children }) {
   const pendingSyncCount = usePosStore((state) => state.pendingSyncCount);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  async function handleManualSync() {
+    setIsSyncing(true);
+    await requestBackgroundSync();
+    setIsSyncing(false);
+  }
 
   const { settings } = usePOSSettings();
   const lang = settings?.appearance?.defaultLanguage || "en";
@@ -105,7 +113,14 @@ export function PosLayoutShell({ children }) {
               {sidebarCollapsed ? null : isOffline ? t("offline") : t("online")}
             </div>
             {!sidebarCollapsed && pendingSyncCount > 0 ? (
-              <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-black text-amber-800">{pendingSyncCount} {t("pending")}</span>
+              <button 
+                onClick={handleManualSync} 
+                disabled={isSyncing || isOffline}
+                className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-black text-amber-800 hover:bg-amber-200 disabled:opacity-50 transition-colors"
+                title="Click to sync now"
+              >
+                {isSyncing ? "Syncing..." : `${pendingSyncCount} ${t("pending")}`}
+              </button>
             ) : null}
           </div>
           <button
@@ -170,7 +185,14 @@ export function PosLayoutShell({ children }) {
                   {isOffline ? t("offline") : t("online")}
                 </div>
                 {pendingSyncCount > 0 ? (
-                  <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-black text-amber-800">{pendingSyncCount} {t("pending")}</span>
+                  <button 
+                    onClick={handleManualSync} 
+                    disabled={isSyncing || isOffline}
+                    className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-black text-amber-800 hover:bg-amber-200 disabled:opacity-50 transition-colors"
+                    title="Click to sync now"
+                  >
+                    {isSyncing ? "Syncing..." : `${pendingSyncCount} ${t("pending")}`}
+                  </button>
                 ) : null}
               </div>
               <button

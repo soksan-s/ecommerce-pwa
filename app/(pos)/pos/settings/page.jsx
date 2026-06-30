@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { defaultPOSSettings, usePOSSettings } from "@/hooks/usePOSSettings";
 import { useOffline } from "@/hooks/useOffline";
+import { getSyncLogs } from "@/lib/sync";
 
 const tabs = [
   { key: "currency", label: "Currency" },
@@ -13,6 +14,7 @@ const tabs = [
   { key: "appearance", label: "Appearance" },
   { key: "printer", label: "Printer" },
   { key: "cashiers", label: "Cashiers & PIN" },
+  { key: "syncLogs", label: "Sync Logs" },
 ];
 
 function FieldLabel({ children }) {
@@ -64,6 +66,13 @@ export default function PosSettingsPage() {
   const [newPreset, setNewPreset] = useState("");
   const [newCashierName, setNewCashierName] = useState("");
   const [newCashierPin, setNewCashierPin] = useState("");
+  const [syncLogs, setSyncLogs] = useState([]);
+
+  useEffect(() => {
+    if (activeTab === "syncLogs") {
+      getSyncLogs().then(setSyncLogs);
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -421,6 +430,67 @@ export default function PosSettingsPage() {
               <input value={draft.cashiers.managerPin} onChange={(event) => patchSection("cashiers", { managerPin: event.target.value.replace(/\D/g, "").slice(0, 4) })} placeholder="4-digit PIN" className="mt-2 w-48 rounded-2xl border border-slate-200 px-4 py-3 font-bold outline-none focus:border-emerald-500" />
             </div>
             <div className="flex items-center gap-3"><button type="button" onClick={() => saveSection("cashiers")} className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white">Save Cashiers</button>{renderSaved("cashiers")}</div>
+          </div>
+        </SectionCard>
+      ) : null}
+
+      {activeTab === "syncLogs" ? (
+        <SectionCard>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-black">Recent Sync Activity</h2>
+              <button 
+                type="button" 
+                onClick={() => getSyncLogs().then(setSyncLogs)}
+                className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-black text-slate-700 hover:bg-slate-200"
+              >
+                Refresh Logs
+              </button>
+            </div>
+            
+            <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 text-xs uppercase tracking-[0.1em] text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3 font-bold">Time</th>
+                    <th className="px-4 py-3 font-bold">Status</th>
+                    <th className="px-4 py-3 font-bold">Endpoint</th>
+                    <th className="px-4 py-3 font-bold">Details</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {syncLogs.map((log) => (
+                    <tr key={log.id} className="bg-white hover:bg-slate-50">
+                      <td className="px-4 py-3 font-semibold text-slate-600">
+                        {new Date(log.timestamp).toLocaleString()}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-black ${
+                          log.status === "success" 
+                            ? "bg-emerald-100 text-emerald-800" 
+                            : "bg-red-100 text-red-800"
+                        }`}>
+                          {log.status === "success" ? "Success" : "Failed"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 font-medium text-slate-700 truncate max-w-[200px]" title={log.url}>
+                        {new URL(log.url, window.location.origin).pathname}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-500">
+                        {log.error || "-"}
+                      </td>
+                    </tr>
+                  ))}
+                  {syncLogs.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-8 text-center text-sm font-bold text-slate-500">
+                        No sync logs available.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </SectionCard>
       ) : null}

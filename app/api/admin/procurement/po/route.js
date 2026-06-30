@@ -24,7 +24,7 @@ export async function GET(request) {
         branch: true,
         items: {
           include: {
-            product: { select: { name: true, sku: true } },
+            variant: true,
           },
         },
       },
@@ -45,28 +45,42 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    const { supplierId, branchId, items } = body;
+    const { supplierId, branchId, items, note, expectedDate } = body;
     const poItems = Array.isArray(items) ? items : [];
 
     if (!supplierId || !branchId || !poItems.length) {
       return fail("Supplier, branch, and items are required.", 422);
     }
 
-    const totalAmount = poItems.reduce((sum, item) => sum + Number(item.quantity) * Number(item.costPrice), 0);
+    let subtotal = 0;
+    const mappedItems = poItems.map((item) => {
+      const orderedQty = Number(item.quantity);
+      const unitCost = Number(item.costPrice);
+      const lineTotal = orderedQty * unitCost;
+      subtotal += lineTotal;
+      return {
+        variantId: item.variantId,
+        orderedQty,
+        unitCost,
+        lineTotal,
+      };
+    });
+
+    const poNumber = `PO-${Date.now()}`;
 
     const po = await prisma.$transaction(async (tx) => {
       const created = await tx.purchaseOrder.create({
         data: {
+          poNumber,
           supplierId,
           branchId,
-          status: "PENDING",
-          totalAmount,
+          status: "DRAFT",
+          subtotal,
+          totalAmount: subtotal, // Assuming no tax/discount initially
+          note,
+          expectedDate: expectedDate ? new Date(expectedDate) : null,
           items: {
-            create: poItems.map((item) => ({
-              productId: item.productId,
-              quantity: Number(item.quantity),
-              costPrice: Number(item.costPrice),
-            })),
+            create: mappedItems,
           },
         },
         include: {
@@ -81,9 +95,10 @@ export async function POST(request) {
           module: "procurement",
           recordId: created.id,
           newValue: {
+            poNumber,
             supplierId,
             branchId,
-            totalAmount,
+            totalAmount: subtotal,
             itemCount: poItems.length,
           },
         },

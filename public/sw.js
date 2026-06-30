@@ -2,7 +2,7 @@ const CACHE_NAME = "myshop-cache-v1";
 const STATIC_CACHE_EXTENSIONS = [".js", ".css", ".png", ".jpg", ".jpeg", ".webp", ".svg", ".ico", ".woff", ".woff2"];
 const APP_SHELL = ["/", "/pos", "/ecommerce", "/offline", "/manifest.json", "/icons/icon-192.svg", "/icons/icon-512.svg"];
 const DB_NAME = "myshop-db";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 function openOfflineDb() {
   return new Promise((resolve, reject) => {
@@ -21,6 +21,10 @@ function openOfflineDb() {
 
       if (!db.objectStoreNames.contains("offline_queue")) {
         db.createObjectStore("offline_queue", { keyPath: "id", autoIncrement: true });
+      }
+
+      if (!db.objectStoreNames.contains("sync_logs")) {
+        db.createObjectStore("sync_logs", { keyPath: "id", autoIncrement: true });
       }
 
       if (!db.objectStoreNames.contains("transactions")) {
@@ -63,6 +67,17 @@ async function addQueuedRequest(entry) {
   return new Promise((resolve, reject) => {
     const transaction = db.transaction("offline_queue", "readwrite");
     transaction.objectStore("offline_queue").add(entry);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
+}
+
+async function addSyncLog(entry) {
+  const db = await openOfflineDb();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction("sync_logs", "readwrite");
+    transaction.objectStore("sync_logs").add(entry);
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error);
   });
@@ -119,6 +134,24 @@ async function networkFirst(request) {
   }
 }
 
+async function staleWhileRevalidate(request) {
+  const cache = await caches.open(CACHE_NAME);
+  const cached = await cache.match(request);
+
+  const fetchPromise = fetch(request)
+    .then((response) => {
+      if (response.ok) {
+        cache.put(request, response.clone());
+      }
+      return response;
+    })
+    .catch(() => {
+      return new Response(JSON.stringify({ error: "Offline" }), { status: 503 });
+    });
+
+  return cached || fetchPromise;
+}
+
 async function queueFailedApiPost(request) {
   const cloned = request.clone();
   const body = await cloned.text();
@@ -164,8 +197,26 @@ async function replayQueue() {
 
       if (response.ok) {
         await removeQueuedRequest(entry.id);
+        await addSyncLog({
+          url: entry.url,
+          status: "success",
+          timestamp: new Date().toISOString(),
+        });
+      } else {
+        await addSyncLog({
+          url: entry.url,
+          status: "error",
+          error: `HTTP Error: ${response.status}`,
+          timestamp: new Date().toISOString(),
+        });
       }
-    } catch {
+    } catch (error) {
+      await addSyncLog({
+        url: entry.url,
+        status: "error",
+        error: error.message || "Network error",
+        timestamp: new Date().toISOString(),
+      });
       // Keep the item queued until the next sync attempt.
     }
   }
@@ -199,7 +250,7 @@ self.addEventListener("fetch", (event) => {
 
   if (url.pathname.startsWith("/api/")) {
     if (request.method === "GET") {
-      event.respondWith(networkFirst(request));
+      event.respondWith(staleWhileRevalidate(request));
       return;
     }
 
@@ -210,7 +261,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (request.method === "GET" && isStaticAsset(url)) {
-    event.respondWith(cacheFirst(request));
+    event.respondWith(staleWhileRevalidate(request));
   }
 });
 

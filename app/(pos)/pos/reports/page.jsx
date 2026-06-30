@@ -5,11 +5,22 @@ import { useEffect, useState } from "react";
 import { formatPrimaryMoney } from "@/components/pos/format";
 import { usePOSSettings } from "@/hooks/usePOSSettings";
 
-const rangeOptions = [
-  { key: "today", label: "Today" },
-  { key: "week", label: "7 days" },
-  { key: "month", label: "Month" },
-];
+function MetricCard({ label, value, detail, comparison }) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p className="text-sm font-bold text-slate-500">{label}</p>
+      <div className="flex items-baseline gap-2 mt-3">
+        <p className="text-3xl font-black tracking-tight">{value}</p>
+        {comparison !== undefined && (
+          <span className={`text-sm font-bold ${comparison >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+            {comparison > 0 ? "+" : ""}{comparison.toFixed(1)}% vs prev
+          </span>
+        )}
+      </div>
+      <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">{detail}</p>
+    </section>
+  );
+}
 
 function ProgressRows({ rows, formatter }) {
   const max = Math.max(...rows.map((row) => Number(row.value ?? row.quantity ?? 0)), 1);
@@ -35,25 +46,18 @@ function ProgressRows({ rows, formatter }) {
   );
 }
 
-function MetricCard({ label, value, detail }) {
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-sm font-bold text-slate-500">{label}</p>
-      <p className="mt-3 text-3xl font-black tracking-tight">{value}</p>
-      <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">{detail}</p>
-    </section>
-  );
-}
+
 
 export default function PosReportsPage() {
   const { settings } = usePOSSettings();
-  const [range, setRange] = useState("today");
+  const [startDate, setStartDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [report, setReport] = useState(null);
   const [message, setMessage] = useState("");
 
   async function loadReport() {
     try {
-      const response = await fetch(`/api/pos/reports?range=${range}`, { cache: "no-store" });
+      const response = await fetch(`/api/pos/reports?startDate=${startDate}&endDate=${endDate}`, { cache: "no-store" });
       const payload = await response.json();
 
       if (!response.ok || !payload.data) {
@@ -74,7 +78,11 @@ export default function PosReportsPage() {
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [range]);
+  }, [startDate, endDate]);
+
+  function handleExport() {
+    window.location.href = `/api/pos/reports/export?startDate=${startDate}&endDate=${endDate}`;
+  }
 
   const metrics = report?.metrics || {
     totalRevenue: 0,
@@ -95,24 +103,26 @@ export default function PosReportsPage() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <div className="grid grid-cols-3 rounded-2xl bg-white p-1 shadow-sm">
-            {rangeOptions.map((option) => (
-              <button
-                key={option.key}
-                type="button"
-                onClick={() => setRange(option.key)}
-                className={
-                  range === option.key
-                    ? "rounded-xl bg-emerald-600 px-4 py-2 text-sm font-black text-white"
-                    : "rounded-xl px-4 py-2 text-sm font-black text-slate-600"
-                }
-              >
-                {option.label}
-              </button>
-            ))}
+          <div className="flex items-center gap-2 rounded-2xl bg-white p-1 shadow-sm px-2">
+            <input 
+              type="date" 
+              value={startDate} 
+              onChange={(e) => setStartDate(e.target.value)} 
+              className="rounded-xl px-3 py-2 text-sm font-bold text-slate-600 outline-none bg-slate-50"
+            />
+            <span className="text-slate-400 font-bold">to</span>
+            <input 
+              type="date" 
+              value={endDate} 
+              onChange={(e) => setEndDate(e.target.value)} 
+              className="rounded-xl px-3 py-2 text-sm font-bold text-slate-600 outline-none bg-slate-50"
+            />
           </div>
-          <button type="button" onClick={loadReport} className="rounded-2xl bg-white px-4 py-2 text-sm font-black text-slate-700 shadow-sm">
-            Refresh
+          <button type="button" onClick={loadReport} className="rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-black text-white shadow-sm hover:bg-emerald-700">
+            Apply
+          </button>
+          <button type="button" onClick={handleExport} className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-black text-white shadow-sm hover:bg-slate-800">
+            Export CSV
           </button>
         </div>
       </div>
@@ -124,8 +134,8 @@ export default function PosReportsPage() {
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <MetricCard label="Revenue" value={formatPrimaryMoney(metrics.totalRevenue, settings, false)} detail="Total synced POS revenue." />
-        <MetricCard label="Transactions" value={Number(metrics.transactions || 0).toLocaleString()} detail="Completed POS transactions." />
+        <MetricCard label="Revenue" value={formatPrimaryMoney(metrics.totalRevenue, settings, false)} detail="Total synced POS revenue." comparison={report?.comparisons?.totalRevenue} />
+        <MetricCard label="Transactions" value={Number(metrics.transactions || 0).toLocaleString()} detail="Completed POS transactions." comparison={report?.comparisons?.transactions} />
         <MetricCard label="Items sold" value={Number(metrics.itemsSold || 0).toLocaleString()} detail="Total product units sold." />
         <MetricCard label="Average sale" value={formatPrimaryMoney(metrics.averageTransaction, settings, false)} detail="Average transaction value." />
         <MetricCard label="Discounts" value={formatPrimaryMoney(metrics.discountTotal, settings, false)} detail="Discount value given at POS." />

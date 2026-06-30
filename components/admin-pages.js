@@ -798,6 +798,14 @@ export function AdminProductManagementPageView() {
                 <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted-foreground)]">Stock</p>
                 <input type="number" value={product.stock} onChange={(event) => store.updateProduct(product.id, { stock: Number(event.target.value) })} className="app-input mt-2 w-full px-3 py-2 text-sm" />
               </div>
+              <div>
+                <Link
+                  href={`/admin/product-management/${product.id}/variants`}
+                  className="inline-flex items-center justify-center rounded-xl bg-[var(--action)] px-4 py-2 text-sm font-semibold text-[var(--action-foreground)]"
+                >
+                  Variants
+                </Link>
+              </div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className={cn("rounded-full px-3 py-1 text-xs font-semibold uppercase", product.isActive ? "bg-emerald-100 text-emerald-700" : "bg-zinc-100 text-zinc-700")}>
                   {product.isActive ? "Active" : "Hidden"}
@@ -870,8 +878,18 @@ export function AdminInventoryPageView() {
   return (
     <div className="space-y-6">
       <Card>
-        <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted-foreground)]">Inventory</p>
-        <h1 className="mt-2 text-4xl font-semibold tracking-tight text-[var(--foreground)]">Restock critical products and track availability.</h1>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted-foreground)]">Inventory</p>
+            <h1 className="mt-2 text-4xl font-semibold tracking-tight text-[var(--foreground)]">Restock critical products and track availability.</h1>
+          </div>
+          <Link
+            href="/admin/procurement"
+            className="inline-flex items-center justify-center rounded-xl bg-[var(--action)] px-6 py-3 text-sm font-semibold text-[var(--action-foreground)]"
+          >
+            Manage Purchase Orders
+          </Link>
+        </div>
       </Card>
       <Card>
         <div className="flex flex-col gap-4">
