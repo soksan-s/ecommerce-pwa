@@ -56,7 +56,6 @@ async function main() {
     data: {
       key: "exchange-rate",
       value: { usdToKhr: 4000 },
-      description: "Default exchange rate",
     },
   });
 
@@ -133,6 +132,7 @@ async function main() {
 
   const adminUser = await prisma.user.create({
     data: {
+      phoneNumber: "+85512000001",
       email: "admin@example.com",
       passwordHash: bcryptHash,
       role: "ADMIN",
@@ -145,6 +145,7 @@ async function main() {
 
   await prisma.user.create({
     data: {
+      phoneNumber: "+85512000002",
       email: "cashier@example.com",
       passwordHash: bcryptHash,
       role: "CASHIER",
@@ -157,6 +158,7 @@ async function main() {
 
   await prisma.user.create({
     data: {
+      phoneNumber: "+85512000003",
       email: "client@example.com",
       passwordHash: bcryptHash,
       role: "CLIENT",

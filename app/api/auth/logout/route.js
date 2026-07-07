@@ -1,15 +1,16 @@
 import { ok } from "@/lib/api-response";
-import { getSessionCookieName, sessionCookieOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 
 export async function POST() {
-  const response = ok({
-    message: "Logged out.",
-  });
+  try {
+    // Sign out via Better Auth
+    await auth.api.signOut({
+      headers: await headers(),
+    });
+  } catch {
+    // Ignore - may already be signed out
+  }
 
-  response.cookies.set(getSessionCookieName(), "", {
-    ...sessionCookieOptions(),
-    maxAge: 0,
-  });
-
-  return response;
+  return ok({ message: "Logged out." });
 }

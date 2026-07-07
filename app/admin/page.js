@@ -10,8 +10,13 @@ export default async function AdminIndexPage() {
     redirect("/login");
   }
 
-  if (user.role !== "ADMIN") {
+  if (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN") {
     redirect("/login");
+  }
+
+  // Admin First-Boot: force password change if they haven't changed the default password
+  if (!user.passwordChangedAt) {
+    redirect("/admin/change-password");
   }
 
   return <AdminShell user={user} />;

@@ -1,130 +1,52 @@
-import { fail, handleRouteError, isDatabaseUnavailableError, ok } from "@/lib/api-response";
-import {
-  createSessionToken,
-  getAdminPassword,
-  getCashierPassword,
-  getSessionCookieName,
-  hashPassword,
-  isAdminEmail,
-  isCashierEmail,
-  sessionCookieOptions,
-  verifyPassword,
-} from "@/lib/auth";
+import { fail, handleRouteError, ok } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
-import { loginSchema } from "@/lib/validations";
-
-function createLoginResponse(user) {
-  const token = createSessionToken({
-    id: user.id,
-    email: user.email,
-    role: user.role,
-  });
-
-  const response = ok({
-    message: "Login successful.",
-    user: {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-    },
-  });
-
-  response.cookies.set(getSessionCookieName(), token, sessionCookieOptions());
-  return response;
-}
+import bcrypt from "bcryptjs";
 
 export async function POST(request) {
-  let result = null;
-  let canUseEnvAdminPassword = false;
-  let canUseEnvCashierPassword = false;
-  let email = "";
-
   try {
     const body = await request.json();
-    result = loginSchema.safeParse(body);
+    const { phoneNumber, password } = body;
 
-    if (!result.success) {
-      return fail("Invalid login payload.", 422, { issues: result.error.flatten() });
+    if (!phoneNumber || !password) {
+      return fail("Missing required fields.", 400);
     }
 
-    email = result.data.email.toLowerCase();
-    const configuredAdminPassword = getAdminPassword();
-    const configuredCashierPassword = getCashierPassword();
-    canUseEnvAdminPassword =
-      isAdminEmail(email) &&
-      configuredAdminPassword &&
-      result.data.password === configuredAdminPassword;
-    canUseEnvCashierPassword =
-      isCashierEmail(email) &&
-      configuredCashierPassword &&
-      result.data.password === configuredCashierPassword;
+    // Since we're using Better Auth, we don't actually need this custom login route for standard sessions
+    // Better Auth provides `authClient.signIn.phoneNumber({ phoneNumber, password })` on the frontend
+    // This route is kept for manual checks or specific admin first-boot logic if needed.
 
-    let user = null;
-
-    if (canUseEnvAdminPassword) {
-      const passwordHash = await hashPassword(configuredAdminPassword);
-      user = await prisma.user.upsert({
-        where: {
-          email,
-        },
-        update: {
-          role: "ADMIN",
-          passwordHash,
-        },
-        create: {
-          email,
-          role: "ADMIN",
-          passwordHash,
-        },
+    // BUT for Admin First-Boot:
+    // If the phone matches the .env ADMIN_PHONE, we can intercept and create the user if missing,
+    // before letting Better Auth log them in.
+    const adminPhone = (process.env.ADMIN_PHONE || "").trim();
+    if (adminPhone && phoneNumber === adminPhone) {
+      const existingAdmin = await prisma.user.findUnique({
+        where: { phoneNumber: adminPhone },
       });
-    } else if (canUseEnvCashierPassword) {
-      const passwordHash = await hashPassword(configuredCashierPassword);
-      user = await prisma.user.upsert({
-        where: {
-          email,
-        },
-        update: {
-          role: "CASHIER",
-          passwordHash,
-        },
-        create: {
-          email,
-          role: "CASHIER",
-          passwordHash,
-        },
-      });
-    } else {
-      user = await prisma.user.findUnique({
-        where: {
-          email,
-        },
-      });
+
+      if (!existingAdmin) {
+        // Create the admin user on the fly if they don't exist
+        const adminPassword = (process.env.ADMIN_PASSWORD || "").trim();
+        if (password !== adminPassword) {
+          return fail("Invalid credentials.", 401);
+        }
+
+        const passwordHash = await bcrypt.hash(adminPassword, 10);
+        await prisma.user.create({
+          data: {
+            phoneNumber: adminPhone,
+            passwordHash,
+            role: "ADMIN",
+            status: "ACTIVE",
+            phoneNumberVerified: true,
+            // passwordChangedAt is NULL, forcing a password change on first login
+          },
+        });
+      }
     }
 
-    if (!user) {
-      return fail("Email or password is incorrect.", 401);
-    }
-
-    const isValid = canUseEnvAdminPassword || canUseEnvCashierPassword
-      ? true
-      : await verifyPassword(result.data.password, user.passwordHash);
-
-    if (!isValid) {
-      return fail("Email or password is incorrect.", 401);
-    }
-
-    return createLoginResponse(user);
+    return ok({ message: "Proceed to Better Auth sign in." });
   } catch (error) {
-    if (result?.success && isDatabaseUnavailableError(error) && (canUseEnvAdminPassword || canUseEnvCashierPassword)) {
-      return createLoginResponse({
-        id: `env-${canUseEnvAdminPassword ? "admin" : "cashier"}-${email}`,
-        email,
-        role: canUseEnvAdminPassword ? "ADMIN" : "CASHIER",
-      });
-    }
-
-    return handleRouteError(error, "Unable to process login request.", {
-      databaseMessage: "Unable to process login right now because the database is unreachable. Check your Neon connection and try again.",
-    });
+    return handleRouteError(error, "Unable to process login request.");
   }
 }

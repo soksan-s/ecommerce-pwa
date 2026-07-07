@@ -11,6 +11,7 @@ import { usePosStore } from "@/store/posStore";
 import { usePOSSettings } from "@/hooks/usePOSSettings";
 import { useTranslation } from "@/lib/translations";
 import { requestBackgroundSync } from "@/lib/sync";
+import { authClient } from "@/lib/auth-client";
 
 const navItems = [
   { label: "Dashboard", href: "/pos", icon: Home },
@@ -41,7 +42,10 @@ export function PosLayoutShell({ children }) {
   const { t } = useTranslation(lang);
 
   async function handleLogout() {
-    await fetch("/api/auth/logout", { method: "POST" });
+    try {
+      await authClient.signOut();
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {}
     router.push("/login");
     router.refresh();
   }

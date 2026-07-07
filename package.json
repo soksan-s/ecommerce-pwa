@@ -16,6 +16,7 @@
     "@hookform/resolvers": "^5.2.2",
     "@prisma/client": "^6.19.3",
     "bcryptjs": "^3.0.2",
+    "better-auth": "^1.6.23",
     "class-variance-authority": "^0.7.1",
     "cloudinary": "^2.7.0",
     "clsx": "^2.1.1",

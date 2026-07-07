@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  Users,
   AlertTriangle,
   BarChart3,
   Bell,
@@ -26,6 +27,7 @@ import {
   AdminProductManagementPageView,
   AdminSalesReportPageView,
   AdminSupportInboxPageView,
+  AdminUsersPageView,
 } from "@/components/admin-pages";
 import { useAppStore } from "@/components/app-store-provider";
 import { LogoutButton } from "@/components/logout-button";
@@ -41,6 +43,7 @@ const adminTabs = [
   { key: "sales", label: "Sales", icon: BarChart3 },
   { key: "coupons", label: "Coupons", icon: Ticket },
   { key: "support", label: "Support", icon: LifeBuoy },
+  { key: "users", label: "Users", icon: Users },
 ];
 
 function resolveAdminTab(value) {
@@ -92,6 +95,8 @@ export function AdminShell({ user, initialTab = "dashboard" }) {
         return "Coupons";
       case "support":
         return "Support";
+      case "users":
+        return "User Management";
       default:
         return "Admin Dashboard";
     }
@@ -117,6 +122,8 @@ export function AdminShell({ user, initialTab = "dashboard" }) {
         return <AdminCouponsPageView />;
       case "support":
         return <AdminSupportInboxPageView user={user} />;
+      case "users":
+        return <AdminUsersPageView currentUserId={user?.id} />;
       default:
         return <AdminDashboardPageView />;
     }

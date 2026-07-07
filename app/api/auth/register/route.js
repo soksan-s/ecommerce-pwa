@@ -1,79 +1,81 @@
 import { fail, handleRouteError, ok } from "@/lib/api-response";
-import {
-  createSessionToken,
-  getAdminPassword,
-  getCashierPassword,
-  getSessionCookieName,
-  hashPassword,
-  isAdminEmail,
-  isCashierEmail,
-  sessionCookieOptions,
-} from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { loginSchema } from "@/lib/validations";
+import bcrypt from "bcryptjs";
 
 export async function POST(request) {
   try {
-    const body = await request.json();
-    const result = loginSchema.safeParse(body);
+    const { username, phoneNumber, password, code } = await request.json();
 
-    if (!result.success) {
-      return fail("Invalid register payload.", 422, { issues: result.error.flatten() });
+    if (!phoneNumber || !password || !code) {
+      return fail("Missing required fields.", 400);
     }
 
-    const email = result.data.email.toLowerCase();
+    if (password.length < 4) {
+      return fail("Password must be at least 4 characters long.", 400);
+    }
+
+    // Secure check: verify the code again or verify that it was recently marked as used
+    // We'll re-verify the code against the most recently used OTP for VERIFY_PHONE
+    const recentOtp = await prisma.otp.findFirst({
+      where: {
+        phone: phoneNumber,
+        purpose: "VERIFY_PHONE",
+        usedAt: { not: null },
+      },
+      orderBy: {
+        usedAt: "desc",
+      },
+    });
+
+    if (!recentOtp) {
+      return fail("Phone number not verified. Please verify your phone number first.", 400);
+    }
+
+    // Must be used within the last 15 minutes to allow registration
+    if (Date.now() - recentOtp.usedAt.getTime() > 15 * 60 * 1000) {
+      return fail("Phone verification expired. Please verify again.", 400);
+    }
+
+    // Verify the code matches
+    const isValid = await bcrypt.compare(code, recentOtp.codeHash);
+    if (!isValid) {
+      return fail("Invalid verification code provided.", 400);
+    }
+
+    // Check if user exists
     const existingUser = await prisma.user.findUnique({
       where: {
-        email,
+        phoneNumber,
       },
     });
 
     if (existingUser) {
-      return fail("An account with this email already exists.", 409);
+      return fail("An account with this phone number already exists.", 409);
     }
 
-    const passwordHash = await hashPassword(result.data.password);
-    const configuredAdminPassword = getAdminPassword();
-    const configuredCashierPassword = getCashierPassword();
-    const canRegisterAdmin =
-      isAdminEmail(email) &&
-      configuredAdminPassword &&
-      result.data.password === configuredAdminPassword;
-    const canRegisterCashier =
-      isCashierEmail(email) &&
-      configuredCashierPassword &&
-      result.data.password === configuredCashierPassword;
-    const role = canRegisterAdmin ? "ADMIN" : canRegisterCashier ? "CASHIER" : "CLIENT";
-
+    const passwordHash = await bcrypt.hash(password, 10);
+    
     const user = await prisma.user.create({
       data: {
-        email,
+        username: username || "",
+        phoneNumber,
         passwordHash,
-        role,
+        phoneNumberVerified: true,
+        role: "CLIENT", // Always CLIENT (Customer) for public registration
       },
     });
 
-    const token = createSessionToken({
-      id: user.id,
-      email: user.email,
-      role: user.role,
-    });
-
-    const response = ok({
-      message: "Account created.",
+    return ok({
+      message: "Account created successfully.",
       user: {
         id: user.id,
-        email: user.email,
+        phoneNumber: user.phoneNumber,
         role: user.role,
       },
     });
-
-    response.cookies.set(getSessionCookieName(), token, sessionCookieOptions());
-    return response;
   } catch (error) {
     return handleRouteError(error, "Unable to process register request.", {
-      conflictMessage: "An account with this email already exists.",
-      databaseMessage: "Unable to process registration right now because the database is unreachable. Check your Neon connection and try again.",
+      conflictMessage: "An account with this phone number already exists.",
     });
   }
 }

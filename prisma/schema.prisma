@@ -19,6 +19,11 @@ enum UserStatus {
   PENDING_VERIFICATION
 }
 
+enum OtpPurpose {
+  VERIFY_PHONE
+  RESET_PASSWORD
+}
+
 enum BranchStatus {
   ACTIVE
   INACTIVE
@@ -299,17 +304,22 @@ model Branch {
 
 model User {
   id                        String                  @id @default(cuid())
-  email                     String                  @unique
-  passwordHash              String
+  email                     String?
+  emailVerified             Boolean                 @default(false)
+  image                     String?
+  username                  String?
+  passwordHash              String?
+  phoneNumber               String                  @unique
+  phoneNumberVerified       Boolean                 @default(false)
   role                      UserRole                @default(CLIENT)
   roleId                    String?
   branchId                  String?
   name                      String?
   nameKh                    String?
-  phone                     String?
   avatarUrl                 String?
   status                    UserStatus              @default(ACTIVE)
   lastLoginAt               DateTime?
+  passwordChangedAt         DateTime?
   roleRef                   Role?                   @relation(fields: [roleId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   branch                    Branch?                 @relation(fields: [branchId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   orders                    Order[]
@@ -329,12 +339,68 @@ model User {
   createdAt                 DateTime                @default(now())
   updatedAt                 DateTime                @updatedAt
   deletedAt                 DateTime?
+  sessions                  Session[]
+  accounts                  Account[]
 
+  @@index([phoneNumber])
   @@index([email])
   @@index([branchId])
   @@index([role])
   @@index([status])
   @@index([deletedAt])
+}
+
+model Otp {
+  id        String     @id @default(cuid())
+  phone     String
+  codeHash  String
+  purpose   OtpPurpose
+  expiresAt DateTime
+  attempts  Int        @default(0)
+  usedAt    DateTime?
+  createdAt DateTime   @default(now())
+
+  @@index([phone])
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String
+  createdAt DateTime
+  updatedAt DateTime
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime
+  updatedAt             DateTime
+}
+
+model Verification {
+  id         String    @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime?
+  updatedAt  DateTime?
 }
 
 model Role {
@@ -1624,7 +1690,7 @@ model Driver {
   id           String     @id @default(cuid())
   name         String
   nameKh       String?
-  phone        String     @unique
+  phoneNumber  String     @unique
   vehicleType  String?
   vehiclePlate String?
   status       DriverStatus @default(AVAILABLE)

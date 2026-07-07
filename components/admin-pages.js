@@ -15,6 +15,10 @@ import {
   ShieldAlert,
   Ticket,
   TrendingUp,
+  UserCheck,
+  UserX,
+  UserPlus,
+  Users
 } from "lucide-react";
 
 import { useAppStore } from "@/components/app-store-provider";
@@ -1371,3 +1375,317 @@ export function AdminSupportInboxPageView({ user }) {
     </div>
   );
 }
+
+export function AdminUsersPageView({ currentUserId }) {
+  const [users, setUsers] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [fetching, setFetching] = useState(true);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addForm, setAddForm] = useState({ name: "", phoneNumber: "", password: "", role: "CASHIER" });
+  const [addLoading, setAddLoading] = useState(false);
+  const [addError, setAddError] = useState("");
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadUsers() {
+      try {
+        const res = await fetch("/api/admin/users");
+        if (!res.ok) throw new Error("Failed to load users");
+        const data = await res.json();
+        if (mounted) setUsers(data.users || []);
+      } catch (err) {
+        if (mounted) setError(err.message);
+      } finally {
+        if (mounted) setFetching(false);
+      }
+    }
+    loadUsers();
+    return () => { mounted = false; };
+  }, []);
+
+  const filteredUsers = users.filter(user => 
+    (user.name && user.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (user.username && user.username.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    user.phoneNumber.includes(searchQuery) ||
+    user.role.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  async function toggleStatus(userId, currentStatus) {
+    setIsLoading(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const newStatus = currentStatus === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
+      const res = await fetch(`/api/admin/users/${userId}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to update status");
+      }
+
+      setUsers(users.map(u => u.id === userId ? { ...u, status: newStatus } : u));
+      setMessage("User status updated successfully.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function deleteUser(userId) {
+    if (!confirm("Are you sure you want to delete this user? This cannot be undone.")) return;
+
+    setIsLoading(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete user");
+      }
+
+      setUsers(users.filter(u => u.id !== userId));
+      setMessage("User deleted successfully.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function handleAddUser(event) {
+    event.preventDefault();
+    setAddError("");
+    setAddLoading(true);
+
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(addForm),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create user");
+
+      setUsers([data.user, ...users]);
+      setMessage("User created successfully.");
+      setShowAddModal(false);
+      setAddForm({ name: "", phoneNumber: "", password: "", role: "CASHIER" });
+    } catch (err) {
+      setAddError(err.message);
+    } finally {
+      setAddLoading(false);
+    }
+  }
+
+  if (fetching) {
+    return (
+      <Card>
+        <div className="py-8 text-center text-sm text-[var(--muted-foreground)]">Loading users...</div>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <input
+          type="text"
+          placeholder="Search users..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="app-input w-full max-w-sm px-4 py-3 text-sm"
+        />
+        <Button onClick={() => { setShowAddModal(true); setAddError(""); }}>
+          <UserPlus className="mr-2 h-4 w-4" />
+          Add User
+        </Button>
+      </div>
+
+      {error && <div className="rounded-lg bg-red-50 p-4 text-sm text-red-600">{error}</div>}
+      {message && <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-600">{message}</div>}
+
+      <Card>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm text-[var(--foreground)]">
+            <thead className="border-b border-[var(--border-soft)] text-xs uppercase text-[var(--muted-foreground)]">
+              <tr>
+                <th className="px-6 py-4 font-semibold">User</th>
+                <th className="px-6 py-4 font-semibold">Phone</th>
+                <th className="px-6 py-4 font-semibold">Role</th>
+                <th className="px-6 py-4 font-semibold">Status</th>
+                <th className="px-6 py-4 font-semibold">Joined</th>
+                <th className="px-6 py-4 text-right font-semibold">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[var(--border-soft)]">
+              {filteredUsers.map((user) => (
+                <tr key={user.id} className="hover:bg-[var(--surface-quiet)]">
+                  <td className="px-6 py-4 font-medium">
+                    {user.name || user.username || "Unknown"}
+                  </td>
+                  <td className="px-6 py-4">{user.phoneNumber}</td>
+                  <td className="px-6 py-4">
+                    <span className="rounded-full bg-[var(--surface-quiet)] px-2.5 py-0.5 text-xs font-semibold">
+                      {user.role}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                      user.status === "ACTIVE" ? "bg-emerald-100/50 text-emerald-700" : "bg-red-100/50 text-red-700"
+                    }`}>
+                      {user.status === "ACTIVE" ? <UserCheck className="h-3 w-3" /> : <UserX className="h-3 w-3" />}
+                      {user.status}
+                    </span>
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-[var(--muted-foreground)]">
+                    {new Date(user.createdAt).toLocaleDateString()}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    {user.id !== currentUserId && user.role !== "SUPER_ADMIN" ? (
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => toggleStatus(user.id, user.status)}
+                          disabled={isLoading}
+                          className="text-xs font-medium text-amber-500 hover:text-amber-600 disabled:opacity-50"
+                        >
+                          {user.status === "ACTIVE" ? "Suspend" : "Activate"}
+                        </button>
+                        <button
+                          onClick={() => deleteUser(user.id)}
+                          disabled={isLoading}
+                          className="text-xs font-medium text-red-500 hover:text-red-600 disabled:opacity-50"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-[var(--muted-foreground)]">Protected</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {filteredUsers.length === 0 && (
+            <div className="py-8 text-center text-[var(--muted-foreground)]">No users found.</div>
+          )}
+        </div>
+      </Card>
+
+      {/* Add User Modal */}
+      <AnimatePresence>
+        {showAddModal ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+              onClick={() => setShowAddModal(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 12 }}
+              transition={{ duration: 0.3 }}
+              className="app-card relative w-full max-w-md p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="text-xl font-semibold text-[var(--foreground)]">Add New User</h2>
+              <p className="mt-1 text-sm text-[var(--muted-foreground)]">Create a new system user account.</p>
+
+              <form onSubmit={handleAddUser} className="mt-5 space-y-4">
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-[var(--foreground)]">Full Name (Optional)</label>
+                  <input
+                    type="text"
+                    value={addForm.name}
+                    onChange={(e) => setAddForm(f => ({ ...f, name: e.target.value }))}
+                    placeholder="e.g. Soksan Staff"
+                    className="app-input px-4 py-3 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-[var(--foreground)]">Phone Number <span className="text-red-500">*</span></label>
+                  <input
+                    type="tel"
+                    value={addForm.phoneNumber}
+                    onChange={(e) => setAddForm(f => ({ ...f, phoneNumber: e.target.value }))}
+                    placeholder="+855..."
+                    required
+                    className="app-input px-4 py-3 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-[var(--foreground)]">Password <span className="text-red-500">*</span></label>
+                  <input
+                    type="password"
+                    value={addForm.password}
+                    onChange={(e) => setAddForm(f => ({ ...f, password: e.target.value }))}
+                    placeholder="Min. 6 characters"
+                    required
+                    className="app-input px-4 py-3 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-[var(--foreground)]">Role <span className="text-red-500">*</span></label>
+                  <select
+                    value={addForm.role}
+                    onChange={(e) => setAddForm(f => ({ ...f, role: e.target.value }))}
+                    className="app-input px-4 py-3 text-sm"
+                  >
+                    <option value="CLIENT">Client (Customer)</option>
+                    <option value="CASHIER">Cashier</option>
+                    <option value="MANAGER">Manager</option>
+                    <option value="WAREHOUSE_STAFF">Warehouse Staff</option>
+                    <option value="DRIVER">Driver</option>
+                    <option value="ADMIN">Admin</option>
+                  </select>
+                </div>
+
+                {addError && (
+                  <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600">{addError}</div>
+                )}
+
+                <div className="flex gap-3 pt-2">
+                  <Button type="submit" disabled={addLoading} className="flex-1">
+                    {addLoading ? "Creating..." : "Create User"}
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddModal(false)}
+                    className="rounded-xl border border-[var(--border-soft)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--surface-quiet)]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        ) : null}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+
+
