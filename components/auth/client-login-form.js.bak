@@ -1,0 +1,137 @@
+"use client";
+
+import { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
+import { useRouter } from "next/navigation";
+
+import { Button } from "@/components/ui/button";
+import { authClient } from "@/lib/auth-client";
+
+function getRoleRedirect(role) {
+  if (role === "ADMIN" || role === "SUPER_ADMIN") return "/admin";
+  if (role === "CASHIER" || role === "MANAGER") return "/pos";
+  return "/client";
+}
+
+function AuthNotice({ children, tone = "neutral" }) {
+  const toneClasses =
+    tone === "error"
+      ? "border-red-200 bg-red-50 text-red-700"
+      : "border-[var(--border-soft)] bg-[var(--surface-quiet)] text-[var(--foreground)]";
+
+  return (
+    <div className={"rounded-2xl border px-4 py-3 text-sm " + toneClasses}>
+      {children}
+    </div>
+  );
+}
+
+export function ClientLoginForm({ onSwitchToRegister, onSwitchToForgot }) {
+  const router = useRouter();
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [password, setPassword] = useState("");
+  const [hidePassword, setHidePassword] = useState(true);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    if (!phoneNumber.trim()) {
+      setError("Enter a valid phone number");
+      return;
+    }
+    if (password.length < 4) {
+      setError("Password must be at least 4 characters");
+      return;
+    }
+
+    setError("");
+    setLoading(true);
+
+    try {
+      // Admin first-boot intercept (creates admin if missing)
+      await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phoneNumber, password }),
+      });
+
+      const { data, error: authError } = await authClient.signIn.phoneNumber({
+        phoneNumber,
+        password,
+      });
+
+      if (authError) {
+        setError(authError.message || "Invalid phone number or password.");
+        setLoading(false);
+        return;
+      }
+
+      router.push(getRoleRedirect(data?.user?.role || "CLIENT"));
+    } catch {
+      setError("An unexpected error occurred.");
+      setLoading(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <h2 className="text-3xl font-semibold text-[var(--foreground)]">Welcome back</h2>
+        <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">Sign in with your phone number.</p>
+      </div>
+
+      <div>
+        <label className="mb-2 block text-sm font-medium text-[var(--foreground)]">Phone Number</label>
+        <input
+          type="tel"
+          value={phoneNumber}
+          onChange={(event) => setPhoneNumber(event.target.value)}
+          placeholder="+855"
+          className="app-input px-4 py-3"
+        />
+      </div>
+
+      <div>
+        <label className="mb-2 block text-sm font-medium text-[var(--foreground)]">Password</label>
+        <div className="relative">
+          <input
+            type={hidePassword ? "password" : "text"}
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            className="app-input px-4 py-3 pr-12"
+          />
+          <button
+            type="button"
+            onClick={() => setHidePassword((current) => !current)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
+            aria-label="Toggle password visibility"
+          >
+            {hidePassword ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+          </button>
+        </div>
+      </div>
+
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={onSwitchToForgot}
+          className="text-sm font-medium text-[var(--foreground)] hover:underline"
+        >
+          Forgot Password?
+        </button>
+      </div>
+
+      {error ? <AuthNotice tone="error">{error}</AuthNotice> : null}
+
+      <Button type="submit" className="w-full" disabled={loading}>
+        {loading ? "Please wait..." : "Login"}
+      </Button>
+
+      <button type="button" onClick={onSwitchToRegister} className="text-sm font-medium text-[var(--foreground)]">
+        Create account
+      </button>
+    </form>
+  );
+}
+
