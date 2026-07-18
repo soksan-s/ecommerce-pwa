@@ -155,7 +155,7 @@ export function ClientLoginForm({ onSwitchToRegister, onSwitchToForgot }) {
               }
               setNationalNumber(raw.replace(/\D/g, ""));
             }}
-            placeholder="11831023"
+            placeholder="12345678"
             inputMode="tel"
             className="app-input px-4 py-3"
             aria-label="Phone number"

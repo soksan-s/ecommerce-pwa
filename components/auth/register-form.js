@@ -5,6 +5,7 @@ import { Eye, EyeOff } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
+import { RegistrationAlreadyExistsModal } from "@/components/auth/registration-already-exists-modal";
 
 function AuthNotice({ children, tone = "neutral" }) {
   const toneClasses =
@@ -12,11 +13,7 @@ function AuthNotice({ children, tone = "neutral" }) {
       ? "border-red-200 bg-red-50 text-red-700"
       : "border-[var(--border-soft)] bg-[var(--surface-quiet)] text-[var(--foreground)]";
 
-  return (
-    <div className={"rounded-2xl border px-4 py-3 text-sm " + toneClasses}>
-      {children}
-    </div>
-  );
+  return <div className={"rounded-2xl border px-4 py-3 text-sm " + toneClasses}>{children}</div>;
 }
 
 function formatPhoneToE164FromDialCode(dialCode, nationalNumber) {
@@ -61,6 +58,9 @@ export function RegisterForm({ onSwitchToLogin }) {
   const recaptchaVerifierRef = useRef(null);
   const recaptchaContainerRef = useRef(null);
 
+  const [accountExistsModalOpen, setAccountExistsModalOpen] = useState(false);
+  const [accountExistsPhone, setAccountExistsPhone] = useState("");
+
   function tryDetectCountryFromInput(rawValue) {
     const value = rawValue || "";
     if (!value.trim()) return;
@@ -90,9 +90,23 @@ export function RegisterForm({ onSwitchToLogin }) {
     }
 
     setError("");
+    setAccountExistsModalOpen(false);
+    setAccountExistsPhone(trimmed);
     setLoading(true);
 
     try {
+      // REQUIRED: check existence BEFORE moving to OTP/password steps
+      const checkRes = await fetch(
+        `/api/auth/check-phone-exists?phoneNumber=${encodeURIComponent(trimmed)}`,
+        { method: "GET", cache: "no-store" },
+      );
+      const checkPayload = await checkRes.json();
+
+      if (checkRes.ok && checkPayload?.exists) {
+        setAccountExistsModalOpen(true);
+        return;
+      }
+
       const { RecaptchaVerifier, signInWithPhoneNumber } = await import("firebase/auth");
       const { firebaseAuth } = await import("@/lib/firebase");
 
@@ -202,147 +216,166 @@ export function RegisterForm({ onSwitchToLogin }) {
     }
   }
 
-  if (step === 1) {
-    return (
-      <form onSubmit={handleSendOTP} className="space-y-4">
-        <div id="recaptcha-register" ref={recaptchaContainerRef} />
+  return (
+    <>
+      <RegistrationAlreadyExistsModal
+        open={accountExistsModalOpen}
+        phoneNumber={accountExistsPhone}
+        onClose={() => setAccountExistsModalOpen(false)}
+        onSignIn={() => {
+          setAccountExistsModalOpen(false);
+          onSwitchToLogin?.();
+        }}
+      />
 
-        <div>
-          <h2 className="text-3xl font-semibold text-[var(--foreground)]">Create account</h2>
-          <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">Step 1: Enter your phone number to receive a verification SMS.</p>
-        </div>
+      {step === 1 ? (
+        <form onSubmit={handleSendOTP} className="space-y-4">
+          <div id="recaptcha-register" ref={recaptchaContainerRef} />
 
-        <div>
-          <label className="mb-2 block text-sm font-medium text-[var(--foreground)]">Name (Optional)</label>
-          <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} className="app-input px-4 py-3" />
-        </div>
+          <div>
+            <h2 className="text-3xl font-semibold text-[var(--foreground)]">Create account</h2>
+            <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
+              Step 1: Enter your phone number to receive a verification SMS.
+            </p>
+          </div>
 
-        <div>
-          <label className="mb-2 block text-sm font-medium text-[var(--foreground)]">Phone Number</label>
-          <div className="flex items-stretch gap-2">
-            <select
-              value={countryDialCode}
-              onChange={(e) => setCountryDialCode(e.target.value)}
-              className="app-input px-3 py-3"
-              aria-label="Select country"
-            >
-              {countries.map((c) => (
-                <option key={c.code} value={c.dialCode}>
-                  {c.name} ({c.dialCode})
-                </option>
-              ))}
-            </select>
-
+          <div>
+            <label className="mb-2 block text-sm font-medium text-[var(--foreground)]">Name (Optional)</label>
             <input
-              type="tel"
-              value={nationalNumber}
-              onChange={(e) => {
-                const raw = e.target.value;
-                if (raw.trim().startsWith("+")) {
-                  tryDetectCountryFromInput(raw);
-                  return;
-                }
-                setNationalNumber(raw.replace(/\D/g, ""));
-              }}
-              placeholder="11831023"
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
               className="app-input px-4 py-3"
-              aria-label="Phone number"
             />
           </div>
-          <p className="mt-1 text-xs text-[var(--muted-foreground)]">Country prefix is selected automatically.</p>
-        </div>
 
-        {error ? <AuthNotice tone="error">{error}</AuthNotice> : null}
+          <div>
+            <label className="mb-2 block text-sm font-medium text-[var(--foreground)]">Phone Number</label>
+            <div className="flex items-stretch gap-2">
+              <select
+                value={countryDialCode}
+                onChange={(e) => setCountryDialCode(e.target.value)}
+                className="app-input px-3 py-3"
+                aria-label="Select country"
+              >
+                {countries.map((c) => (
+                  <option key={c.code} value={c.dialCode}>
+                    {c.name} ({c.dialCode})
+                  </option>
+                ))}
+              </select>
 
-        <Button type="submit" className="w-full" disabled={loading}>
-          {loading ? "Sending SMS..." : "Send Verification Code"}
-        </Button>
+              <input
+                type="tel"
+                value={nationalNumber}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  if (raw.trim().startsWith("+")) {
+                    tryDetectCountryFromInput(raw);
+                    return;
+                  }
+                  setNationalNumber(raw.replace(/\D/g, ""));
+                }}
+                placeholder="11831023"
+                className="app-input px-4 py-3"
+                aria-label="Phone number"
+              />
+            </div>
+            <p className="mt-1 text-xs text-[var(--muted-foreground)]">Country prefix is selected automatically.</p>
+          </div>
 
-        <button type="button" onClick={onSwitchToLogin} className="text-sm font-medium text-[var(--foreground)]">
-          Back to login
-        </button>
-      </form>
-    );
-  }
+          {error ? <AuthNotice tone="error">{error}</AuthNotice> : null}
 
-  if (step === 2) {
-    return (
-      <form onSubmit={handleVerifyOTP} className="space-y-4">
-        <div>
-          <h2 className="text-3xl font-semibold text-[var(--foreground)]">Verify Phone</h2>
-          <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">Step 2: Enter the 6-digit code sent via SMS to {phoneNumber}.</p>
-        </div>
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? "Sending SMS..." : "Send Verification Code"}
+          </Button>
 
-        <div>
-          <label className="mb-2 block text-sm font-medium text-[var(--foreground)]">Verification Code</label>
-          <input
-            type="text"
-            inputMode="numeric"
-            value={otp}
-            onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-            placeholder="123456"
-            className="app-input px-4 py-3 text-center tracking-widest text-lg"
-            autoComplete="one-time-code"
-          />
-        </div>
-
-        {error ? <AuthNotice tone="error">{error}</AuthNotice> : null}
-
-        <Button type="submit" className="w-full" disabled={loading}>
-          {loading ? "Verifying..." : "Verify Code"}
-        </Button>
-
-        <button type="button" onClick={() => setStep(1)} className="text-sm font-medium text-[var(--foreground)]">
-          1 Resend code
-        </button>
-      </form>
-    );
-  }
-
-  return (
-    <form onSubmit={handleCompleteRegister} className="space-y-4">
-      <div>
-        <h2 className="text-3xl font-semibold text-[var(--foreground)]">Secure Account</h2>
-        <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">Step 3: Create a secure password.</p>
-      </div>
-
-      <div>
-        <label className="mb-2 block text-sm font-medium text-[var(--foreground)]">Password</label>
-        <div className="relative">
-          <input
-            type={hidePassword ? "password" : "text"}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="app-input px-4 py-3 pr-12"
-          />
-          <button
-            type="button"
-            onClick={() => setHidePassword((current) => !current)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
-          >
-            {hidePassword ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+          <button type="button" onClick={onSwitchToLogin} className="text-sm font-medium text-[var(--foreground)]">
+            Back to login
           </button>
-        </div>
-      </div>
+        </form>
+      ) : null}
 
-      <div>
-        <label className="mb-2 block text-sm font-medium text-[var(--foreground)]">Confirm Password</label>
-        <div className="relative">
-          <input
-            type={hidePassword ? "password" : "text"}
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            className="app-input px-4 py-3 pr-12"
-          />
-        </div>
-      </div>
+      {step === 2 ? (
+        <form onSubmit={handleVerifyOTP} className="space-y-4">
+          <div>
+            <h2 className="text-3xl font-semibold text-[var(--foreground)]">Verify Phone</h2>
+            <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
+              Step 2: Enter the 6-digit code sent via SMS to {phoneNumber}.
+            </p>
+          </div>
 
-      {error ? <AuthNotice tone="error">{error}</AuthNotice> : null}
+          <div>
+            <label className="mb-2 block text-sm font-medium text-[var(--foreground)]">Verification Code</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="123456"
+              className="app-input px-4 py-3 text-center tracking-widest text-lg"
+              autoComplete="one-time-code"
+            />
+          </div>
 
-      <Button type="submit" className="w-full" disabled={loading}>
-        {loading ? "Creating Account..." : "Create Account"}
-      </Button>
-    </form>
+          {error ? <AuthNotice tone="error">{error}</AuthNotice> : null}
+
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? "Verifying..." : "Verify Code"}
+          </Button>
+
+          <button type="button" onClick={() => setStep(1)} className="text-sm font-medium text-[var(--foreground)]">
+            Resend code
+          </button>
+        </form>
+      ) : null}
+
+      {step === 3 ? (
+        <form onSubmit={handleCompleteRegister} className="space-y-4">
+          <div>
+            <h2 className="text-3xl font-semibold text-[var(--foreground)]">Secure Account</h2>
+            <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">Step 3: Create a secure password.</p>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium text-[var(--foreground)]">Password</label>
+            <div className="relative">
+              <input
+                type={hidePassword ? "password" : "text"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="app-input px-4 py-3 pr-12"
+              />
+              <button
+                type="button"
+                onClick={() => setHidePassword((current) => !current)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
+              >
+                {hidePassword ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium text-[var(--foreground)]">Confirm Password</label>
+            <div className="relative">
+              <input
+                type={hidePassword ? "password" : "text"}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="app-input px-4 py-3 pr-12"
+              />
+            </div>
+          </div>
+
+          {error ? <AuthNotice tone="error">{error}</AuthNotice> : null}
+
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? "Creating Account..." : "Create Account"}
+          </Button>
+        </form>
+      ) : null}
+    </>
   );
 }
 
