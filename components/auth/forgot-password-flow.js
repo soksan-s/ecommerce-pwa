@@ -127,7 +127,8 @@ export function ForgotPasswordFlow({ onSwitchToLogin }) {
 
     try {
       const userCredential = await confirmationResultRef.current.confirm(otp);
-      const idToken = await userCredential.user.getIdToken();
+      const { getFirebaseIdToken } = await import("@/lib/firebase");
+      const idToken = await getFirebaseIdToken(userCredential);
       firebaseIdTokenRef.current = idToken;
       setStep(3);
     } catch (err) {

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
+import { phoneAuthEmail } from "@/lib/phone";
 
 function getRoleRedirect(role) {
   if (role === "ADMIN" || role === "SUPER_ADMIN") return "/admin";
@@ -111,8 +112,11 @@ export function ClientLoginForm({ onSwitchToRegister, onSwitchToForgot }) {
         return;
       }
 
-      const { data, error: authError } = await authClient.signIn.phoneNumber({
-        phoneNumber: loginPayload?.phoneNumberForAuth || phoneNumber,
+      const targetPhone = loginPayload?.phoneNumberForAuth || phoneNumber;
+      const targetEmail = loginPayload?.emailForAuth || phoneAuthEmail(targetPhone);
+
+      const { data, error: authError } = await authClient.signIn.email({
+        email: targetEmail,
         password,
       });
 

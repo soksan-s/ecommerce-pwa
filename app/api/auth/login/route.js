@@ -1,6 +1,6 @@
 import { fail, handleRouteError, ok } from "@/lib/api-response";
 import { hashPassword, verifyPassword } from "@/lib/auth";
-import { normalizePhoneNumber } from "@/lib/phone";
+import { normalizePhoneNumber, phoneAuthEmail } from "@/lib/phone";
 import { prisma } from "@/lib/prisma";
 
 function getPhoneVariants(phoneNumber) {
@@ -16,6 +16,14 @@ function getPhoneVariants(phoneNumber) {
 }
 
 async function ensureCredentialAccount(user, passwordHash) {
+  const expectedEmail = user.email || phoneAuthEmail(user.phoneNumber);
+  if (!user.email) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { email: expectedEmail },
+    });
+  }
+
   await prisma.account.deleteMany({
     where: {
       userId: user.id,
@@ -39,9 +47,10 @@ async function ensureCredentialAccount(user, passwordHash) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { phoneNumber, password } = body;
+    const { phoneNumber, email, password } = body;
+    const rawIdentifier = (phoneNumber || email || "").trim();
 
-    if (!phoneNumber || !password) {
+    if (!rawIdentifier || !password) {
       return fail("Missing required fields.", 400);
     }
 
@@ -53,7 +62,7 @@ export async function POST(request) {
     // If the phone matches the .env ADMIN_PHONE, we can intercept and create the user if missing,
     // before letting Better Auth log them in.
     const adminPhone = (process.env.ADMIN_PHONE || "").trim();
-    if (adminPhone && phoneNumber === adminPhone) {
+    if (adminPhone && rawIdentifier === adminPhone) {
       const existingAdmin = await prisma.user.findUnique({
         where: { phoneNumber: adminPhone },
       });
@@ -69,6 +78,7 @@ export async function POST(request) {
         const admin = await prisma.user.create({
           data: {
             phoneNumber: adminPhone,
+            email: phoneAuthEmail(adminPhone),
             passwordHash,
             role: "ADMIN",
             status: "ACTIVE",
@@ -81,14 +91,18 @@ export async function POST(request) {
       }
     }
 
-    const variants = getPhoneVariants(phoneNumber);
+    const variants = getPhoneVariants(rawIdentifier);
     const users = await prisma.user.findMany({
       where: {
-        phoneNumber: { in: variants },
+        OR: [
+          { phoneNumber: { in: variants } },
+          { email: rawIdentifier.toLowerCase() },
+        ],
         deletedAt: null,
       },
       select: {
         id: true,
+        email: true,
         phoneNumber: true,
         passwordHash: true,
         status: true,
@@ -98,7 +112,7 @@ export async function POST(request) {
     for (const user of users) {
       if (!user.passwordHash) continue;
 
-      const isValid = await verifyPassword(password, user.passwordHash);
+      const isValid = await verifyPassword({ hash: user.passwordHash, password });
       if (!isValid) continue;
 
       if (user.status !== "ACTIVE") {
@@ -107,9 +121,12 @@ export async function POST(request) {
 
       await ensureCredentialAccount(user, user.passwordHash);
 
+      const emailForAuth = user.email || phoneAuthEmail(user.phoneNumber);
+
       return ok({
         message: "Proceed to Better Auth sign in.",
         phoneNumberForAuth: user.phoneNumber,
+        emailForAuth,
       });
     }
 

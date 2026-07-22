@@ -1,6 +1,6 @@
 import { fail, handleRouteError, ok } from "@/lib/api-response";
 import { hashPassword } from "@/lib/auth";
-import { normalizePhoneNumber, phonesMatch } from "@/lib/phone";
+import { normalizePhoneNumber, phoneAuthEmail, phonesMatch } from "@/lib/phone";
 import { prisma } from "@/lib/prisma";
 
 // Verifies a Firebase ID token server-side using Google's public REST API.
@@ -88,6 +88,7 @@ export async function POST(request) {
 
     const user = await prisma.user.create({
       data: {
+        email: phoneAuthEmail(canonicalPhone),
         username: username || "",
         phoneNumber: canonicalPhone,
         passwordHash,

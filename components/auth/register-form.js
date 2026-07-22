@@ -5,6 +5,7 @@ import { Eye, EyeOff } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
+import { phoneAuthEmail } from "@/lib/phone";
 import { RegistrationAlreadyExistsModal } from "@/components/auth/registration-already-exists-modal";
 
 function AuthNotice({ children, tone = "neutral" }) {
@@ -201,8 +202,8 @@ export function RegisterForm({ onSwitchToLogin }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error?.message || data?.error || "Registration failed");
 
-      const { error: authError } = await authClient.signIn.phoneNumber({
-        phoneNumber,
+      const { error: authError } = await authClient.signIn.email({
+        email: phoneAuthEmail(phoneNumber),
         password,
       });
 

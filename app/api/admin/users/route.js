@@ -1,6 +1,7 @@
 import { fail, handleRouteError, ok } from "@/lib/api-response";
 import { requireAdminUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { phoneAuthEmail } from "@/lib/phone";
 import bcrypt from "bcryptjs";
 
 export async function GET() {
@@ -67,6 +68,7 @@ export async function POST(request) {
 
     const user = await prisma.user.create({
       data: {
+        email: phoneAuthEmail(phoneNumber),
         name: name || null,
         phoneNumber,
         passwordHash,

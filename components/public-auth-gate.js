@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -22,7 +23,11 @@ function AuthNotice({ children, tone = "neutral" }) {
 }
 
 export function PublicAuthGate({ initialAuthView = "" }) {
-  const [authViewMode, setAuthViewMode] = useState("login");
+  const searchParams = useSearchParams();
+  const requestedView = searchParams.get("auth") || initialAuthView;
+  const [authViewMode, setAuthViewMode] = useState(() =>
+    requestedView === "register" || requestedView === "forgot" ? requestedView : "login",
+  );
   const [notice, setNotice] = useState("");
 
   function syncAuthView(view) {
