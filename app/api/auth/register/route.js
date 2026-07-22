@@ -1,11 +1,15 @@
 import { fail, handleRouteError, ok } from "@/lib/api-response";
+import { hashPassword } from "@/lib/auth";
+import { normalizePhoneNumber, phonesMatch } from "@/lib/phone";
 import { prisma } from "@/lib/prisma";
-import bcrypt from "bcryptjs";
-import crypto from "crypto";
 
 // Verifies a Firebase ID token server-side using Google's public REST API.
 // This does NOT require firebase-admin or a service account key.
 async function verifyFirebaseIdToken(idToken) {
+  if (!process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
+    throw new Error("Firebase API key is not configured");
+  }
+
   const res = await fetch(
     `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${process.env.NEXT_PUBLIC_FIREBASE_API_KEY}`,
     {
@@ -49,53 +53,65 @@ export async function POST(request) {
 
     const firebaseUser = await verifyFirebaseIdToken(firebaseIdToken);
 
-    // Normalize phone number for comparison (Firebase stores with + prefix)
-    const firebasePhone = firebaseUser.phoneNumber || "";
-    const normalizedInput = phoneNumber.startsWith("+") ? phoneNumber : `+${phoneNumber}`;
+    const canonicalPhone = normalizePhoneNumber(phoneNumber);
 
-    if (firebasePhone !== normalizedInput) {
+    if (!canonicalPhone) {
+      return fail("Please enter a valid phone number.", 400);
+    }
+
+    if (!phonesMatch(firebaseUser.phoneNumber, canonicalPhone)) {
       return fail("Phone number does not match the verified Firebase token.", 400);
     }
 
-    // Check if user already exists
+    const passwordHash = await hashPassword(password);
+
+    // Better Auth phone-number sign-in looks up credentials with:
+    //   providerId === "credential"
+    //   accountId === user.id  (the user's ID, not the phone number)
+    //
+    // Source: node_modules/better-auth/dist/plugins/phone-number/routes.mjs
+    //
+    // The phone plugin itself stores its meta on `user.phoneNumber`/`user.phoneNumberVerified`.
+    // The password/credential lookup is delegated to the standard "credential" providerId.
+    //
+    // Since we use Firebase for OTP verification, we must create this row directly
+    // in Prisma so that authClient.signIn.phoneNumber(...) can find and verify it.
+
     const existingUser = await prisma.user.findUnique({
-      where: { phoneNumber },
+      where: { phoneNumber: canonicalPhone },
+      select: { id: true },
     });
 
     if (existingUser) {
       return fail("An account with this phone number already exists.", 409);
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
-
     const user = await prisma.user.create({
       data: {
         username: username || "",
-        phoneNumber,
+        phoneNumber: canonicalPhone,
         passwordHash,
         phoneNumberVerified: true,
-        role: "CLIENT", // Always CLIENT (Customer) for public registration
-        accounts: {
-          create: [
-            {
-              id: crypto.randomUUID(),
-              accountId: phoneNumber,
-              providerId: "credential",
-              password: passwordHash,
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            },
-            {
-              id: crypto.randomUUID(),
-              accountId: phoneNumber,
-              providerId: "phone-number",
-              password: passwordHash,
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            },
-          ],
-        },
+        role: "CLIENT",
+        status: "ACTIVE",
       },
+    });
+
+    await prisma.account.create({
+      data: {
+        id: `cred-${user.id}`,
+        userId: user.id,
+        providerId: "credential",
+        accountId: user.id,
+        password: passwordHash,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+
+    console.log("[register] verified firebase token; created Better Auth phone credential for", {
+      canonicalPhone,
+      userId: user.id,
     });
 
     return ok({

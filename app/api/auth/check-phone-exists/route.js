@@ -1,8 +1,9 @@
 import { prisma } from "@/lib/prisma";
+import { normalizePhoneNumber } from "@/lib/phone";
 
 export async function GET(request) {
   const url = new URL(request.url);
-  const phoneNumber = url.searchParams.get("phoneNumber") || "";
+  const phoneNumber = normalizePhoneNumber(url.searchParams.get("phoneNumber") || "");
 
   if (!phoneNumber) {
     return new Response(JSON.stringify({ exists: false, error: "Missing phoneNumber" }), {

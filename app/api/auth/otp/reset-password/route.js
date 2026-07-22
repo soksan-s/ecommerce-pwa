@@ -1,9 +1,14 @@
 import { fail, handleRouteError, ok } from "@/lib/api-response";
+import { hashPassword } from "@/lib/auth";
+import { normalizePhoneNumber, phonesMatch } from "@/lib/phone";
 import { prisma } from "@/lib/prisma";
-import bcrypt from "bcryptjs";
 
 // Verifies a Firebase ID token server-side using Google's public REST API.
 async function verifyFirebaseIdToken(idToken) {
+  if (!process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
+    throw new Error("Firebase API key is not configured");
+  }
+
   const res = await fetch(
     `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${process.env.NEXT_PUBLIC_FIREBASE_API_KEY}`,
     {
@@ -45,35 +50,52 @@ export async function POST(request) {
       return fail("Phone verification token is missing.", 400);
     }
 
-    const firebaseUser = await verifyFirebaseIdToken(firebaseIdToken);
-    const firebasePhone = firebaseUser.phoneNumber || "";
-    const normalizedInput = phoneNumber.startsWith("+") ? phoneNumber : `+${phoneNumber}`;
+    const canonicalPhone = normalizePhoneNumber(phoneNumber);
 
-    if (firebasePhone !== normalizedInput) {
+    if (!canonicalPhone) {
+      return fail("Please enter a valid phone number.", 400);
+    }
+
+    const firebaseUser = await verifyFirebaseIdToken(firebaseIdToken);
+
+    if (!phonesMatch(firebaseUser.phoneNumber, canonicalPhone)) {
       return fail("Phone number does not match the verified Firebase token.", 400);
     }
 
     // Find the existing user in our database
     const user = await prisma.user.findUnique({
-      where: { phoneNumber },
+      where: { phoneNumber: canonicalPhone },
     });
 
     if (!user) {
       return fail("No account found with this phone number.", 404);
     }
 
-    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const passwordHash = await hashPassword(newPassword);
 
-    // Update the user's password in our database
+    // Keep the legacy user hash and Better Auth credential hash in sync.
     await prisma.user.update({
       where: { id: user.id },
       data: { passwordHash },
     });
 
-    // Also update all account records linked to this user (both credential and phone-number)
-    await prisma.account.updateMany({
-      where: { userId: user.id },
-      data: { password: passwordHash },
+    await prisma.account.deleteMany({
+      where: {
+        userId: user.id,
+        providerId: { in: ["credential", "phone-number"] },
+      },
+    });
+
+    await prisma.account.create({
+      data: {
+        id: `cred-${user.id}`,
+        userId: user.id,
+        providerId: "credential",
+        accountId: user.id,
+        password: passwordHash,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
     });
 
     return ok({ message: "Password reset successfully." });

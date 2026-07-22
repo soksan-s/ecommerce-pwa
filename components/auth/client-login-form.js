@@ -94,14 +94,25 @@ export function ClientLoginForm({ onSwitchToRegister, onSwitchToForgot }) {
 
     try {
       // Admin first-boot intercept (creates admin if missing)
-      await fetch("/api/auth/login", {
+      const loginRes = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phoneNumber, password }),
       });
+      const loginPayload = await loginRes.json();
+
+      if (!loginRes.ok) {
+        setError(
+          loginPayload?.error?.message ||
+            loginPayload?.error ||
+            "Invalid phone number or password.",
+        );
+        setLoading(false);
+        return;
+      }
 
       const { data, error: authError } = await authClient.signIn.phoneNumber({
-        phoneNumber,
+        phoneNumber: loginPayload?.phoneNumberForAuth || phoneNumber,
         password,
       });
 

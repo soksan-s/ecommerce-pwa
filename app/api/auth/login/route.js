@@ -1,6 +1,40 @@
 import { fail, handleRouteError, ok } from "@/lib/api-response";
+import { hashPassword, verifyPassword } from "@/lib/auth";
+import { normalizePhoneNumber } from "@/lib/phone";
 import { prisma } from "@/lib/prisma";
-import bcrypt from "bcryptjs";
+
+function getPhoneVariants(phoneNumber) {
+  const canonicalPhone = normalizePhoneNumber(phoneNumber);
+  const digits = canonicalPhone.replace(/^\+/, "");
+  const variants = new Set([phoneNumber, canonicalPhone, digits]);
+
+  if (canonicalPhone.startsWith("+855") && digits.length > 3) {
+    variants.add(`+855 ${digits.slice(3)}`);
+  }
+
+  return [...variants].filter(Boolean);
+}
+
+async function ensureCredentialAccount(user, passwordHash) {
+  await prisma.account.deleteMany({
+    where: {
+      userId: user.id,
+      providerId: { in: ["credential", "phone-number"] },
+    },
+  });
+
+  await prisma.account.create({
+    data: {
+      id: `cred-${user.id}`,
+      userId: user.id,
+      providerId: "credential",
+      accountId: user.id,
+      password: passwordHash,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+  });
+}
 
 export async function POST(request) {
   try {
@@ -31,8 +65,8 @@ export async function POST(request) {
           return fail("Invalid credentials.", 401);
         }
 
-        const passwordHash = await bcrypt.hash(adminPassword, 10);
-        await prisma.user.create({
+        const passwordHash = await hashPassword(adminPassword);
+        const admin = await prisma.user.create({
           data: {
             phoneNumber: adminPhone,
             passwordHash,
@@ -42,10 +76,44 @@ export async function POST(request) {
             // passwordChangedAt is NULL, forcing a password change on first login
           },
         });
+
+        await ensureCredentialAccount(admin, passwordHash);
       }
     }
 
-    return ok({ message: "Proceed to Better Auth sign in." });
+    const variants = getPhoneVariants(phoneNumber);
+    const users = await prisma.user.findMany({
+      where: {
+        phoneNumber: { in: variants },
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        phoneNumber: true,
+        passwordHash: true,
+        status: true,
+      },
+    });
+
+    for (const user of users) {
+      if (!user.passwordHash) continue;
+
+      const isValid = await verifyPassword(password, user.passwordHash);
+      if (!isValid) continue;
+
+      if (user.status !== "ACTIVE") {
+        return fail("This account is not active.", 403);
+      }
+
+      await ensureCredentialAccount(user, user.passwordHash);
+
+      return ok({
+        message: "Proceed to Better Auth sign in.",
+        phoneNumberForAuth: user.phoneNumber,
+      });
+    }
+
+    return fail("Invalid credentials.", 401);
   } catch (error) {
     return handleRouteError(error, "Unable to process login request.");
   }
