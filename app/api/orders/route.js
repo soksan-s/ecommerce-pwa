@@ -19,6 +19,29 @@ function mapCouponType(type) {
   return normalized === "PERCENT" ? "PERCENT" : "FIXED";
 }
 
+/**
+ * Generates a unique order number like ORD-20260723-A1B2C3.
+ * Retries up to 5 times on the rare collision chance.
+ */
+async function generateOrderNumber() {
+  const date = new Date();
+  const datePart = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  for (let attempt = 0; attempt < 5; attempt++) {
+    let suffix = "";
+    for (let i = 0; i < 6; i++) {
+      suffix += chars[Math.floor(Math.random() * chars.length)];
+    }
+    const candidate = `ORD-${datePart}-${suffix}`;
+    const existing = await prisma.order.findUnique({ where: { orderNumber: candidate } });
+    if (!existing) {
+      return candidate;
+    }
+  }
+  // Fallback: timestamp-based
+  return `ORD-${Date.now()}`;
+}
+
 export async function GET(request) {
   try {
     const user = await getCurrentUser();
@@ -82,26 +105,56 @@ export async function POST(request) {
       return fail("Invalid order payload.", 422);
     }
 
-    // Lines now reference variantId — resolve variants with products
-    const variantIds = [...new Set(lines.map((line) => line.variantId || line.productId).filter(Boolean))];
-    const variants = await prisma.productVariant.findMany({
-      where: {
-        id: { in: variantIds },
-        isActive: true,
-      },
-      include: {
-        product: true,
-      },
-    });
+    // Lines may reference variantId (new) or productId (legacy cart).
+    // Separate them so we can do targeted lookups.
+    const directVariantIds = [...new Set(lines.map((l) => l.variantId).filter(Boolean))];
+    const productOnlyIds   = [...new Set(lines.filter((l) => !l.variantId && l.productId).map((l) => l.productId))];
 
-    if (variants.length !== variantIds.length) {
+    // Fetch variants referenced directly
+    const directVariants = directVariantIds.length
+      ? await prisma.productVariant.findMany({
+          where: { id: { in: directVariantIds }, isActive: true },
+          include: { product: true },
+        })
+      : [];
+
+    // Resolve legacy productIds → first active variant for that product
+    const productVariants = productOnlyIds.length
+      ? await prisma.productVariant.findMany({
+          where: { productId: { in: productOnlyIds }, isActive: true },
+          include: { product: true },
+          orderBy: { sortOrder: "asc" },
+        })
+      : [];
+
+    // Build a map: productId → first active variant (lowest sortOrder)
+    const productToVariantMap = new Map();
+    for (const v of productVariants) {
+      if (!productToVariantMap.has(v.productId)) {
+        productToVariantMap.set(v.productId, v);
+      }
+    }
+
+    // Verify every productId resolved to a variant
+    const unresolvedProducts = productOnlyIds.filter((id) => !productToVariantMap.has(id));
+    if (unresolvedProducts.length) {
       return fail("Some products are unavailable.", 422);
     }
 
-    const variantMap = new Map(variants.map((v) => [v.id, v]));
+    // Combine into a unified variant map keyed by the ID that arrived in the line
+    const variantMap = new Map();
+    for (const v of directVariants) {
+      variantMap.set(v.id, v);
+    }
+    // For legacy lines, key by productId so the normalisation below can find them
+    for (const [productId, v] of productToVariantMap.entries()) {
+      variantMap.set(productId, v);
+    }
+
     const normalizedLines = lines.map((line) => {
-      const variantId = line.variantId || line.productId;
-      const variant = variantMap.get(variantId);
+      // Look up by variantId first, then fall back to productId (legacy cart key)
+      const lookupKey = line.variantId || line.productId;
+      const variant = variantMap.get(lookupKey);
       const quantity = Number(line.quantity || 0);
       const unitPrice = Number(variant.price) * (1 - variant.discountPercent / 100);
 
@@ -193,8 +246,11 @@ export async function POST(request) {
         quantity: line.quantity,
       })));
 
+      const orderNumber = await generateOrderNumber();
+
       const created = await tx.order.create({
         data: {
+          orderNumber,
           userId: user.id,
           customerId: customer?.id || null,
           branchId,
@@ -216,6 +272,7 @@ export async function POST(request) {
               sku: line.variant.sku,
               quantity: line.quantity,
               unitPrice: line.unitPrice,
+              lineTotal: Number((line.unitPrice * line.quantity).toFixed(2)),
             })),
           },
         },

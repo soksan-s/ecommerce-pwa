@@ -1,7 +1,20 @@
 import { fail, handleRouteError, ok } from "@/lib/api-response";
 import { hashPassword } from "@/lib/auth";
-import { normalizePhoneNumber, phonesMatch } from "@/lib/phone";
+import { normalizePhoneNumber, phoneAuthEmail, phonesMatch } from "@/lib/phone";
 import { prisma } from "@/lib/prisma";
+
+function getPhoneVariants(phoneNumber) {
+  const canonicalPhone = normalizePhoneNumber(phoneNumber);
+  const digits = canonicalPhone.replace(/^\+/, "");
+  const variants = new Set([phoneNumber, canonicalPhone, digits]);
+
+  if (canonicalPhone.startsWith("+855") && digits.length > 3) {
+    variants.add(`+855 ${digits.slice(3)}`);
+    variants.add(`0${digits.slice(3)}`);
+  }
+
+  return [...variants].filter(Boolean);
+}
 
 // Verifies a Firebase ID token server-side using Google's public REST API.
 async function verifyFirebaseIdToken(idToken) {
@@ -45,7 +58,6 @@ export async function POST(request) {
       return fail("Password must be at least 4 characters long.", 400);
     }
 
-    // Verify Firebase token to confirm the phone number belongs to this user
     if (!firebaseIdToken) {
       return fail("Phone verification token is missing.", 400);
     }
@@ -62,9 +74,16 @@ export async function POST(request) {
       return fail("Phone number does not match the verified Firebase token.", 400);
     }
 
-    // Find the existing user in our database
-    const user = await prisma.user.findUnique({
-      where: { phoneNumber: canonicalPhone },
+    // Find the existing user in database using phone variants
+    const variants = getPhoneVariants(canonicalPhone);
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { phoneNumber: { in: variants } },
+          { phoneNumber: canonicalPhone },
+        ],
+        deletedAt: null,
+      },
     });
 
     if (!user) {
@@ -72,11 +91,15 @@ export async function POST(request) {
     }
 
     const passwordHash = await hashPassword(newPassword);
+    const expectedEmail = user.email || phoneAuthEmail(user.phoneNumber);
 
-    // Keep the legacy user hash and Better Auth credential hash in sync.
+    // Keep user.passwordHash, user.email, and Better Auth credential account in sync
     await prisma.user.update({
       where: { id: user.id },
-      data: { passwordHash },
+      data: {
+        passwordHash,
+        email: expectedEmail,
+      },
     });
 
     await prisma.account.deleteMany({
@@ -98,7 +121,11 @@ export async function POST(request) {
       },
     });
 
-    return ok({ message: "Password reset successfully." });
+    return ok({
+      message: "Password reset successfully.",
+      emailForAuth: expectedEmail,
+      phoneNumberForAuth: user.phoneNumber,
+    });
   } catch (error) {
     return handleRouteError(error, "Unable to reset password.");
   }

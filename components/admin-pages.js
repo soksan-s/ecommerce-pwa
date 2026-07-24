@@ -1413,6 +1413,32 @@ export function AdminUsersPageView({ currentUserId }) {
     user.role.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  async function updateUserRole(userId, newRole) {
+    setIsLoading(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: newRole }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to update role");
+      }
+
+      setUsers(users.map(u => u.id === userId ? { ...u, role: newRole } : u));
+      setMessage("User role updated successfully.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   async function toggleStatus(userId, currentStatus) {
     setIsLoading(true);
     setError("");
@@ -1505,14 +1531,14 @@ export function AdminUsersPageView({ currentUserId }) {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <input
           type="text"
-          placeholder="Search users..."
+          placeholder="Search users by name, phone, or role..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="app-input w-full max-w-sm px-4 py-3 text-sm"
         />
         <Button onClick={() => { setShowAddModal(true); setAddError(""); }}>
           <UserPlus className="mr-2 h-4 w-4" />
-          Add User
+          Add New User
         </Button>
       </div>
 
@@ -1536,13 +1562,29 @@ export function AdminUsersPageView({ currentUserId }) {
               {filteredUsers.map((user) => (
                 <tr key={user.id} className="hover:bg-[var(--surface-quiet)]">
                   <td className="px-6 py-4 font-medium">
-                    {user.name || user.username || "Unknown"}
+                    {user.name || user.username || "Unknown User"}
                   </td>
-                  <td className="px-6 py-4">{user.phoneNumber}</td>
+                  <td className="px-6 py-4 font-mono text-xs">{user.phoneNumber}</td>
                   <td className="px-6 py-4">
-                    <span className="rounded-full bg-[var(--surface-quiet)] px-2.5 py-0.5 text-xs font-semibold">
-                      {user.role}
-                    </span>
+                    {user.id !== currentUserId && user.role !== "SUPER_ADMIN" ? (
+                      <select
+                        value={user.role}
+                        onChange={(e) => updateUserRole(user.id, e.target.value)}
+                        disabled={isLoading}
+                        className="rounded-lg border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-2.5 py-1 text-xs font-semibold outline-none cursor-pointer"
+                      >
+                        <option value="CLIENT">CLIENT</option>
+                        <option value="CASHIER">CASHIER</option>
+                        <option value="MANAGER">MANAGER</option>
+                        <option value="WAREHOUSE_STAFF">WAREHOUSE_STAFF</option>
+                        <option value="DRIVER">DRIVER</option>
+                        <option value="ADMIN">ADMIN</option>
+                      </select>
+                    ) : (
+                      <span className="rounded-full bg-[var(--surface-quiet)] px-2.5 py-0.5 text-xs font-semibold">
+                        {user.role}
+                      </span>
+                    )}
                   </td>
                   <td className="px-6 py-4">
                     <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
@@ -1557,18 +1599,18 @@ export function AdminUsersPageView({ currentUserId }) {
                   </td>
                   <td className="px-6 py-4 text-right">
                     {user.id !== currentUserId && user.role !== "SUPER_ADMIN" ? (
-                      <div className="flex justify-end gap-2">
+                      <div className="flex justify-end gap-3">
                         <button
                           onClick={() => toggleStatus(user.id, user.status)}
                           disabled={isLoading}
-                          className="text-xs font-medium text-amber-500 hover:text-amber-600 disabled:opacity-50"
+                          className="text-xs font-semibold text-amber-500 hover:underline disabled:opacity-50"
                         >
                           {user.status === "ACTIVE" ? "Suspend" : "Activate"}
                         </button>
                         <button
                           onClick={() => deleteUser(user.id)}
                           disabled={isLoading}
-                          className="text-xs font-medium text-red-500 hover:text-red-600 disabled:opacity-50"
+                          className="text-xs font-semibold text-red-500 hover:underline disabled:opacity-50"
                         >
                           Delete
                         </button>
@@ -1581,6 +1623,7 @@ export function AdminUsersPageView({ currentUserId }) {
               ))}
             </tbody>
           </table>
+
           {filteredUsers.length === 0 && (
             <div className="py-8 text-center text-[var(--muted-foreground)]">No users found.</div>
           )}

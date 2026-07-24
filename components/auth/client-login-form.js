@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Phone, Lock, ArrowRight, Loader2, AlertCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
@@ -17,13 +18,18 @@ function getRoleRedirect(role) {
 function AuthNotice({ children, tone = "neutral" }) {
   const toneClasses =
     tone === "error"
-      ? "border-red-200 bg-red-50 text-red-700"
+      ? "border-red-500/20 bg-red-500/10 text-red-600 dark:text-red-400"
       : "border-[var(--border-soft)] bg-[var(--surface-quiet)] text-[var(--foreground)]";
 
   return (
-    <div className={"rounded-2xl border px-4 py-3 text-sm " + toneClasses}>
-      {children}
-    </div>
+    <motion.div
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={"flex items-center gap-2.5 rounded-2xl border px-4 py-3 text-sm font-medium " + toneClasses}
+    >
+      {tone === "error" ? <AlertCircle className="size-4 shrink-0 text-red-500" /> : null}
+      <span>{children}</span>
+    </motion.div>
   );
 }
 
@@ -46,7 +52,6 @@ export function ClientLoginForm({ onSwitchToRegister, onSwitchToForgot }) {
 
   const [countryDialCode, setCountryDialCode] = useState(defaultCountry.dialCode);
   const [nationalNumber, setNationalNumber] = useState("");
-
   const [password, setPassword] = useState("");
   const [hidePassword, setHidePassword] = useState(true);
   const [error, setError] = useState("");
@@ -65,7 +70,6 @@ export function ClientLoginForm({ onSwitchToRegister, onSwitchToForgot }) {
     const normalized = value.replace(/\s+/g, "");
     if (!normalized.startsWith("+")) return;
 
-    // Find the longest matching dial code
     const matching = countries
       .map((c) => ({ ...c, len: c.dialCode.length }))
       .filter((c) => normalized.startsWith(c.dialCode))
@@ -82,11 +86,11 @@ export function ClientLoginForm({ onSwitchToRegister, onSwitchToForgot }) {
     event.preventDefault();
 
     if (!phoneNumber.trim()) {
-      setError("Enter a valid phone number");
+      setError("Enter a valid phone number.");
       return;
     }
     if (password.length < 4) {
-      setError("Password must be at least 4 characters");
+      setError("Password must be at least 4 characters.");
       return;
     }
 
@@ -94,7 +98,7 @@ export function ClientLoginForm({ onSwitchToRegister, onSwitchToForgot }) {
     setLoading(true);
 
     try {
-      // Admin first-boot intercept (creates admin if missing)
+      // Admin first-boot check & account preparation
       const loginRes = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -128,32 +132,39 @@ export function ClientLoginForm({ onSwitchToRegister, onSwitchToForgot }) {
 
       router.push(getRoleRedirect(data?.user?.role || "CLIENT"));
     } catch {
-      setError("An unexpected error occurred.");
+      setError("An unexpected error occurred. Please try again.");
       setLoading(false);
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-5">
+      {/* Header Section */}
       <div>
-        <h2 className="text-3xl font-semibold text-[var(--foreground)]">Welcome back</h2>
-        <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">Sign in with your phone number.</p>
+        <h2 className="text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">
+          Welcome back
+        </h2>
+        <p className="mt-1.5 text-sm text-[var(--muted-foreground)]">
+          Sign in to access your wholesale & retail store.
+        </p>
       </div>
 
+      {/* Phone Input Field */}
       <div>
-        <label className="mb-2 block text-sm font-medium text-[var(--foreground)]">Phone Number</label>
-        <div className="flex items-stretch gap-2">
+        <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
+          <Phone className="size-3.5" />
+          <span>Phone Number</span>
+        </label>
+        <div className="group relative flex items-center overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-quiet)]/80 transition-all focus-within:border-[var(--action)] focus-within:bg-[var(--surface-strong)] focus-within:ring-2 focus-within:ring-[var(--action)]/20">
           <select
             value={countryDialCode}
-            onChange={(e) => {
-              setCountryDialCode(e.target.value);
-            }}
-            className="app-input px-3 py-3"
-            aria-label="Select country"
+            onChange={(e) => setCountryDialCode(e.target.value)}
+            className="h-12 border-r border-[var(--border-soft)] bg-transparent px-3 text-sm font-semibold text-[var(--foreground)] outline-none cursor-pointer"
+            aria-label="Select country prefix"
           >
             {countries.map((c) => (
-              <option key={c.code} value={c.dialCode}>
-                {c.name} ({c.dialCode})
+              <option key={c.code} value={c.dialCode} className="bg-[var(--surface-strong)]">
+                {c.code} ({c.dialCode})
               </option>
             ))}
           </select>
@@ -163,7 +174,6 @@ export function ClientLoginForm({ onSwitchToRegister, onSwitchToForgot }) {
             value={nationalNumber}
             onChange={(event) => {
               const raw = event.target.value;
-              // Auto-detect if user typed full +XX...
               if (raw.trim().startsWith("+")) {
                 tryDetectCountryFromInput(raw);
                 return;
@@ -172,26 +182,40 @@ export function ClientLoginForm({ onSwitchToRegister, onSwitchToForgot }) {
             }}
             placeholder="12345678"
             inputMode="tel"
-            className="app-input px-4 py-3"
+            className="h-12 w-full bg-transparent px-3.5 text-sm font-medium text-[var(--foreground)] placeholder-[var(--muted-foreground)]/60 outline-none"
             aria-label="Phone number"
           />
         </div>
-        <p className="mt-2 text-xs text-[var(--muted-foreground)]">Enter your phone number (country prefix is selected automatically).</p>
       </div>
 
+      {/* Password Input Field */}
       <div>
-        <label className="mb-2 block text-sm font-medium text-[var(--foreground)]">Password</label>
-        <div className="relative">
+        <div className="mb-2 flex items-center justify-between">
+          <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
+            <Lock className="size-3.5" />
+            <span>Password</span>
+          </label>
+          <button
+            type="button"
+            onClick={onSwitchToForgot}
+            className="text-xs font-semibold text-[var(--action)] hover:underline"
+          >
+            Forgot Password?
+          </button>
+        </div>
+
+        <div className="group relative flex items-center overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-quiet)]/80 transition-all focus-within:border-[var(--action)] focus-within:bg-[var(--surface-strong)] focus-within:ring-2 focus-within:ring-[var(--action)]/20">
           <input
             type={hidePassword ? "password" : "text"}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            className="app-input px-4 py-3 pr-12"
+            placeholder="••••••••"
+            className="h-12 w-full bg-transparent px-3.5 pr-11 text-sm font-medium text-[var(--foreground)] placeholder-[var(--muted-foreground)]/60 outline-none"
           />
           <button
             type="button"
             onClick={() => setHidePassword((current) => !current)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
+            className="absolute right-3 text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
             aria-label="Toggle password visibility"
           >
             {hidePassword ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
@@ -199,30 +223,39 @@ export function ClientLoginForm({ onSwitchToRegister, onSwitchToForgot }) {
         </div>
       </div>
 
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={onSwitchToForgot}
-          className="text-sm font-medium text-[var(--foreground)] hover:underline"
-        >
-          Forgot Password?
-        </button>
-      </div>
-
+      {/* Error Banner */}
       {error ? <AuthNotice tone="error">{error}</AuthNotice> : null}
 
-      <Button type="submit" className="w-full" disabled={loading}>
-        {loading ? "Please wait..." : "Login"}
+      {/* Primary Submit CTA */}
+      <Button
+        type="submit"
+        className="relative h-12 w-full rounded-2xl bg-[var(--action)] text-sm font-bold text-[var(--action-foreground)] shadow-lg transition-all hover:-translate-y-0.5 active:scale-[0.98] disabled:opacity-70"
+        disabled={loading}
+      >
+        {loading ? (
+          <span className="flex items-center justify-center gap-2">
+            <Loader2 className="size-4 animate-spin" />
+            <span>Signing in...</span>
+          </span>
+        ) : (
+          <span className="flex items-center justify-center gap-2">
+            <span>Sign In</span>
+            <ArrowRight className="size-4" />
+          </span>
+        )}
       </Button>
 
-      <button
-        type="button"
-        onClick={onSwitchToRegister}
-        className="text-sm font-medium text-[var(--foreground)]"
-      >
-        Create account
-      </button>
+      {/* Switch to Register */}
+      <div className="pt-2 text-center text-sm text-[var(--muted-foreground)]">
+        Don&apos;t have an account?{" "}
+        <button
+          type="button"
+          onClick={onSwitchToRegister}
+          className="font-bold text-[var(--foreground)] hover:underline"
+        >
+          Create an account
+        </button>
+      </div>
     </form>
   );
 }
-

@@ -51,8 +51,12 @@ export async function GET(request) {
         include: {
           categoryRef: true,
           brandRef: true,
-          inventory: {
-            include: { branch: true },
+          variants: {
+            include: {
+              inventory: {
+                include: { branch: true },
+              },
+            },
           },
         },
       });
@@ -61,8 +65,9 @@ export async function GET(request) {
       const rows = [];
 
       for (const prod of products) {
-        if (prod.inventory.length > 0) {
-          for (const inv of prod.inventory) {
+        const invList = prod.variants.flatMap((v) => v.inventory || []);
+        if (invList.length > 0) {
+          for (const inv of invList) {
             rows.push([
               prod.sku || "",
               prod.name,
@@ -71,8 +76,8 @@ export async function GET(request) {
               prod.costPrice || 0,
               prod.price,
               prod.wholesalePrice || 0,
-              inv.branch.name,
-              inv.stock,
+              inv.branch?.name || "Main",
+              inv.quantity ?? inv.stock ?? prod.stock,
             ]);
           }
         } else {

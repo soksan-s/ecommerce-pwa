@@ -199,7 +199,7 @@ function ProductCard({ product, store }) {
         <div
           className="relative aspect-[1/0.92] overflow-hidden bg-[#d7dadd]"
           style={{
-            backgroundImage: `url(${product.image})`,
+            backgroundImage: product.image ? `url(${product.image})` : undefined,
             backgroundSize: "cover",
             backgroundPosition: "center",
           }}
@@ -271,7 +271,7 @@ function ClientHeroCard({ product }) {
         <div className="relative h-[13.5rem] overflow-hidden rounded-[1.55rem] bg-[#d8dcdf] sm:h-[14.5rem]">
           <div
             className="absolute inset-0 bg-cover bg-center transition duration-500 group-hover:scale-[1.025]"
-            style={{ backgroundImage: `url(${product.image})` }}
+            style={{ backgroundImage: product.image ? `url(${product.image})` : undefined }}
           />
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.3),rgba(255,255,255,0.05)_38%,rgba(0,0,0,0.66))]" />
           <div className="absolute inset-x-0 bottom-0 p-4.5 sm:p-5">
@@ -976,7 +976,7 @@ export function ClientCartPageView() {
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <div
                     className="h-[5.25rem] w-[5.25rem] rounded-xl bg-cover bg-center"
-                    style={{ backgroundImage: `url(${item.product.image})` }}
+                    style={{ backgroundImage: item.product.image ? `url(${item.product.image})` : undefined }}
                   />
                   <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>

@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Phone, User, Lock, ArrowRight, ArrowLeft, CheckCircle2, ShieldCheck, Loader2, AlertCircle } from "lucide-react";
+import { motion } from "framer-motion";
 
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
@@ -11,16 +12,64 @@ import { RegistrationAlreadyExistsModal } from "@/components/auth/registration-a
 function AuthNotice({ children, tone = "neutral" }) {
   const toneClasses =
     tone === "error"
-      ? "border-red-200 bg-red-50 text-red-700"
+      ? "border-red-500/20 bg-red-500/10 text-red-600 dark:text-red-400"
       : "border-[var(--border-soft)] bg-[var(--surface-quiet)] text-[var(--foreground)]";
 
-  return <div className={"rounded-2xl border px-4 py-3 text-sm " + toneClasses}>{children}</div>;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={"mb-4 flex items-center gap-2.5 rounded-2xl border px-4 py-3 text-sm font-medium " + toneClasses}
+    >
+      {tone === "error" ? <AlertCircle className="size-4 shrink-0 text-red-500" /> : null}
+      <span>{children}</span>
+    </motion.div>
+  );
 }
 
-function formatPhoneToE164FromDialCode(dialCode, nationalNumber) {
-  const digits = String(nationalNumber || "").replace(/\D/g, "");
-  if (!digits) return "";
-  return `${dialCode}${digits}`;
+function StepIndicator({ currentStep }) {
+  const steps = [
+    { num: 1, label: "Phone" },
+    { num: 2, label: "Verify" },
+    { num: 3, label: "Password" },
+  ];
+
+  return (
+    <div className="mb-6 flex items-center justify-between gap-2">
+      {steps.map((s, idx) => {
+        const isCompleted = currentStep > s.num;
+        const isActive = currentStep === s.num;
+
+        return (
+          <div key={s.num} className="flex flex-1 items-center gap-2">
+            <div
+              className={`flex h-8 w-full items-center justify-center rounded-xl text-xs font-bold transition-all ${
+                isActive
+                  ? "bg-[var(--action)] text-[var(--action-foreground)] shadow-md"
+                  : isCompleted
+                  ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                  : "bg-[var(--surface-quiet)] text-[var(--muted-foreground)]"
+              }`}
+            >
+              {isCompleted ? (
+                <span className="flex items-center gap-1">
+                  <CheckCircle2 className="size-3.5" />
+                  <span>{s.label}</span>
+                </span>
+              ) : (
+                <span>
+                  {s.num}. {s.label}
+                </span>
+              )}
+            </div>
+            {idx < steps.length - 1 ? (
+              <div className="h-0.5 w-3 rounded-full bg-[var(--border-soft)]" />
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 export function RegisterForm({ onSwitchToLogin }) {
@@ -49,10 +98,11 @@ export function RegisterForm({ onSwitchToLogin }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const phoneNumber = useMemo(
-    () => formatPhoneToE164FromDialCode(countryDialCode, nationalNumber),
-    [countryDialCode, nationalNumber],
-  );
+  const phoneNumber = useMemo(() => {
+    const digits = nationalNumber.replace(/\D/g, "");
+    if (!digits) return "";
+    return `${countryDialCode}${digits}`;
+  }, [countryDialCode, nationalNumber]);
 
   const confirmationResultRef = useRef(null);
   const firebaseIdTokenRef = useRef(null);
@@ -86,7 +136,7 @@ export function RegisterForm({ onSwitchToLogin }) {
 
     const trimmed = phoneNumber.trim();
     if (!trimmed) {
-      setError("Please enter a valid phone number");
+      setError("Please enter a valid phone number.");
       return;
     }
 
@@ -96,7 +146,6 @@ export function RegisterForm({ onSwitchToLogin }) {
     setLoading(true);
 
     try {
-      // REQUIRED: check existence BEFORE moving to OTP/password steps
       const checkRes = await fetch(
         `/api/auth/check-phone-exists?phoneNumber=${encodeURIComponent(trimmed)}`,
         { method: "GET", cache: "no-store" },
@@ -136,7 +185,7 @@ export function RegisterForm({ onSwitchToLogin }) {
     event.preventDefault();
 
     if (otp.length !== 6) {
-      setError("Please enter the 6-digit code sent to your phone");
+      setError("Please enter the 6-digit code sent to your phone.");
       return;
     }
 
@@ -150,7 +199,8 @@ export function RegisterForm({ onSwitchToLogin }) {
 
     try {
       const userCredential = await confirmationResultRef.current.confirm(otp);
-      const idToken = await userCredential.user.getIdToken();
+      const { getFirebaseIdToken } = await import("@/lib/firebase");
+      const idToken = await getFirebaseIdToken(userCredential);
       firebaseIdTokenRef.current = idToken;
       setStep(3);
     } catch (err) {
@@ -170,12 +220,12 @@ export function RegisterForm({ onSwitchToLogin }) {
     event.preventDefault();
 
     if (password.length < 4) {
-      setError("Password must be at least 4 characters");
+      setError("Password must be at least 4 characters.");
       return;
     }
 
     if (password !== confirmPassword) {
-      setError("Passwords do not match");
+      setError("Passwords do not match.");
       return;
     }
 
@@ -200,7 +250,7 @@ export function RegisterForm({ onSwitchToLogin }) {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error?.message || data?.error || "Registration failed");
+      if (!res.ok) throw new Error(data?.error?.message || data?.error || "Registration failed.");
 
       const { error: authError } = await authClient.signIn.email({
         email: phoneAuthEmail(phoneNumber),
@@ -211,7 +261,7 @@ export function RegisterForm({ onSwitchToLogin }) {
 
       window.location.href = "/client";
     } catch (err) {
-      setError(err?.message || "Registration failed");
+      setError(err?.message || "Registration failed.");
     } finally {
       setLoading(false);
     }
@@ -229,39 +279,52 @@ export function RegisterForm({ onSwitchToLogin }) {
         }}
       />
 
+      <StepIndicator currentStep={step} />
+
       {step === 1 ? (
         <form onSubmit={handleSendOTP} className="space-y-4">
           <div id="recaptcha-register" ref={recaptchaContainerRef} />
 
           <div>
-            <h2 className="text-3xl font-semibold text-[var(--foreground)]">Create account</h2>
-            <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
-              Step 1: Enter your phone number to receive a verification SMS.
+            <h2 className="text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">
+              Create account
+            </h2>
+            <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+              Enter your name & phone number to get started.
             </p>
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-medium text-[var(--foreground)]">Name (Optional)</label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="app-input px-4 py-3"
-            />
+            <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
+              <User className="size-3.5" />
+              <span>Full Name (Optional)</span>
+            </label>
+            <div className="overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-quiet)]/80 focus-within:border-[var(--action)] focus-within:ring-2 focus-within:ring-[var(--action)]/20">
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="e.g. Sok Chea"
+                className="h-12 w-full bg-transparent px-3.5 text-sm font-medium text-[var(--foreground)] outline-none"
+              />
+            </div>
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-medium text-[var(--foreground)]">Phone Number</label>
-            <div className="flex items-stretch gap-2">
+            <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
+              <Phone className="size-3.5" />
+              <span>Phone Number</span>
+            </label>
+            <div className="group relative flex items-center overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-quiet)]/80 focus-within:border-[var(--action)] focus-within:ring-2 focus-within:ring-[var(--action)]/20">
               <select
                 value={countryDialCode}
                 onChange={(e) => setCountryDialCode(e.target.value)}
-                className="app-input px-3 py-3"
-                aria-label="Select country"
+                className="h-12 border-r border-[var(--border-soft)] bg-transparent px-3 text-sm font-semibold text-[var(--foreground)] outline-none cursor-pointer"
+                aria-label="Select country prefix"
               >
                 {countries.map((c) => (
-                  <option key={c.code} value={c.dialCode}>
-                    {c.name} ({c.dialCode})
+                  <option key={c.code} value={c.dialCode} className="bg-[var(--surface-strong)]">
+                    {c.code} ({c.dialCode})
                   </option>
                 ))}
               </select>
@@ -278,79 +341,134 @@ export function RegisterForm({ onSwitchToLogin }) {
                   setNationalNumber(raw.replace(/\D/g, ""));
                 }}
                 placeholder="11831023"
-                className="app-input px-4 py-3"
+                className="h-12 w-full bg-transparent px-3.5 text-sm font-medium text-[var(--foreground)] outline-none"
                 aria-label="Phone number"
               />
             </div>
-            <p className="mt-1 text-xs text-[var(--muted-foreground)]">Country prefix is selected automatically.</p>
           </div>
 
           {error ? <AuthNotice tone="error">{error}</AuthNotice> : null}
 
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Sending SMS..." : "Send Verification Code"}
+          <Button
+            type="submit"
+            className="relative h-12 w-full rounded-2xl bg-[var(--action)] text-sm font-bold text-[var(--action-foreground)] shadow-lg transition-all hover:-translate-y-0.5 active:scale-[0.98] disabled:opacity-70"
+            disabled={loading}
+          >
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <Loader2 className="size-4 animate-spin" />
+                <span>Sending SMS Code...</span>
+              </span>
+            ) : (
+              <span className="flex items-center justify-center gap-2">
+                <span>Send Verification Code</span>
+                <ArrowRight className="size-4" />
+              </span>
+            )}
           </Button>
 
-          <button type="button" onClick={onSwitchToLogin} className="text-sm font-medium text-[var(--foreground)]">
-            Back to login
-          </button>
+          <div className="pt-2 text-center text-sm text-[var(--muted-foreground)]">
+            Already have an account?{" "}
+            <button
+              type="button"
+              onClick={onSwitchToLogin}
+              className="font-bold text-[var(--foreground)] hover:underline"
+            >
+              Sign In
+            </button>
+          </div>
         </form>
       ) : null}
 
       {step === 2 ? (
-        <form onSubmit={handleVerifyOTP} className="space-y-4">
+        <form onSubmit={handleVerifyOTP} className="space-y-5">
           <div>
-            <h2 className="text-3xl font-semibold text-[var(--foreground)]">Verify Phone</h2>
-            <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
-              Step 2: Enter the 6-digit code sent via SMS to {phoneNumber}.
+            <h2 className="text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">
+              Verify Phone
+            </h2>
+            <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+              Enter the 6-digit SMS code sent to <strong className="text-[var(--foreground)]">{phoneNumber}</strong>.
             </p>
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-medium text-[var(--foreground)]">Verification Code</label>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              placeholder="123456"
-              className="app-input px-4 py-3 text-center tracking-widest text-lg"
-              autoComplete="one-time-code"
-            />
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
+              6-Digit SMS Code
+            </label>
+            <div className="overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-quiet)]/80 focus-within:border-[var(--action)] focus-within:ring-2 focus-within:ring-[var(--action)]/20">
+              <input
+                type="text"
+                inputMode="numeric"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="123456"
+                className="h-14 w-full bg-transparent text-center font-mono text-2xl font-extrabold tracking-[0.35em] text-[var(--foreground)] outline-none"
+                autoComplete="one-time-code"
+              />
+            </div>
           </div>
 
           {error ? <AuthNotice tone="error">{error}</AuthNotice> : null}
 
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Verifying..." : "Verify Code"}
+          <Button
+            type="submit"
+            className="relative h-12 w-full rounded-2xl bg-[var(--action)] text-sm font-bold text-[var(--action-foreground)] shadow-lg transition-all hover:-translate-y-0.5 active:scale-[0.98] disabled:opacity-70"
+            disabled={loading}
+          >
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <Loader2 className="size-4 animate-spin" />
+                <span>Verifying...</span>
+              </span>
+            ) : (
+              <span className="flex items-center justify-center gap-2">
+                <span>Verify Code</span>
+                <ShieldCheck className="size-4" />
+              </span>
+            )}
           </Button>
 
-          <button type="button" onClick={() => setStep(1)} className="text-sm font-medium text-[var(--foreground)]">
-            Resend code
-          </button>
+          <div className="flex items-center justify-between text-xs">
+            <button
+              type="button"
+              onClick={() => setStep(1)}
+              className="flex items-center gap-1 font-semibold text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+            >
+              <ArrowLeft className="size-3.5" />
+              <span>Change phone number</span>
+            </button>
+          </div>
         </form>
       ) : null}
 
       {step === 3 ? (
         <form onSubmit={handleCompleteRegister} className="space-y-4">
           <div>
-            <h2 className="text-3xl font-semibold text-[var(--foreground)]">Secure Account</h2>
-            <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">Step 3: Create a secure password.</p>
+            <h2 className="text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">
+              Set Password
+            </h2>
+            <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+              Create a secure password to protect your account.
+            </p>
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-medium text-[var(--foreground)]">Password</label>
-            <div className="relative">
+            <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
+              <Lock className="size-3.5" />
+              <span>Password</span>
+            </label>
+            <div className="relative overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-quiet)]/80 focus-within:border-[var(--action)] focus-within:ring-2 focus-within:ring-[var(--action)]/20">
               <input
                 type={hidePassword ? "password" : "text"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="app-input px-4 py-3 pr-12"
+                placeholder="••••••••"
+                className="h-12 w-full bg-transparent px-3.5 pr-11 text-sm font-medium text-[var(--foreground)] outline-none"
               />
               <button
                 type="button"
                 onClick={() => setHidePassword((current) => !current)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
               >
                 {hidePassword ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
               </button>
@@ -358,25 +476,42 @@ export function RegisterForm({ onSwitchToLogin }) {
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-medium text-[var(--foreground)]">Confirm Password</label>
-            <div className="relative">
+            <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
+              <Lock className="size-3.5" />
+              <span>Confirm Password</span>
+            </label>
+            <div className="relative overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-quiet)]/80 focus-within:border-[var(--action)] focus-within:ring-2 focus-within:ring-[var(--action)]/20">
               <input
                 type={hidePassword ? "password" : "text"}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="app-input px-4 py-3 pr-12"
+                placeholder="••••••••"
+                className="h-12 w-full bg-transparent px-3.5 pr-11 text-sm font-medium text-[var(--foreground)] outline-none"
               />
             </div>
           </div>
 
           {error ? <AuthNotice tone="error">{error}</AuthNotice> : null}
 
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Creating Account..." : "Create Account"}
+          <Button
+            type="submit"
+            className="relative h-12 w-full rounded-2xl bg-[var(--action)] text-sm font-bold text-[var(--action-foreground)] shadow-lg transition-all hover:-translate-y-0.5 active:scale-[0.98] disabled:opacity-70"
+            disabled={loading}
+          >
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <Loader2 className="size-4 animate-spin" />
+                <span>Creating Account...</span>
+              </span>
+            ) : (
+              <span className="flex items-center justify-center gap-2">
+                <span>Complete Registration</span>
+                <CheckCircle2 className="size-4" />
+              </span>
+            )}
           </Button>
         </form>
       ) : null}
     </>
   );
 }
-

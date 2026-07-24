@@ -61,11 +61,15 @@ export async function GET(request) {
           },
         },
         include: {
-          lines: {
+          items: {
             include: {
-              product: {
-                select: {
-                  category: true,
+              variant: {
+                include: {
+                  product: {
+                    select: {
+                      category: true,
+                    },
+                  },
                 },
               },
             },
@@ -81,9 +85,13 @@ export async function GET(request) {
         include: {
           items: {
             include: {
-              product: {
-                select: {
-                  category: true,
+              variant: {
+                include: {
+                  product: {
+                    select: {
+                      category: true,
+                    },
+                  },
                 },
               },
             },
@@ -137,10 +145,11 @@ export async function GET(request) {
       addMapValue(paymentRevenue, order.paymentMethod || "online", Number(order.total || 0));
       addMapValue(revenueTrend, dateKey(order.createdAt), Number(order.total || 0));
 
-      for (const line of order.lines || []) {
-        const amount = Number(line.unitPrice || 0) * Number(line.quantity || 0);
-        addMapValue(categoryRevenue, line.product?.category || "Uncategorized", amount);
-        addMapCount(productUnits, line.productName, line.quantity);
+      for (const item of order.items || []) {
+        const amount = Number(item.unitPrice || 0) * Number(item.quantity || 0);
+        const category = item.variant?.product?.category || "Uncategorized";
+        addMapValue(categoryRevenue, category, amount);
+        addMapCount(productUnits, item.productName || "Unknown", item.quantity);
       }
     }
 
@@ -153,8 +162,9 @@ export async function GET(request) {
 
       for (const item of sale.items || []) {
         const amount = Number(item.unitPrice || 0) * Number(item.quantity || 0);
-        addMapValue(categoryRevenue, item.product?.category || "Uncategorized", amount);
-        addMapCount(productUnits, item.name, item.quantity);
+        const category = item.variant?.product?.category || "Uncategorized";
+        addMapValue(categoryRevenue, category, amount);
+        addMapCount(productUnits, item.productName || item.name || "Unknown", item.quantity);
       }
     }
 
