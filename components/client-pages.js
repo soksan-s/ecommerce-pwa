@@ -6,17 +6,28 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowRight,
+  BadgeCheck,
   CalendarRange,
+  CheckCircle2,
+  ChevronRight,
   CircleUserRound,
+  CircleDollarSign,
+  CircleHelp,
   Copy,
+  CreditCard,
   Edit3,
+  Filter,
   Gift,
   Globe,
   Heart,
   MessageCircle,
+  MapPin,
+  PackageCheck,
   ReceiptText,
+  RefreshCw,
   Search,
   ShieldCheck,
+  SlidersHorizontal,
   Sparkles,
   Star,
   Ticket,
@@ -73,6 +84,49 @@ function StatusPill({ status }) {
       {formatStatusLabel(status)}
     </span>
   );
+}
+
+const ORDER_PROGRESS_STEPS = [
+  { key: "pending", label: "Ordered", icon: ReceiptText },
+  { key: "processing", label: "Processing", icon: PackageCheck },
+  { key: "shipped", label: "Shipped", icon: Truck },
+  { key: "delivered", label: "Delivered", icon: BadgeCheck },
+];
+
+function getOrderProgressIndex(status) {
+  if (status === "cancelled") {
+    return -1;
+  }
+  return Math.max(0, ORDER_PROGRESS_STEPS.findIndex((step) => step.key === status));
+}
+
+function getPrimaryOrderLine(order) {
+  return order.lines?.[0] || order.items?.[0] || null;
+}
+
+function getOrderLineLabel(line) {
+  if (!line) {
+    return "Order";
+  }
+  return line.variantName ? `${line.productName} ${line.variantName}` : line.productName;
+}
+
+function getProductImageForLine(store, line) {
+  if (!line?.productId) {
+    return "";
+  }
+
+  return store.products.find((product) => product.id === line.productId)?.image || "";
+}
+
+function getProductInitials(name) {
+  return String(name || "Order")
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
 }
 
 function MetricCard({ icon: Icon, label, value, detail }) {
@@ -1139,6 +1193,7 @@ export function ClientCheckoutPageView() {
 
 export function ClientOrderHistoryPageView() {
   const store = useAppStore();
+  const { t } = useTranslation(store.language || "en");
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
   const [sort, setSort] = useState("newest");
@@ -1172,9 +1227,9 @@ export function ClientOrderHistoryPageView() {
 
       return (
         order.id.toLowerCase().includes(lower) ||
-        order.shippingAddress.toLowerCase().includes(lower) ||
-        order.paymentMethod.toLowerCase().includes(lower) ||
-        order.lines.some((line) => line.productName.toLowerCase().includes(lower))
+        String(order.shippingAddress || "").toLowerCase().includes(lower) ||
+        String(order.paymentMethod || "").toLowerCase().includes(lower) ||
+        (order.lines || []).some((line) => String(line.productName || "").toLowerCase().includes(lower))
       );
     });
 
@@ -1192,6 +1247,15 @@ export function ClientOrderHistoryPageView() {
     });
   }, [store.orders, query, status, sort, startDate, endDate]);
 
+  const orderMetrics = useMemo(() => {
+    return {
+      total: store.orders.length,
+      active: store.orders.filter((order) => !["delivered", "cancelled"].includes(order.status)).length,
+      delivered: store.orders.filter((order) => order.status === "delivered").length,
+      spent: store.orders.reduce((sum, order) => sum + Number(order.total || 0), 0),
+    };
+  }, [store.orders]);
+
   const dateRangeLabel =
     startDate && endDate
       ? `${new Date(`${startDate}T00:00:00`).toLocaleDateString("en-US", { month: "numeric", day: "numeric" })} - ${new Date(`${endDate}T00:00:00`).toLocaleDateString("en-US", { month: "numeric", day: "numeric" })}`
@@ -1201,137 +1265,461 @@ export function ClientOrderHistoryPageView() {
           ? `Until ${new Date(`${endDate}T00:00:00`).toLocaleDateString("en-US", { month: "numeric", day: "numeric" })}`
           : "Date range";
 
+  const statusOptions = [
+    { value: "all", label: t("all_status") },
+    { value: "pending", label: t("status_pending") },
+    { value: "processing", label: t("status_processing") },
+    { value: "shipped", label: t("status_shipped") },
+    { value: "delivered", label: t("status_delivered") },
+    { value: "cancelled", label: t("status_cancelled") },
+  ];
+
+  const resetFilters = () => {
+    setQuery("");
+    setStatus("all");
+    setSort("newest");
+    setStartDate("");
+    setEndDate("");
+  };
+
+  const setRecentRange = (days) => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - days);
+    setStartDate(start.toISOString().slice(0, 10));
+    setEndDate(end.toISOString().slice(0, 10));
+  };
+
   return (
-    <div className="space-y-4">
-      <Card className="p-4">
-        <div className="grid gap-3 xl:grid-cols-[1.3fr_0.8fr_0.8fr]">
-          <label className="flex items-center gap-3 rounded-2xl bg-[var(--surface)] px-4 py-3">
-            <Search className="size-4 text-[var(--action)]" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={store.t ? store.t("search_order") : "Search order ID, address, payment, product"}
-              className="w-full bg-transparent text-sm outline-none"
-            />
-          </label>
-          <select value={status} onChange={(event) => setStatus(event.target.value)} className="app-select px-4 py-3 text-sm">
-            <option value="all">{store.t ? store.t("all_status") : "All status"}</option>
-            <option value="pending">{store.t ? store.t("status_pending") : "Pending"}</option>
-            <option value="processing">{store.t ? store.t("status_processing") : "Processing"}</option>
-            <option value="shipped">{store.t ? store.t("status_shipped") : "Shipped"}</option>
-            <option value="delivered">{store.t ? store.t("status_delivered") : "Delivered"}</option>
-            <option value="cancelled">{store.t ? store.t("status_cancelled") : "Cancelled"}</option>
-          </select>
-          <select value={sort} onChange={(event) => setSort(event.target.value)} className="app-select px-4 py-3 text-sm">
-            <option value="newest">{store.t ? store.t("newest") : "Newest"}</option>
-            <option value="oldest">{store.t ? store.t("oldest") : "Oldest"}</option>
-            <option value="total-high">{store.t ? store.t("total_high") : "Total high-low"}</option>
-            <option value="total-low">{store.t ? store.t("total_low") : "Total low-high"}</option>
-          </select>
+    <div className="space-y-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <Link href="/client" className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--action)] transition hover:text-[var(--foreground)]">
+            <ChevronRight className="size-3 rotate-180" />
+            Back to shop
+          </Link>
+          <h1 className="mt-2 text-3xl font-semibold text-[var(--foreground)] sm:text-4xl">Order History</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
+            Review previous orders, delivery progress, payment method, and applied discounts.
+          </p>
         </div>
-        <div className="mt-3 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-          <input type="date" value={startDate} max={endDate || undefined} onChange={(event) => setStartDate(event.target.value)} className="app-input px-4 py-3 text-sm" />
-          <input type="date" value={endDate} min={startDate || undefined} onChange={(event) => setEndDate(event.target.value)} className="app-input px-4 py-3 text-sm" />
-          <button
-            type="button"
-            onClick={() => {
-              setStartDate("");
-              setEndDate("");
-            }}
-            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold text-[var(--foreground)]"
-          >
-            <CalendarRange className="size-4" />
-            {dateRangeLabel}
-          </button>
-        </div>
-      </Card>
-
-      {store.orders.length === 0 ? (
-        <div className="flex min-h-[12rem] items-center justify-center text-center text-[var(--muted-foreground)]">
-          No orders yet. Completed orders will show here.
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {orders.length ? (
-          orders.map((order) => (
-            <details key={order.id} className="app-card overflow-hidden">
-              <summary className="cursor-pointer list-none px-5 py-4 [&::-webkit-details-marker]:hidden">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <h2 className="text-lg font-semibold text-[var(--foreground)]">{order.id}</h2>
-                      <StatusPill status={order.status} />
-                    </div>
-                    <p className="mt-2 text-sm text-[var(--muted-foreground)]">{formatDate(order.createdAt)}</p>
-                    <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">{order.shippingAddress}</p>
-                  </div>
-                  <div className="rounded-2xl bg-[var(--surface)] px-4 py-3 text-left lg:min-w-[11rem] lg:text-right">
-                    <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Total</p>
-                    <p className="mt-2 text-xl font-semibold text-[var(--foreground)]">{formatCurrency(order.total)}</p>
-                  </div>
-                </div>
-              </summary>
-
-              <div className="grid gap-5 border-t border-[var(--border-soft)] px-5 py-5 xl:grid-cols-[1.1fr_0.9fr]">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.22em] text-[var(--muted-foreground)]">Items</p>
-                  <div className="mt-4 space-y-3">
-                    {order.lines.map((line) => (
-                      <div key={`${order.id}-${line.productId}`} className="rounded-[1.2rem] bg-[var(--surface)] px-4 py-3">
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                          <div>
-                            <p className="font-semibold text-[var(--foreground)]">{line.productName}</p>
-                            <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-                              Qty {line.quantity}
-                              {line.discountPercent ? ` | ${line.discountPercent}% off` : " | Regular price"}
-                            </p>
-                          </div>
-                          <p className="text-sm font-semibold text-[var(--foreground)]">{formatCurrency(line.quantity * line.unitPrice)}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  {(order.trackingCarrier || order.trackingStatus || order.trackingNumber) ? (
-                    <div className="rounded-[1.2rem] bg-[var(--surface)] p-4">
-                      <div className="flex items-center gap-2 text-sm font-semibold text-[var(--foreground)]">
-                        <Truck className="size-4 text-[var(--action)]" />
-                        Tracking
-                      </div>
-                      <div className="mt-3 space-y-2 text-sm text-[var(--muted-foreground)]">
-                        {order.trackingCarrier ? <p>Carrier: {order.trackingCarrier}</p> : null}
-                        {order.trackingNumber ? <p>Number: {order.trackingNumber}</p> : null}
-                        {order.trackingStatus ? <p>Status: {order.trackingStatus}</p> : null}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {order.couponCode ? (
-                    <div className="rounded-[1.2rem] bg-[var(--surface)] p-4">
-                      <div className="flex items-center gap-2 text-sm font-semibold text-[var(--foreground)]">
-                        <Gift className="size-4 text-[var(--action)]" />
-                        Coupon applied
-                      </div>
-                      <p className="mt-3 text-sm text-[var(--muted-foreground)]">
-                        {order.couponCode}
-                        {order.couponDiscount ? ` saved ${formatCurrency(order.couponDiscount)}` : ""}
-                      </p>
-                    </div>
-                  ) : null}
-
-                </div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:min-w-[31rem]">
+          {[
+            { label: "Orders", value: orderMetrics.total, icon: ReceiptText },
+            { label: "Active", value: orderMetrics.active, icon: PackageCheck },
+            { label: "Delivered", value: orderMetrics.delivered, icon: BadgeCheck },
+            { label: "Spent", value: formatCurrency(orderMetrics.spent), icon: CircleDollarSign },
+          ].map(({ label, value, icon: Icon }) => (
+            <div key={label} className="rounded-[1.1rem] border border-[var(--border-soft)] bg-[var(--surface)] px-3 py-3 shadow-sm">
+              <div className="flex items-center justify-between gap-2 text-[var(--muted-foreground)]">
+                <span className="text-xs font-medium">{label}</span>
+                <Icon className="size-4 text-[var(--action)]" />
               </div>
-            </details>
-          ))
-        ) : (
-            <div className="flex min-h-[12rem] items-center justify-center text-center text-[var(--muted-foreground)]">
-              No orders for this filter.
+              <p className="mt-2 truncate text-lg font-semibold text-[var(--foreground)]">{value}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_18rem]">
+        <div className="space-y-4">
+          <Card className="p-3 sm:p-4">
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_12rem_12rem]">
+              <label className="flex min-h-12 items-center gap-3 rounded-[1rem] border border-[var(--border-soft)] bg-[var(--surface)] px-4">
+                <Search className="size-4 shrink-0 text-[var(--action)]" />
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder={t("search_order")}
+                  className="w-full min-w-0 bg-transparent text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
+                />
+              </label>
+              <select value={sort} onChange={(event) => setSort(event.target.value)} className="app-select min-h-12 px-4 text-sm">
+                <option value="newest">{t("newest")}</option>
+                <option value="oldest">{t("oldest")}</option>
+                <option value="total-high">{t("total_high")}</option>
+                <option value="total-low">{t("total_low")}</option>
+              </select>
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[1rem] border border-[var(--border-soft)] bg-[var(--surface)] px-4 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--action)] hover:text-[var(--action)]"
+              >
+                <RefreshCw className="size-4" />
+                Reset
+              </button>
+            </div>
+
+            <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+              {statusOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setStatus(option.value)}
+                  className={cn(
+                    "inline-flex min-h-10 shrink-0 items-center rounded-full border px-4 text-sm font-semibold transition",
+                    status === option.value
+                      ? "border-[var(--action)] bg-[var(--action)] text-[var(--action-foreground)] shadow-sm"
+                      : "border-[var(--border-soft)] bg-[var(--surface)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                  )}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </Card>
+
+          {store.orders.length === 0 ? (
+            <div className="flex min-h-[18rem] flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-[var(--border-soft)] bg-[var(--surface)] px-6 text-center">
+              <ReceiptText className="size-9 text-[var(--action)]" />
+              <p className="mt-4 text-lg font-semibold text-[var(--foreground)]">No orders yet</p>
+              <p className="mt-2 max-w-md text-sm leading-6 text-[var(--muted-foreground)]">Completed orders will show here after checkout.</p>
+            </div>
+          ) : orders.length ? (
+            <div className="grid gap-3">
+              {orders.map((order) => {
+                const primaryLine = getPrimaryOrderLine(order);
+                const lineCount = order.lines?.length || order.items?.length || 0;
+                const productImage = getProductImageForLine(store, primaryLine);
+
+                return (
+                  <Link
+                    key={order.id}
+                    className={cn(
+                      "group grid w-full gap-4 rounded-[1.4rem] border bg-[var(--surface)] p-4 text-left shadow-sm transition sm:grid-cols-[4.75rem_minmax(0,1fr)_auto]",
+                      "border-[var(--border-soft)] hover:border-[var(--action)] hover:shadow-[var(--shadow-card)]"
+                    )}
+                    href={`/client/order-history/${encodeURIComponent(order.id)}`}
+                  >
+                    {productImage ? (
+                      <div
+                        className="size-[4.75rem] overflow-hidden rounded-[1.25rem] bg-[var(--surface-quiet)] bg-cover bg-center shadow-inner"
+                        style={{ backgroundImage: `url(${productImage})` }}
+                      />
+                    ) : (
+                      <div className="flex size-[4.75rem] items-center justify-center rounded-[1.25rem] bg-[radial-gradient(circle_at_30%_25%,rgba(255,255,255,0.92),rgba(20,127,111,0.22)_34%,rgba(10,53,47,0.86)_100%)] text-lg font-semibold text-white shadow-inner">
+                        {getProductInitials(getOrderLineLabel(primaryLine))}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="truncate text-base font-semibold text-[var(--foreground)]">{getOrderLineLabel(primaryLine)}</p>
+                        <StatusPill status={order.status} />
+                      </div>
+                      <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                        Order {order.id} · {formatDate(order.createdAt)}
+                      </p>
+                      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[var(--muted-foreground)]">
+                        <span className="inline-flex items-center gap-1.5">
+                          <PackageCheck className="size-3.5 text-[var(--action)]" />
+                          {lineCount} item{lineCount === 1 ? "" : "s"}
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <CreditCard className="size-3.5 text-[var(--action)]" />
+                          {order.paymentMethod}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 sm:min-w-[8.5rem] sm:flex-col sm:items-end">
+                      <p className="text-xl font-semibold text-[var(--foreground)]">{formatCurrency(order.total)}</p>
+                      <span className="inline-flex min-h-9 items-center gap-2 rounded-full bg-[var(--action)] px-4 text-xs font-semibold text-[var(--action-foreground)] transition group-hover:brightness-95">
+                        Details
+                        <ChevronRight className="size-3.5" />
+                      </span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex min-h-[18rem] flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-[var(--border-soft)] bg-[var(--surface)] px-6 text-center">
+              <SlidersHorizontal className="size-9 text-[var(--action)]" />
+              <p className="mt-4 text-lg font-semibold text-[var(--foreground)]">No orders for this filter</p>
+              <p className="mt-2 text-sm text-[var(--muted-foreground)]">Adjust status, date, search, or sorting to find the order.</p>
             </div>
           )}
         </div>
-      )}
+
+        <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start">
+          <Card className="p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Filter className="size-4 text-[var(--action)]" />
+                <p className="font-semibold text-[var(--foreground)]">Filters</p>
+              </div>
+              <button type="button" onClick={resetFilters} className="text-xs font-semibold text-[var(--action)]">
+                Reset all
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              <div>
+                <p className="text-xs font-semibold text-[var(--muted-foreground)]">Date range</p>
+                <div className="mt-2 grid gap-2">
+                  <input type="date" value={startDate} max={endDate || undefined} onChange={(event) => setStartDate(event.target.value)} className="app-input min-h-11 px-3 text-sm" />
+                  <input type="date" value={endDate} min={startDate || undefined} onChange={(event) => setEndDate(event.target.value)} className="app-input min-h-11 px-3 text-sm" />
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button type="button" onClick={() => setRecentRange(30)} className="rounded-full bg-[var(--surface-quiet)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)]">
+                    Last 30 days
+                  </button>
+                  <button type="button" onClick={() => setRecentRange(180)} className="rounded-full bg-[var(--surface-quiet)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)]">
+                    Last 6 months
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-[1rem] border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3 py-3">
+                <div className="flex items-center gap-2 text-sm font-semibold text-[var(--foreground)]">
+                  <CalendarRange className="size-4 text-[var(--action)]" />
+                  {dateRangeLabel}
+                </div>
+                <p className="mt-2 text-xs leading-5 text-[var(--muted-foreground)]">Showing {orders.length} of {store.orders.length} orders.</p>
+              </div>
+            </div>
+          </Card>
+
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+export function ClientOrderDetailPageView({ orderId }) {
+  const store = useAppStore();
+  const router = useRouter();
+  const order = useMemo(() => store.orders.find((entry) => entry.id === orderId), [store.orders, orderId]);
+
+  function reorderItems() {
+    const orderLines = order?.items?.length ? order.items : order?.lines || [];
+    orderLines.forEach((line) => {
+      if (line.productId) {
+        store.addToCart(line.productId, line.quantity || 1);
+      }
+    });
+    router.push("/client?tab=cart");
+  }
+
+  if (!order) {
+    return (
+      <div className="space-y-5">
+        <Link href="/client?tab=orders" className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--action)] transition hover:text-[var(--foreground)]">
+          <ChevronRight className="size-4 rotate-180" />
+          Back to order history
+        </Link>
+        <div className="flex min-h-[22rem] flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-[var(--border-soft)] bg-[var(--surface)] px-6 text-center">
+          <ReceiptText className="size-10 text-[var(--action)]" />
+          <p className="mt-4 text-xl font-semibold text-[var(--foreground)]">Order not found</p>
+          <p className="mt-2 max-w-md text-sm leading-6 text-[var(--muted-foreground)]">
+            This order may no longer be available in your current session.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const orderLines = order.items?.length ? order.items : order.lines || [];
+  const progressIndex = getOrderProgressIndex(order.status);
+  const progressWidth = progressIndex < 0 ? 0 : (Math.min(progressIndex, ORDER_PROGRESS_STEPS.length - 1) / (ORDER_PROGRESS_STEPS.length - 1)) * 100;
+  const subtotal = orderLines.reduce((sum, line) => sum + Number(line.lineTotal || line.quantity * line.unitPrice || 0), 0);
+  const discount = Number(order.couponDiscount || 0);
+  const total = Number(order.total || subtotal - discount);
+
+  return (
+    <div className="space-y-8">
+      <section className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
+          <Link href="/client?tab=orders" className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--action)] transition hover:text-[var(--foreground)]">
+            <ChevronRight className="size-3 rotate-180" />
+            Back to order history
+          </Link>
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--muted-foreground)]">
+            <span>Order history</span>
+            <ChevronRight className="size-3" />
+            <span className="font-semibold text-[var(--foreground)]">Order {order.id}</span>
+          </div>
+          <h1 className="mt-2 break-words text-3xl font-semibold text-[var(--foreground)] sm:text-4xl">Order {order.id}</h1>
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-[var(--muted-foreground)]">
+            <span className="inline-flex items-center gap-1.5">
+              <CalendarRange className="size-4 text-[var(--action)]" />
+              Placed on {formatDate(order.createdAt)}
+            </span>
+            <span className="inline-flex items-center gap-1.5 font-semibold text-[var(--action)]">
+              <CircleDollarSign className="size-4" />
+              Total: {formatCurrency(total)}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[var(--surface-quiet)] px-5 text-sm font-semibold text-[var(--foreground)] transition hover:bg-[color-mix(in_srgb,var(--action)_12%,var(--surface))]"
+          >
+            <ReceiptText className="size-4" />
+            Invoice
+          </button>
+          <button
+            type="button"
+            onClick={reorderItems}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[var(--action)] px-5 text-sm font-semibold text-[var(--action-foreground)] shadow-sm transition hover:brightness-95"
+          >
+            <RefreshCw className="size-4" />
+            Reorder
+          </button>
+        </div>
+      </section>
+
+      <section className="rounded-[1.5rem] bg-[var(--surface-quiet)] p-5 sm:p-8">
+        {order.status === "cancelled" ? (
+          <div className="flex items-center gap-3 rounded-[1rem] bg-rose-50 px-4 py-4 text-rose-700">
+            <CircleHelp className="size-5 shrink-0" />
+            <p className="text-sm font-semibold">This order was cancelled.</p>
+          </div>
+        ) : (
+          <div className="relative">
+            <div className="absolute left-0 right-0 top-5 h-1 rounded-full bg-[var(--surface)]">
+              <div className="h-full rounded-full bg-[var(--action)] transition-all" style={{ width: `${progressWidth}%` }} />
+            </div>
+            <div className="relative grid grid-cols-4 gap-2">
+              {ORDER_PROGRESS_STEPS.map((step, index) => {
+                const Icon = step.icon;
+                const isDone = progressIndex >= index;
+                const isCurrent = progressIndex === index;
+                return (
+                  <div key={step.key} className="flex flex-col items-center gap-3 text-center">
+                    <span
+                      className={cn(
+                        "z-10 grid size-10 place-items-center rounded-full border bg-[var(--surface)] shadow-sm",
+                        isDone ? "border-[var(--action)] bg-[var(--action)] text-[var(--action-foreground)]" : "border-[var(--border-soft)] text-[var(--muted-foreground)]",
+                        isCurrent && "ring-8 ring-[color:color-mix(in_srgb,var(--action)_10%,var(--surface))]"
+                      )}
+                    >
+                      {isDone ? <CheckCircle2 className="size-5" /> : <Icon className="size-5" />}
+                    </span>
+                    <div>
+                      <p className={cn("text-xs font-semibold sm:text-sm", isDone ? "text-[var(--foreground)]" : "text-[var(--muted-foreground)]")}>{step.label}</p>
+                      <p className="mt-1 hidden text-[11px] text-[var(--muted-foreground)] sm:block">
+                        {isCurrent ? "Current status" : index === 0 ? formatDate(order.createdAt) : "-"}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </section>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="space-y-6">
+          <section className="rounded-[1.5rem] border border-[var(--border-soft)] bg-[var(--surface)] p-5 sm:p-6">
+            <div className="flex items-center gap-3 border-b border-[var(--border-soft)] pb-4">
+              <Truck className="size-5 text-[var(--action)]" />
+              <h2 className="text-xl font-semibold text-[var(--foreground)]">Delivery Information</h2>
+            </div>
+            <div className="grid gap-6 pt-5 md:grid-cols-2">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Shipping address</p>
+                <p className="mt-3 whitespace-pre-line text-sm font-medium leading-7 text-[var(--foreground)]">{order.shippingAddress}</p>
+              </div>
+              <div className="space-y-5">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Delivery method</p>
+                  <p className="mt-3 text-sm font-medium text-[var(--foreground)]">{order.trackingCarrier || "Standard delivery"}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Tracking status</p>
+                  <p className="mt-3 text-sm font-semibold text-[var(--action)]">{order.trackingStatus || formatStatusLabel(order.status)}</p>
+                  {order.trackingNumber ? <p className="mt-1 text-xs text-[var(--muted-foreground)]">Number: {order.trackingNumber}</p> : null}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <h2 className="px-1 text-2xl font-semibold text-[var(--foreground)]">Order Items ({orderLines.length})</h2>
+            <div className="space-y-3">
+              {orderLines.map((line, index) => {
+                const lineName = getOrderLineLabel(line);
+                const lineTotal = Number(line.lineTotal || line.quantity * line.unitPrice || 0);
+                const productImage = getProductImageForLine(store, line);
+                return (
+                  <div
+                    key={`${order.id}-${line.productId || line.variantId || index}`}
+                    className="group grid gap-4 rounded-[1.4rem] bg-[var(--surface)] p-4 shadow-sm transition hover:shadow-[var(--shadow-card)] sm:grid-cols-[5.5rem_minmax(0,1fr)_auto] sm:items-center"
+                  >
+                    {productImage ? (
+                      <div
+                        className="size-20 overflow-hidden rounded-full bg-[var(--surface-quiet)] bg-cover bg-center shadow-inner transition group-hover:scale-[1.03]"
+                        style={{ backgroundImage: `url(${productImage})` }}
+                      />
+                    ) : (
+                      <div className="grid size-20 place-items-center rounded-full bg-[radial-gradient(circle_at_30%_25%,rgba(255,255,255,0.92),rgba(20,127,111,0.22)_34%,rgba(10,53,47,0.86)_100%)] text-base font-semibold text-white shadow-inner transition group-hover:scale-[1.03]">
+                        {getProductInitials(lineName)}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <h3 className="truncate text-lg font-semibold text-[var(--foreground)]">{lineName}</h3>
+                      <p className="mt-1 text-sm text-[var(--muted-foreground)]">{line.sku || line.variantName || "Selected item"}</p>
+                      <p className="mt-2 text-sm font-semibold text-[var(--action)]">Qty: {line.quantity}</p>
+                    </div>
+                    <div className="text-left sm:text-right">
+                      <p className="text-lg font-semibold text-[var(--foreground)]">{formatCurrency(lineTotal)}</p>
+                      <p className="mt-1 text-xs font-medium text-[var(--muted-foreground)]">{formatCurrency(line.unitPrice)} each</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+
+        <aside className="space-y-5 xl:sticky xl:top-24 xl:self-start">
+          <section className="rounded-[1.5rem] bg-[var(--surface-quiet)] p-5">
+            <h2 className="border-b border-[var(--border-soft)] pb-4 text-lg font-semibold text-[var(--foreground)]">Order Summary</h2>
+            <div className="space-y-3 pt-4 text-sm">
+              <div className="flex justify-between gap-4 text-[var(--muted-foreground)]">
+                <span>Subtotal</span>
+                <span className="font-semibold text-[var(--foreground)]">{formatCurrency(subtotal)}</span>
+              </div>
+              <div className="flex justify-between gap-4 text-[var(--muted-foreground)]">
+                <span>Coupon discount</span>
+                <span className="font-semibold text-[var(--foreground)]">{discount ? `-${formatCurrency(discount)}` : formatCurrency(0)}</span>
+              </div>
+              <div className="flex justify-between gap-4 text-[var(--muted-foreground)]">
+                <span>Delivery fee</span>
+                <span className="font-semibold text-[var(--action)]">Included</span>
+              </div>
+              {order.couponCode ? (
+                <div className="rounded-[1rem] bg-[var(--surface)] px-3 py-3 text-xs font-semibold text-[var(--foreground)]">
+                  Coupon: <span className="text-[var(--action)]">{order.couponCode}</span>
+                </div>
+              ) : null}
+              <div className="flex items-end justify-between gap-4 border-t border-[var(--border-soft)] pt-4">
+                <span className="text-base font-semibold text-[var(--foreground)]">Order Total</span>
+                <span className="text-3xl font-semibold text-[var(--action)]">{formatCurrency(total)}</span>
+              </div>
+            </div>
+          </section>
+
+          <section className="overflow-hidden rounded-[1.5rem] bg-[linear-gradient(135deg,color-mix(in_srgb,var(--action)_28%,white),color-mix(in_srgb,var(--accent-secondary)_34%,white))] p-5 text-[var(--foreground)]">
+            <div className="grid size-12 place-items-center rounded-full bg-[var(--action)] text-[var(--action-foreground)]">
+              <MessageCircle className="size-5" />
+            </div>
+            <h3 className="mt-4 text-lg font-semibold">Need help with your order?</h3>
+            <p className="mt-2 text-sm leading-6 text-[var(--foreground)]/75">
+              Contact support with your order number and delivery details.
+            </p>
+            <Link
+              href="/client?tab=profile"
+              className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-full bg-[var(--action)] px-4 text-sm font-semibold text-[var(--action-foreground)] transition hover:brightness-95"
+            >
+              Chat With Support
+            </Link>
+          </section>
+        </aside>
+      </div>
     </div>
   );
 }

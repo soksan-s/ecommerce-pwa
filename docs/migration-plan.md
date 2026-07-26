@@ -442,6 +442,28 @@ The `lib/` implementation boundary restructure is complete and documented. This 
 - Required external fix: replace `NEXT_PUBLIC_FIREBASE_API_KEY` with the current Web API key from Firebase Console > Project settings > General > Your apps, ensure the Identity Toolkit API is enabled, then restart the Next.js dev server.
 - Verification cannot proceed to OTP/session creation until Firebase accepts the key. The supplied numeric test code cannot be tested while Firebase initialization is rejected.
 
+### 2026-07-26 - Firebase OTP With Better Auth Sessions
+
+- Phase status: completed code migration; live Firebase verification remains dependent on valid Firebase configuration and database connectivity.
+- Architecture decision: Firebase owns phone OTP and ID-token verification; Better Auth owns email/password credential sessions and cookies. Better Auth's `phoneNumber` plugin is no longer active.
+- Changed authentication behavior:
+  - Removed active Better Auth phone-plugin configuration from `lib/server/auth/auth.js`.
+  - Removed active Better Auth phone client plugin from `lib/client/auth/auth-client.js`.
+  - Added `phoneAuthEmail()` as a stable internal email identifier for phone-backed local accounts.
+  - Registration provisions the phone account with that internal email, then creates the Better Auth session through `authClient.signIn.email()`.
+  - Existing phone login provisions a missing internal email when needed, then signs in through Better Auth email/password APIs.
+  - Password reset keeps the local password, internal email, and Better Auth credential account synchronized.
+  - Updated the Firebase test page to verify Firebase OTP first, then test Better Auth session creation.
+- Verification:
+  - `npm run lint`: passed with 0 errors and 3 existing warnings.
+  - `npm run build`: passed; all existing routes compiled.
+  - Static reference scan: no active Better Auth phone-plugin or `signIn.phoneNumber` references remain.
+  - Protected files were not modified: `prisma/schema.prisma`, `prisma/migrations/**`, and `app/api/auth/[...all]/route.js`.
+  - Live route smoke testing was unavailable because no development server was listening at the time of the final check.
+- Remaining blockers:
+  - The supplied Firebase API key previously returned `API_KEY_INVALID`; it must be replaced in `.env` by the current Firebase Web API key. The assistant did not read or write `.env`.
+  - Firebase OTP and the Better Auth session require a reachable Firebase project and PostgreSQL database.
+
 ### Verification Results
 
 - Production build: passed. Next.js compiled successfully and generated all existing application, authentication, API, POS, client, manifest, and offline routes.

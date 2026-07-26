@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Globe,
   Heart,
@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 
 import { useAppStore } from "@/components/app-store-provider";
-import { ClientCartPageView, ClientFavoritesPageView, ClientOrderHistoryPageView, ClientProductListPageView, ClientProfilePageView } from "@/components/client-pages";
+import { ClientCartPageView, ClientFavoritesPageView, ClientOrderDetailPageView, ClientOrderHistoryPageView, ClientProductListPageView, ClientProfilePageView } from "@/components/client-pages";
 import { LogoutButton } from "@/components/logout-button";
 import { easeInOutCubic } from "@/components/motion/motion-utils";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -55,16 +55,22 @@ function DrawerButton({ active, icon: Icon, label, onClick }) {
   );
 }
 
-export function ClientShell({ user, initialTab = "shop" }) {
+export function ClientShell({ user, initialTab = "shop", orderDetailId = "" }) {
   const store = useAppStore();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedTab, setSelectedTab] = useState(() => resolveClientTab(searchParams.get("tab") || initialTab));
 
   const lang = store.language || "en";
   const { t } = useTranslation(lang);
+  const activeTab = orderDetailId ? "orders" : selectedTab;
 
   useEffect(() => {
+    if (orderDetailId) {
+      return undefined;
+    }
+
     function syncTabFromUrl() {
       const params = new URLSearchParams(window.location.search);
       setSelectedTab(resolveClientTab(params.get("tab") || initialTab));
@@ -72,10 +78,10 @@ export function ClientShell({ user, initialTab = "shop" }) {
 
     window.addEventListener("popstate", syncTabFromUrl);
     return () => window.removeEventListener("popstate", syncTabFromUrl);
-  }, [initialTab]);
+  }, [initialTab, orderDetailId]);
 
   const title = useMemo(() => {
-    switch (selectedTab) {
+    switch (activeTab) {
       case "favorites":
         return t("favorites");
       case "cart":
@@ -87,19 +93,20 @@ export function ClientShell({ user, initialTab = "shop" }) {
       default:
         return t("shop");
     }
-  }, [selectedTab, t]);
+  }, [activeTab, t]);
 
   function openTab(tab) {
     const nextTab = resolveClientTab(tab);
     setSelectedTab(nextTab);
     setDrawerOpen(false);
-
-    if (typeof window !== "undefined") {
-      window.history.replaceState(window.history.state, "", clientTabHref(nextTab));
-    }
+    router.push(clientTabHref(nextTab));
   }
 
   function renderContent() {
+    if (orderDetailId) {
+      return <ClientOrderDetailPageView orderId={orderDetailId} />;
+    }
+
     switch (selectedTab) {
       case "favorites":
         return <ClientFavoritesPageView />;
@@ -142,7 +149,7 @@ export function ClientShell({ user, initialTab = "shop" }) {
               <span>{lang === "en" ? "EN" : "ខ្មែរ"}</span>
             </button>
             <ThemeToggle />
-            {selectedTab !== "cart" ? (
+            {activeTab !== "cart" ? (
               <button
                 type="button"
                 onClick={() => openTab("cart")}
@@ -196,7 +203,7 @@ export function ClientShell({ user, initialTab = "shop" }) {
             </div>
             <div className="space-y-2">
               {clientTabs.map((tab) => (
-                <DrawerButton key={tab.key} active={selectedTab === tab.key} icon={tab.icon} label={t(tab.key)} onClick={() => openTab(tab.key)} />
+                <DrawerButton key={tab.key} active={activeTab === tab.key} icon={tab.icon} label={t(tab.key)} onClick={() => openTab(tab.key)} />
               ))}
             </div>
             <LogoutButton className="mt-5 w-full" />
@@ -205,7 +212,25 @@ export function ClientShell({ user, initialTab = "shop" }) {
         ) : null}
       </AnimatePresence>
 
-      <div className="pt-6">{renderContent()}</div>
+      <div className="pt-6 pb-24 min-[600px]:pb-28">{renderContent()}</div>
+
+      <nav className="app-nav-surface fixed bottom-4 left-4 right-4 z-30 hidden items-center justify-between p-2 min-[600px]:flex lg:left-6 lg:right-6">
+        {clientTabs.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => openTab(tab.key)}
+            className={cn(
+              "app-nav-button flex min-w-0 flex-1 flex-col items-center gap-1 px-3 py-3 text-xs font-semibold",
+              activeTab === tab.key && "bg-[color-mix(in_srgb,var(--action)_14%,var(--surface))] text-[var(--foreground)]",
+            )}
+            data-active={activeTab === tab.key}
+          >
+            <tab.icon className="size-4" />
+            {t(tab.key)}
+          </button>
+        ))}
+      </nav>
     </main>
   );
 }

@@ -1,133 +1,96 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { authClient } from "@/lib/auth-client";
+import { firebaseAuth, getFirebaseIdToken } from "@/lib/firebase";
+import { phoneAuthEmail } from "@/lib/phone";
 
 export default function TestPhoneLoginPage() {
-  const [phoneNumber, setPhoneNumber] = useState("+85599909596");
+  const [phoneNumber, setPhoneNumber] = useState("+85592499726");
   const [password, setPassword] = useState("TempPass1234");
   const [code, setCode] = useState("");
   const [log, setLog] = useState([]);
   const [busy, setBusy] = useState(false);
+  const confirmationResultRef = useRef(null);
+  const recaptchaVerifierRef = useRef(null);
 
-  const pushLog = (line) => setLog((prev) => [...prev, line]);
+  const pushLog = (message) => setLog((current) => [...current, message]);
 
-  const disabled = busy || !phoneNumber.trim() || !password.trim();
-
-  async function handleSendOTP() {
+  async function sendFirebaseOtp() {
     setBusy(true);
     setLog([]);
     try {
-      pushLog(`Sending OTP for ${phoneNumber} ...`);
-      const { error } = await authClient.phoneNumber.sendOtp({ phoneNumber });
-      if (error) {
-        pushLog(`sendOtp error: ${error?.message || String(error)}`);
-        return;
-      }
-      pushLog("OTP sent. Check Next.js server terminal for the OTP code (lib/auth.js sendOTP logs it).");
-      pushLog("Enter the OTP code below, then click Verify OTP.");
-    } catch (e) {
-      pushLog(`sendOtp failed: ${e?.message || String(e)}`);
+      const { RecaptchaVerifier, signInWithPhoneNumber } = await import("firebase/auth");
+      recaptchaVerifierRef.current?.clear();
+      const verifier = new RecaptchaVerifier(firebaseAuth, "recaptcha-test-phone", {
+        size: "invisible",
+        callback: () => {},
+      });
+      recaptchaVerifierRef.current = verifier;
+      confirmationResultRef.current = await signInWithPhoneNumber(firebaseAuth, phoneNumber, verifier);
+      pushLog("Firebase OTP sent. Enter the Firebase test code.");
+    } catch (error) {
+      pushLog(`Firebase send failed: ${error?.message || String(error)}`);
     } finally {
       setBusy(false);
     }
   }
 
-  async function handleVerifyOTP() {
+  async function verifyFirebaseOtp() {
     setBusy(true);
     setLog([]);
     try {
-      pushLog(`Verifying OTP for ${phoneNumber} ...`);
-      const { error } = await authClient.phoneNumber.verify({ phoneNumber, code });
-      if (error) {
-        pushLog(`verify error: ${error?.message || String(error)}`);
-        return;
-      }
-      pushLog("OTP verified.");
-      pushLog("Now sign in using phoneNumber + password.");
-    } catch (e) {
-      pushLog(`verify failed: ${e?.message || String(e)}`);
+      if (!confirmationResultRef.current) throw new Error("Send the Firebase OTP first.");
+      const credential = await confirmationResultRef.current.confirm(code);
+      await getFirebaseIdToken(credential);
+      pushLog("Firebase OTP verified and ID token received.");
+    } catch (error) {
+      pushLog(`Firebase verification failed: ${error?.message || String(error)}`);
     } finally {
       setBusy(false);
     }
   }
 
-  async function handleSignIn() {
+  async function createBetterAuthSession() {
     setBusy(true);
     setLog([]);
     try {
-      pushLog(`Signing in for ${phoneNumber} ...`);
-      const { error } = await authClient.signIn.phoneNumber({ phoneNumber, password });
-      if (error) {
-        pushLog(`signIn.phoneNumber error: ${error?.message || String(error)}`);
-        return;
-      }
-      pushLog("signIn.phoneNumber success.");
-      pushLog("Redirect/login payload received.");
-      pushLog("Now run: node scripts/debug-better-auth.js <digits> to inspect created prisma.account rows.");
-    } catch (e) {
-      pushLog(`signIn.phoneNumber failed: ${e?.message || String(e)}`);
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phoneNumber, password }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload?.error?.message || "Local credentials rejected.");
+
+      const { error } = await authClient.signIn.email({
+        email: payload.emailForAuth || phoneAuthEmail(phoneNumber),
+        password,
+      });
+      if (error) throw new Error(error.message || "Better Auth session creation failed.");
+      pushLog("Better Auth session created.");
+    } catch (error) {
+      pushLog(`Session sign-in failed: ${error?.message || String(error)}`);
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div style={{ maxWidth: 760, margin: "40px auto", padding: 16 }}>
-      <h1 style={{ fontSize: 22, fontWeight: 800 }}>Test Better Auth Phone Flow</h1>
-      <p style={{ marginTop: 8, color: "#555" }}>
-        This is temporary. Your Better Auth phone plugin prints the OTP code to the Next.js server terminal.
-      </p>
-
-      <div style={{ display: "grid", gap: 12, marginTop: 20 }}>
-        <label>
-          <div style={{ fontWeight: 700, marginBottom: 6 }}>Phone number</div>
-          <input
-            value={phoneNumber}
-            onChange={(e) => setPhoneNumber(e.target.value)}
-            style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
-          />
-        </label>
-
-        <label>
-          <div style={{ fontWeight: 700, marginBottom: 6 }}>Password</div>
-          <input
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
-          />
-        </label>
-
-        <label>
-          <div style={{ fontWeight: 700, marginBottom: 6 }}>OTP code (from server terminal)</div>
-          <input
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            placeholder="123456"
-            style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
-          />
-        </label>
-
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button onClick={handleSendOTP} disabled={disabled}>
-            Send OTP (Better Auth)
-          </button>
-          <button onClick={handleVerifyOTP} disabled={busy || !code.trim()}>
-            Verify OTP (Better Auth)
-          </button>
-          <button onClick={handleSignIn} disabled={disabled || !code.trim()}>
-            Sign in (phone + password)
-          </button>
-        </div>
-
-        <div style={{ marginTop: 16 }}>
-          <div style={{ fontWeight: 800, marginBottom: 6 }}>Log</div>
-          <pre style={{ background: "#0b1020", color: "#d7e2ff", padding: 12, borderRadius: 12, minHeight: 120, whiteSpace: "pre-wrap" }}>
-            {log.length ? log.join("\n") : "(no logs yet)"}
-          </pre>
-        </div>
+    <main className="mx-auto max-w-2xl space-y-5 p-6">
+      <h1 className="text-2xl font-bold">Firebase Phone Login Test</h1>
+      <p className="text-sm text-slate-600">Firebase verifies the phone OTP. Better Auth creates the application session.</p>
+      <div id="recaptcha-test-phone" />
+      <label className="block">Phone number<input className="mt-1 w-full border p-2" value={phoneNumber} onChange={(event) => setPhoneNumber(event.target.value)} /></label>
+      <label className="block">Password<input className="mt-1 w-full border p-2" value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+      <label className="block">Firebase OTP<input className="mt-1 w-full border p-2" value={code} onChange={(event) => setCode(event.target.value)} placeholder="666777" /></label>
+      <div className="flex flex-wrap gap-2">
+        <button className="rounded bg-teal-700 px-3 py-2 text-white" onClick={sendFirebaseOtp} disabled={busy}>Send Firebase OTP</button>
+        <button className="rounded bg-teal-700 px-3 py-2 text-white" onClick={verifyFirebaseOtp} disabled={busy || !code}>Verify Firebase OTP</button>
+        <button className="rounded bg-teal-700 px-3 py-2 text-white" onClick={createBetterAuthSession} disabled={busy}>Create Better Auth Session</button>
       </div>
-    </div>
+      <pre className="min-h-32 whitespace-pre-wrap rounded bg-slate-950 p-3 text-sm text-slate-100">{log.length ? log.join("\n") : "(no logs yet)"}</pre>
+    </main>
   );
 }

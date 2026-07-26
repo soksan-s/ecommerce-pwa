@@ -75,7 +75,7 @@ export async function POST(request) {
     // The password/credential lookup is delegated to the standard "credential" providerId.
     //
     // Since we use Firebase for OTP verification, we must create this row directly
-    // in Prisma so that authClient.signIn.phoneNumber(...) can find and verify it.
+    // in Prisma so that Better Auth email sign-in can create the application session.
 
     const existingUser = await prisma.user.findUnique({
       where: { phoneNumber: canonicalPhone },

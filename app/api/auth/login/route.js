@@ -55,7 +55,7 @@ export async function POST(request) {
     }
 
     // Since we're using Better Auth, we don't actually need this custom login route for standard sessions
-    // Better Auth provides `authClient.signIn.phoneNumber({ phoneNumber, password })` on the frontend
+    // Better Auth provides email/password sessions; phone accounts use a stable internal email identifier.
     // This route is kept for manual checks or specific admin first-boot logic if needed.
 
     // BUT for Admin First-Boot:
