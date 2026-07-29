@@ -1490,6 +1490,29 @@ export function ClientOrderDetailPageView({ orderId }) {
   const router = useRouter();
   const order = useMemo(() => store.orders.find((entry) => entry.id === orderId), [store.orders, orderId]);
 
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelConfirm, setCancelConfirm] = useState(false);
+
+  async function handleCancelOrder() {
+    if (!order || order.status !== "pending") return;
+    setCancelling(true);
+    try {
+      const res = await fetch(`/api/orders/${order.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "CANCELLED" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || "Cancel failed");
+      store.updateOrder(order.id, { status: "cancelled" });
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setCancelling(false);
+      setCancelConfirm(false);
+    }
+  }
+
   function reorderItems() {
     const orderLines = order?.items?.length ? order.items : order?.lines || [];
     orderLines.forEach((line) => {
@@ -1550,23 +1573,42 @@ export function ClientOrderDetailPageView({ orderId }) {
             </span>
           </div>
         </div>
-
         <div className="flex flex-wrap gap-3">
-          <button
-            type="button"
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[var(--surface-quiet)] px-5 text-sm font-semibold text-[var(--foreground)] transition hover:bg-[color-mix(in_srgb,var(--action)_12%,var(--surface))]"
-          >
-            <ReceiptText className="size-4" />
-            Invoice
-          </button>
-          <button
-            type="button"
-            onClick={reorderItems}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[var(--action)] px-5 text-sm font-semibold text-[var(--action-foreground)] shadow-sm transition hover:brightness-95"
-          >
-            <RefreshCw className="size-4" />
-            Reorder
-          </button>
+          {order.status === "pending" ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setCancelConfirm(true)}
+                disabled={cancelling}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-rose-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700 disabled:opacity-50"
+              >
+                <X className="size-4" />
+                {cancelling ? "Cancelling..." : "Cancel Order"}
+              </button>
+              {cancelConfirm ? (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={() => setCancelConfirm(false)}>
+                  <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                    <h3 className="text-lg font-semibold text-slate-900">Cancel Order?</h3>
+                    <p className="mt-2 text-sm text-slate-600">This will restore inventory. This action cannot be undone.</p>
+                    <div className="mt-5 flex gap-3">
+                      <button type="button" onClick={() => setCancelConfirm(false)} className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700">Keep Order</button>
+                      <button type="button" onClick={handleCancelOrder} disabled={cancelling} className="flex-1 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">Yes, Cancel</button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </>
+          ) : null}
+          {order.status === "delivered" ? (
+            <button
+              type="button"
+              onClick={reorderItems}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[var(--action)] px-5 text-sm font-semibold text-[var(--action-foreground)] shadow-sm transition hover:brightness-95"
+            >
+              <RefreshCw className="size-4" />
+              Reorder
+            </button>
+          ) : null}
         </div>
       </section>
 

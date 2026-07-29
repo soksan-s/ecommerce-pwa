@@ -106,8 +106,9 @@ export function AppStoreProvider({ children }) {
     };
   }, []);
 
-  useEffect(() => {
+useEffect(() => {
     let active = true;
+    let debounceTimer;
 
     async function syncStore() {
       try {
@@ -137,10 +138,13 @@ export function AppStoreProvider({ children }) {
       }
     }
 
-    syncStore();
+    // Debounce sync: cancel any pending sync and wait 300ms after the last trigger
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(syncStore, 300);
 
     return () => {
       active = false;
+      clearTimeout(debounceTimer);
     };
   }, []);
 

@@ -281,7 +281,7 @@ export async function POST(request) {
         },
       });
 
-      for (const line of normalizedLines) {
+for (const line of normalizedLines) {
         // Ensure branch inventory record exists
         await tx.inventory.upsert({
           where: { variantId_branchId: { variantId: line.variant.id, branchId } },
@@ -327,8 +327,25 @@ export async function POST(request) {
           userId: user.id,
         });
 
-        // Also update the product variant's overall inventory concept if needed
-        // We no longer update legacy product.stock — that field is a backward-compat fallback
+        // Also decrement the legacy product.stock field so the client-facing
+        // catalog endpoint (/api/products → catalog.js normalizeProduct)
+        // reflects the correct available quantity.
+        const variant = await tx.productVariant.findUnique({
+          where: { id: line.variant.id },
+          select: { productId: true },
+        });
+        if (variant) {
+          const product = await tx.product.findUnique({
+            where: { id: variant.productId },
+            select: { stock: true },
+          });
+          if (product && product.stock >= line.quantity) {
+            await tx.product.update({
+              where: { id: variant.productId },
+              data: { stock: { decrement: line.quantity } },
+            });
+          }
+        }
       }
 
       await createAuditLog(tx, {

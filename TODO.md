@@ -1,4 +1,8 @@
-- [ ] Add runtime validation to `lib/firebase.js` to detect missing NEXT_PUBLIC_FIREBASE_* values without exposing secrets.
-- [ ] Restart dev server and retry register.
-- [ ] If still `auth/invalid-app-credential`, verify Firebase Phone provider is enabled on the same Firebase project used by the app.
+# Cancel Order / Reorder Feature
 
+## Steps
+
+- [x] Plan approved
+- [ ] 1. `app/api/orders/[id]/route.js` — Allow order owner to cancel pending order + restore inventory
+- [ ] 2. `components/client-pages.js` — Add Cancel button (pending only) + conditionally show Reorder (delivered only)
+- [ ] 3. Test: verify API cancellation, inventory restore, UI conditional rendering

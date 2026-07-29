@@ -94,7 +94,7 @@ async function allocateFefoBatches(tx, { order, userId }) {
       remaining -= deductQty;
     }
 
-    if (remaining > 0) {
+if (remaining > 0) {
       throw new Error("INSUFFICIENT_BATCH_STOCK");
     }
   }
@@ -102,17 +102,121 @@ async function allocateFefoBatches(tx, { order, userId }) {
 
 export async function PATCH(request, { params }) {
   const user = await getCurrentUser();
-
-  if (!user || !canAccessPOS(user.role)) {
-    return fail("POS access required.", 403);
-  }
-
   const body = await request.json();
   const { id } = await params;
   const nextStatus = body.status !== undefined ? mapStatus(body.status) : undefined;
 
   if (body.status !== undefined && !nextStatus) {
     return fail("Invalid order status.", 422);
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // CLIENT CANCELLATION PATH
+  // The order owner can cancel their own pending order.
+  // Inventory is restored and a cancellation audit entry is created.
+  // ════════════════════════════════════════════════════════════════
+  if (user && nextStatus === "CANCELLED" && !canAccessPOS(user.role)) {
+    try {
+      const updated = await prisma.$transaction(async (tx) => {
+        const existing = await tx.order.findUnique({
+          where: { id },
+          include: { items: true },
+        });
+
+        if (!existing) {
+          throw Object.assign(new Error("ORDER_NOT_FOUND"), { code: "P2025" });
+        }
+
+        // Only allow cancellation when the order belongs to this user and is in PENDING status
+        if (existing.userId !== user.id) {
+          throw Object.assign(new Error("FORBIDDEN"), { code: "P2025" });
+        }
+
+        if (existing.status !== "PENDING") {
+          throw Object.assign(new Error("INVALID_STATUS"), { code: "P2025" });
+        }
+
+        // Restore inventory for each item in the order
+        if (existing.branchId) {
+          for (const line of existing.items || []) {
+            if (!line.variantId) continue;
+
+            // Restore inventory quantity
+            await tx.inventory.updateMany({
+              where: {
+                variantId: line.variantId,
+                branchId: existing.branchId,
+              },
+              data: {
+                quantity: { increment: line.quantity },
+              },
+            });
+
+            // Record the inventory movement as a reservation release
+            await createInventoryMovement(tx, {
+              variantId: line.variantId,
+              branchId: existing.branchId,
+              orderId: existing.id,
+              type: "RESERVATION_RELEASE",
+              channel: "ONLINE",
+              quantityBefore: 0,
+              quantityChange: line.quantity,
+              quantityAfter: line.quantity,
+              note: "Order cancelled by customer — inventory restored.",
+              userId: user.id,
+            });
+
+            // Also restore the legacy product.stock field
+            const variant = await tx.productVariant.findUnique({
+              where: { id: line.variantId },
+              select: { productId: true },
+            });
+            if (variant) {
+              await tx.product.update({
+                where: { id: variant.productId },
+                data: { stock: { increment: line.quantity } },
+              });
+            }
+          }
+        }
+
+        const next = await tx.order.update({
+          where: { id },
+          data: { status: "CANCELLED" },
+          include: { items: true },
+        });
+
+        await createAuditLog(tx, {
+          userId: user.id,
+          action: "STATUS_CHANGE",
+          module: "orders",
+          recordId: id,
+          oldValue: { status: existing.status },
+          newValue: { status: "CANCELLED" },
+        });
+
+        return next;
+      });
+
+      return ok({ data: serializeOrder(updated) });
+    } catch (error) {
+      if (error?.message === "FORBIDDEN") {
+        return fail("You do not have permission to cancel this order.", 403);
+      }
+      if (error?.message === "INVALID_STATUS") {
+        return fail("Order can only be cancelled while status is PENDING.", 422);
+      }
+      return handleRouteError(error, "Unable to cancel order.", {
+        notFoundMessage: "Order not found.",
+      });
+    }
+  }
+
+// ════════════════════════════════════════════════════════════════
+  // POS / ADMIN STATUS UPDATE PATH (existing logic preserved)
+  // ════════════════════════════════════════════════════════════════
+  if (!user || !canAccessPOS(user.role)) {
+    return fail("POS access required.", 403);
   }
 
   try {
