@@ -31,7 +31,7 @@ export async function GET(request) {
       },
     });
 
-    return ok({
+return ok({
       data: movements.map((movement) => ({
         id: movement.id,
         variantId: movement.variantId,
@@ -39,9 +39,14 @@ export async function GET(request) {
         sku: movement.variant?.sku || movement.variantId,
         type: movement.type.toLowerCase(),
         channel: movement.channel?.toLowerCase() || "",
+        // New field names (DB schema)
         quantityBefore: movement.quantityBefore,
         quantityChange: movement.quantityChange,
         quantityAfter: movement.quantityAfter,
+        // Legacy field names for backward compatibility with admin UI
+        quantity: movement.quantityChange,
+        previousStock: movement.quantityBefore,
+        nextStock: movement.quantityAfter,
         note: movement.note || "",
         createdAt: movement.createdAt,
       })),

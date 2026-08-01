@@ -44,8 +44,20 @@ export async function POST(request) {
       return fail("Store branch must be configured.", 422);
     }
 
-    // Resolve variants — items now reference variantId (the variant is the sellable unit)
+// Resolve variants — items must reference variantId for variant products
     const variantIds = [...new Set(items.map((item) => item.variantId || item.productId).filter(Boolean))];
+
+    // Check for items missing variantId when product has variants
+    const productOnlyIds = [...new Set(items.filter((item) => !item.variantId && item.productId).map((item) => item.productId))];
+    if (productOnlyIds.length > 0) {
+      const productsWithVariants = await prisma.product.count({
+        where: { id: { in: productOnlyIds }, isVariant: true },
+      });
+      if (productsWithVariants > 0) {
+        return fail("Variant selection is required for products with multiple options.", 422);
+      }
+    }
+
     const variants = await prisma.productVariant.findMany({
       where: {
         id: { in: variantIds },
@@ -64,6 +76,9 @@ export async function POST(request) {
     const normalizedItems = items.map((item) => {
       const variantId = item.variantId || item.productId;
       const variant = variantMap.get(variantId);
+      if (!variant) {
+        throw new Error(`Variant not found: ${variantId}`);
+      }
       const quantity = Number(item.qty || item.quantity || 0);
 
       return {
@@ -189,7 +204,7 @@ export async function POST(request) {
         });
       }
 
-      // 4. Update branch inventory and create logs
+// 4. Update branch inventory and create logs
       for (const item of normalizedItems) {
         // Ensure inventory record exists for the branch (initialize to 0 if not present)
         await tx.inventory.upsert({
@@ -204,25 +219,26 @@ export async function POST(request) {
             variantId: item.variant.id,
             branchId,
             quantity: 0,
+            reservedQuantity: 0,
+            availableQuantity: 0,
           },
         });
 
-        const stockUpdate = await tx.inventory.updateMany({
+        // POS sales: atomically check availableQuantity >= item.quantity AND deduct
+        // Using updateMany with gte condition on availableQuantity prevents race conditions
+        const deductResult = await tx.inventory.updateMany({
           where: {
             variantId: item.variant.id,
             branchId,
-            quantity: {
-              gte: item.quantity,
-            },
+            availableQuantity: { gte: item.quantity },
           },
           data: {
-            quantity: {
-              decrement: item.quantity,
-            },
+            quantity: { decrement: item.quantity },
+            availableQuantity: { decrement: item.quantity },
           },
         });
 
-        if (stockUpdate.count !== 1) {
+        if (deductResult.count !== 1) {
           throw new Error("INSUFFICIENT_STOCK");
         }
 
@@ -235,6 +251,8 @@ export async function POST(request) {
           },
         });
 
+        const availBefore = updatedInventory ? (updatedInventory.availableQuantity + item.quantity) : 0;
+
         await createInventoryMovement(tx, {
           variantId: item.variant.id,
           branchId,
@@ -242,8 +260,8 @@ export async function POST(request) {
           type: "SALE",
           channel: "POS",
           quantity: item.quantity,
-          previousStock: Number(updatedInventory.quantity) + item.quantity,
-          nextStock: Number(updatedInventory.quantity),
+          previousStock: availBefore,
+          nextStock: Number(updatedInventory.availableQuantity),
           note: "POS sale",
           userId: user.id,
         });

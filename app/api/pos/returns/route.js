@@ -59,7 +59,7 @@ export async function POST(request) {
         },
       });
 
-      // 3. Sync branch inventory & log movement
+// 3. Sync branch inventory & log movement
       for (const item of returnItems) {
         const variantId = item.variantId || item.productId;
 
@@ -72,11 +72,13 @@ export async function POST(request) {
           },
           update: {
             quantity: { increment: item.quantity },
+            availableQuantity: { increment: item.quantity },
           },
           create: {
             variantId,
             branchId,
             quantity: item.quantity,
+            availableQuantity: item.quantity,
           },
         });
 

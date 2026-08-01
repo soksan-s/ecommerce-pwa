@@ -136,19 +136,22 @@ export async function PATCH(request, { params }) {
           throw Object.assign(new Error("INVALID_STATUS"), { code: "P2025" });
         }
 
-        // Restore inventory for each item in the order
+// Cancel reservations for each item in the order
         if (existing.branchId) {
           for (const line of existing.items || []) {
             if (!line.variantId) continue;
 
-            // Restore inventory quantity
-            await tx.inventory.updateMany({
+            // Atomically release reservation — decrement reservedQuantity, increment availableQuantity
+            // Using updateMany with gte condition on reservedQuantity prevents race conditions
+            const releaseResult = await tx.inventory.updateMany({
               where: {
                 variantId: line.variantId,
                 branchId: existing.branchId,
+                reservedQuantity: { gte: line.quantity },
               },
               data: {
-                quantity: { increment: line.quantity },
+                reservedQuantity: { decrement: line.quantity },
+                availableQuantity: { increment: line.quantity },
               },
             });
 
@@ -159,24 +162,10 @@ export async function PATCH(request, { params }) {
               orderId: existing.id,
               type: "RESERVATION_RELEASE",
               channel: "ONLINE",
-              quantityBefore: 0,
-              quantityChange: line.quantity,
-              quantityAfter: line.quantity,
-              note: "Order cancelled by customer — inventory restored.",
+              quantity: line.quantity,
+              note: "Order cancelled by customer — reservation released.",
               userId: user.id,
             });
-
-            // Also restore the legacy product.stock field
-            const variant = await tx.productVariant.findUnique({
-              where: { id: line.variantId },
-              select: { productId: true },
-            });
-            if (variant) {
-              await tx.product.update({
-                where: { id: variant.productId },
-                data: { stock: { increment: line.quantity } },
-              });
-            }
           }
         }
 

@@ -84,18 +84,50 @@ export async function PATCH(request, { params }) {
         },
       });
 
-      if (body.stock !== undefined && existing.stock !== product.stock) {
-        // For simplicity, log a product-level inventory movement using the first variant as proxy
-        const firstVariant = await tx.productVariant.findFirst({
-          where: { productId: product.id },
-        });
-        const variantId = firstVariant?.id || product.id;
+if (body.stock !== undefined && existing.stock !== product.stock) {
+        // For variant products, variantId is required for stock changes
+        const stockDiff = product.stock - existing.stock;
+        if (product.isVariant && !body.variantId) {
+          throw new Error("Variant ID is required for stock changes on variant products.");
+        }
+
+        let variantId = body.variantId;
+
+        if (!variantId) {
+          const firstVariant = await tx.productVariant.findFirst({
+            where: { productId: product.id },
+          });
+          variantId = firstVariant?.id || product.id;
+        }
+
+        // Sync variant-level inventory for the branch
+        const branch = await prisma.branch.findFirst({ where: { code: "HQ" } });
+        if (branch && variantId) {
+          await tx.inventory.upsert({
+            where: {
+              variantId_branchId: {
+                variantId,
+                branchId: branch.id,
+              },
+            },
+            update: {
+              quantity: { increment: stockDiff },
+              availableQuantity: { increment: stockDiff },
+            },
+            create: {
+              variantId,
+              branchId: branch.id,
+              quantity: Math.max(stockDiff, 0),
+              availableQuantity: Math.max(stockDiff, 0),
+            },
+          });
+        }
 
         await createInventoryMovement(tx, {
           variantId,
-          type: product.stock > existing.stock ? "STOCK_IN" : "ADJUSTMENT_DECREASE",
-          channel: "POS",
-          quantity: Math.abs(product.stock - existing.stock),
+          type: stockDiff > 0 ? "STOCK_IN" : "ADJUSTMENT_DECREASE",
+          channel: "ONLINE",
+          quantity: Math.abs(stockDiff),
           previousStock: existing.stock,
           nextStock: product.stock,
           note: "Admin product stock update",

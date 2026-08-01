@@ -165,10 +165,13 @@ useEffect(() => {
         if (!product) {
           return null;
         }
+        // Use the stored unitPrice from the cart item (set at add-to-cart time)
+        // This ensures variant prices are used correctly
+        const subtotal = Number((item.unitPrice * item.quantity).toFixed(2));
         return {
           ...item,
           product,
-          subtotal: Number((getDiscountedPrice(product) * item.quantity).toFixed(2)),
+          subtotal,
         };
       })
       .filter(Boolean);
@@ -229,8 +232,14 @@ useEffect(() => {
       isFavorite(id) {
         return state.favorites.includes(id);
       },
-      cartQuantityFor(id) {
-        return state.cart.find((item) => item.productId === id)?.quantity || 0;
+cartQuantityFor(id, variantId = null) {
+        const cartKey = variantId ? `${id}::${variantId}` : id;
+        return state.cart.find((item) => item.cartKey === cartKey)?.quantity || 0;
+      },
+
+      // Find which product a variant belongs to
+      findProductForVariant(variantId) {
+        return products.find((p) => p.variants?.some((v) => v.id === variantId)) || null;
       },
       toggleFavorite(productId) {
         fetch(`/api/favorites/${productId}`, { method: "POST" })
@@ -248,38 +257,96 @@ useEffect(() => {
           })
           .catch(() => {});
       },
-      addToCart(productId, quantity = 1) {
+      // Helper: get the effective price for a product+optional variant
+      getEffectivePrice(product, variantId) {
+        if (variantId && product.variants) {
+          const variant = product.variants.find((v) => v.id === variantId);
+          if (variant) {
+            return Number((variant.price * (1 - (variant.discountPercent || 0) / 100)).toFixed(2));
+          }
+        }
+        // Use displayPrice if available, else legacy product.price
+        const displayPrice = product.displayPrice || product.price;
+        const displayDiscount = product.displayDiscountPercent ?? product.discountPercent ?? 0;
+        return Number((displayPrice * (1 - displayDiscount / 100)).toFixed(2));
+      },
+
+      // Helper: get variant details by productId + variantId
+      getVariant(productId, variantId) {
+        const product = productsById.get(productId);
+        if (!product || !product.variants) return null;
+        return product.variants.find((v) => v.id === variantId) || null;
+      },
+
+      addToCart(productId, quantity = 1, variantId = null) {
         patch((current) => {
           const product = current.products.find((entry) => entry.id === productId);
           if (!product || !product.isActive || quantity <= 0) {
             return current;
           }
-          const existing = current.cart.find((item) => item.productId === productId);
-          const nextQuantity = (existing?.quantity || 0) + quantity;
-          if (nextQuantity > product.stock) {
-            return current;
+
+          // Determine the cart key: if variantId, use productId+variantId combo
+          const cartKey = variantId ? `${productId}::${variantId}` : productId;
+
+          // Get the price from the selected variant or from the product
+          let unitPrice;
+          let variantName = "";
+          let maxStock = product.stock;
+
+          if (variantId && product.variants) {
+            const variant = product.variants.find((v) => v.id === variantId);
+            if (!variant) return current;
+            unitPrice = Number((variant.price * (1 - (variant.discountPercent || 0) / 100)).toFixed(2));
+            variantName = variant.name;
+            maxStock = variant.stock > 0 ? variant.stock : product.stock;
+          } else {
+            const displayPrice = product.displayPrice || product.price;
+            const displayDiscount = product.displayDiscountPercent ?? product.discountPercent ?? 0;
+            unitPrice = Number((displayPrice * (1 - displayDiscount / 100)).toFixed(2));
           }
+
+          if (maxStock <= 0) return current;
+
+          const existing = current.cart.find((item) => item.cartKey === cartKey);
+          const nextQuantity = (existing?.quantity || 0) + quantity;
+          if (nextQuantity > maxStock) return current;
+
           const nextCart = existing
-            ? current.cart.map((item) => (item.productId === productId ? { ...item, quantity: nextQuantity } : item))
-            : [...current.cart, { productId, quantity }];
+            ? current.cart.map((item) =>
+                item.cartKey === cartKey ? { ...item, quantity: nextQuantity } : item,
+              )
+            : [
+                ...current.cart,
+                {
+                  cartKey,
+                  productId,
+                  variantId: variantId || null,
+                  variantName,
+                  unitPrice,
+                  quantity,
+                },
+              ];
+
           return {
             ...current,
             cart: nextCart,
           };
         });
       },
-      decreaseCart(productId) {
+      decreaseCart(productId, variantId = null) {
+        const cartKey = variantId ? `${productId}::${variantId}` : productId;
         patch((current) => ({
           ...current,
           cart: current.cart
-            .map((item) => (item.productId === productId ? { ...item, quantity: item.quantity - 1 } : item))
+            .map((item) => (item.cartKey === cartKey ? { ...item, quantity: item.quantity - 1 } : item))
             .filter((item) => item.quantity > 0),
         }));
       },
-      removeFromCart(productId) {
+      removeFromCart(productId, variantId = null) {
+        const cartKey = variantId ? `${productId}::${variantId}` : productId;
         patch((current) => ({
           ...current,
-          cart: current.cart.filter((item) => item.productId !== productId),
+          cart: current.cart.filter((item) => item.cartKey !== cartKey),
         }));
       },
       addComment(productId, message) {
@@ -405,6 +472,7 @@ useEffect(() => {
               couponCode,
               lines: currentCart.map((item) => ({
                 productId: item.productId,
+                variantId: item.variantId || undefined,
                 quantity: item.quantity,
               })),
             }),

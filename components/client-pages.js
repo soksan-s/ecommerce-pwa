@@ -10,6 +10,7 @@ import {
   CalendarRange,
   CheckCircle2,
   ChevronRight,
+  CircleArrowLeft,
   CircleUserRound,
   CircleDollarSign,
   CircleHelp,
@@ -246,10 +247,19 @@ function ProductCard({ product, store }) {
   const isFavorite = store.isFavorite(product.id);
   const discountedPrice = getProductDiscountedPrice(product);
   const hasDiscount = product.discountPercent > 0 && discountedPrice < product.price;
+  const isVariantProduct = product.isVariant && product.variants && product.variants.length > 0;
+
+  // For variant products, use displayPrice
+  const displayPrice = product.displayPrice || product.price;
+  const displayDiscount = product.displayDiscountPercent ?? product.discountPercent ?? 0;
+  const effectivePrice = displayPrice * (1 - displayDiscount / 100);
+  const priceRange = isVariantProduct && product.variants.length > 1
+    ? `${formatCurrency(Math.min(...product.variants.map(v => v.price * (1 - (v.discountPercent || 0) / 100))))} - ${formatCurrency(Math.max(...product.variants.map(v => v.price * (1 - (v.discountPercent || 0) / 100))))}`
+    : null;
 
   return (
     <div className="public-home-product-card flex h-full flex-col overflow-hidden rounded-[1.45rem] shadow-[0_16px_38px_rgba(3,10,18,0.22)] transition hover:-translate-y-1 hover:shadow-[var(--shadow-strong)]">
-      <Link href={`/client/product-detail/${product.id}`} className="block">
+      <Link href={`/client/product-detail/${product.id}`} className="block" tabIndex={-1}>
         <div
           className="relative aspect-[1/0.92] overflow-hidden bg-[#d7dadd]"
           style={{
@@ -259,6 +269,11 @@ function ProductCard({ product, store }) {
           }}
         >
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.16),rgba(0,0,0,0.52))]" />
+          {isVariantProduct ? (
+            <span className="absolute left-3 top-3 rounded-full bg-black/30 px-2.5 py-1 text-[10px] font-semibold text-white backdrop-blur-sm">
+              Options
+            </span>
+          ) : null}
           <button
             type="button"
             onClick={(event) => {
@@ -287,15 +302,23 @@ function ProductCard({ product, store }) {
         </Link>
 
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-          {hasDiscount ? (
-            <span className="public-home-product-muted text-[0.88rem] line-through">
-              {formatCurrency(product.price)}
+          {priceRange ? (
+            <span className="font-semibold text-[var(--public-home-product-foreground)]">
+              {priceRange}
             </span>
-          ) : null}
-          <span className="font-semibold text-[var(--public-home-product-foreground)]">
-            {formatCurrency(discountedPrice)}
-          </span>
-          {hasDiscount ? <span className="text-emerald-400">{product.discountPercent}% off</span> : null}
+          ) : (
+            <>
+              {hasDiscount ? (
+                <span className="public-home-product-muted text-[0.88rem] line-through">
+                  {formatCurrency(product.price)}
+                </span>
+              ) : null}
+              <span className="font-semibold text-[var(--public-home-product-foreground)]">
+                {formatCurrency(effectivePrice)}
+              </span>
+              {hasDiscount ? <span className="text-emerald-400">{product.discountPercent}% off</span> : null}
+            </>
+          )}
           <span className="inline-flex items-center gap-1 text-[var(--public-home-product-foreground)]/80">
             <Star className="size-3.5 text-amber-400" />
             {product.rating.toFixed(1)}
@@ -306,13 +329,27 @@ function ProductCard({ product, store }) {
           {product.stock > 0 ? t("in_stock").replace("{count}", product.stock) : t("out_of_stock")}
         </p>
 
-        <Button
-          className="mt-auto w-full rounded-[0.95rem] border border-[color-mix(in_srgb,var(--action)_36%,transparent)] bg-[var(--action)] py-2.5 text-[var(--action-foreground)] shadow-none hover:brightness-[1.01]"
-          onClick={() => store.addToCart(product.id)}
-          disabled={product.stock <= 0}
-        >
-          {product.stock > 0 ? t("add_to_cart") : t("out_of_stock")}
-        </Button>
+        {isVariantProduct ? (
+          <Link
+            href={`/client/product-detail/${product.id}`}
+            className="mt-auto w-full"
+          >
+            <Button
+              className="w-full rounded-[0.95rem] border border-[color-mix(in_srgb,var(--action)_36%,transparent)] bg-[var(--action)] py-2.5 text-[var(--action-foreground)] shadow-none hover:brightness-[1.01]"
+              disabled={product.stock <= 0}
+            >
+              {product.stock > 0 ? (t("choose_options") || "Choose Options") : t("out_of_stock")}
+            </Button>
+          </Link>
+        ) : (
+          <Button
+            className="mt-auto w-full rounded-[0.95rem] border border-[color-mix(in_srgb,var(--action)_36%,transparent)] bg-[var(--action)] py-2.5 text-[var(--action-foreground)] shadow-none hover:brightness-[1.01]"
+            onClick={() => store.addToCart(product.id)}
+            disabled={product.stock <= 0}
+          >
+            {product.stock > 0 ? t("add_to_cart") : t("out_of_stock")}
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -1026,7 +1063,7 @@ export function ClientCartPageView() {
         <>
           <div className="space-y-3 px-4">
             {store.cartItems.map((item) => (
-              <Card key={item.productId} className="p-3">
+              <Card key={item.cartKey || item.productId} className="p-3">
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <div
                     className="h-[5.25rem] w-[5.25rem] rounded-xl bg-cover bg-center"
@@ -1035,24 +1072,25 @@ export function ClientCartPageView() {
                   <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <h2 className="text-lg font-semibold text-[var(--foreground)]">{item.product.name}</h2>
+                      {item.variantName ? (
+                        <p className="mt-0.5 text-xs font-medium text-[var(--action)]">{item.variantName}</p>
+                      ) : null}
                       <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-                        {item.product.discountPercent > 0
-                          ? `${formatCurrency(item.product.price * (1 - item.product.discountPercent / 100))} ${t("each")} (was ${formatCurrency(item.product.price)})`
-                          : `${formatCurrency(item.product.price)} ${t("each")}`}
+                        {formatCurrency(item.unitPrice)} {t("each")}
                       </p>
                       <p className="mt-1 text-sm font-semibold text-[var(--foreground)]">{t("subtotal")}: {formatCurrency(item.subtotal)}</p>
                     </div>
                     <div className="flex flex-col items-start gap-2 sm:items-center">
                       <div className="flex items-center">
-                        <button type="button" onClick={() => store.decreaseCart(item.productId)} className="app-icon-button p-2">
+                        <button type="button" onClick={() => store.decreaseCart(item.productId, item.variantId)} className="app-icon-button p-2">
                           -
                         </button>
                         <span className="min-w-8 text-center font-semibold">{item.quantity}</span>
-                        <button type="button" onClick={() => store.addToCart(item.productId)} className="app-icon-button p-2">
+                        <button type="button" onClick={() => store.addToCart(item.productId, 1, item.variantId)} className="app-icon-button p-2">
                           +
                         </button>
                       </div>
-                      <button type="button" onClick={() => store.removeFromCart(item.productId)} className="text-sm font-medium text-[var(--action)]">
+                      <button type="button" onClick={() => store.removeFromCart(item.productId, item.variantId)} className="text-sm font-medium text-[var(--action)]">
                         {t("remove")}
                       </button>
                     </div>
@@ -1136,9 +1174,9 @@ export function ClientCheckoutPageView() {
               <span className="font-semibold text-[var(--foreground)]">{store.cartItems.length}</span>
             </div>
             {store.cartItems.map((item) => (
-              <div key={item.productId} className="flex items-center justify-between gap-4 text-sm">
+              <div key={item.cartKey || item.productId} className="flex items-center justify-between gap-4 text-sm">
                 <span className="text-[var(--muted-foreground)]">
-                  {item.product.name} x {item.quantity}
+                  {item.product.name}{item.variantName ? ` (${item.variantName})` : ''} x {item.quantity}
                 </span>
                 <span className="font-semibold text-[var(--foreground)]">{formatCurrency(item.subtotal)}</span>
               </div>
@@ -1516,8 +1554,10 @@ export function ClientOrderDetailPageView({ orderId }) {
   function reorderItems() {
     const orderLines = order?.items?.length ? order.items : order?.lines || [];
     orderLines.forEach((line) => {
-      if (line.productId) {
-        store.addToCart(line.productId, line.quantity || 1);
+      // Use variantId if available, otherwise fall back to productId
+      const productId = line.variantId || line.productId;
+      if (productId) {
+        store.addToCart(productId, line.quantity || 1, line.variantId || null);
       }
     });
     router.push("/client?tab=cart");
@@ -2115,6 +2155,7 @@ export function ClientProductDetailPageView({ productId, user }) {
   const [comment, setComment] = useState("");
   const [editingId, setEditingId] = useState("");
   const [editingMessage, setEditingMessage] = useState("");
+  const [selectedVariantId, setSelectedVariantId] = useState(null);
   const product = store.getProduct(productId);
 
   if (!product) {
@@ -2125,8 +2166,43 @@ export function ClientProductDetailPageView({ productId, user }) {
     );
   }
 
+  const isVariantProduct = product.isVariant && product.variants && product.variants.length > 0;
+  const selectedVariant = isVariantProduct && selectedVariantId
+    ? product.variants.find((v) => v.id === selectedVariantId)
+    : null;
+
+  // Determine effective price and stock
+  const effectivePrice = selectedVariant
+    ? selectedVariant.price * (1 - (selectedVariant.discountPercent || 0) / 100)
+    : (product.displayPrice || product.price) * (1 - ((product.displayDiscountPercent ?? product.discountPercent ?? 0) / 100));
+  const effectiveStock = selectedVariant
+    ? (selectedVariant.stock > 0 ? selectedVariant.stock : product.stock)
+    : product.stock;
+  const effectiveDiscountPercent = selectedVariant
+    ? selectedVariant.discountPercent || 0
+    : (product.displayDiscountPercent ?? product.discountPercent ?? 0);
+
+  function handleAddToCart() {
+    if (isVariantProduct && !selectedVariantId) {
+      // If no variant selected, select the first one
+      const firstVariant = product.variants[0];
+      if (firstVariant) {
+        store.addToCart(product.id, 1, firstVariant.id);
+        setSelectedVariantId(firstVariant.id);
+      }
+      return;
+    }
+    store.addToCart(product.id, 1, selectedVariantId);
+  }
+
   return (
     <div className="space-y-4 pb-28">
+      <div className="sticky top-0 z-30 bg-[var(--background-start)]/90 backdrop-blur-md py-2 -mx-5 px-5">
+        <Link href="/client" className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--action)] transition hover:text-[var(--foreground)]">
+          <CircleArrowLeft className="size-5" />
+          Back to shop
+        </Link>
+      </div>
       <div className="overflow-hidden rounded-[1.75rem] border border-white/45 bg-white/60 shadow-[0_20px_45px_rgba(10,24,35,0.08)] backdrop-blur-xl">
         <div className="min-h-80 bg-cover bg-center" style={{ backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.06), rgba(0,0,0,0.48)), url(${product.image})` }} />
       </div>
@@ -2136,7 +2212,7 @@ export function ClientProductDetailPageView({ productId, user }) {
           <div className="flex flex-wrap gap-2">
             <span className="app-chip px-3 py-1.5 text-sm" data-active="true">{product.category}</span>
             <span className="app-chip px-3 py-1.5 text-sm" data-active="true">
-              {product.stock > 0 ? `${product.stock} available` : "Out of stock"}
+              {effectiveStock > 0 ? `${effectiveStock} available` : "Out of stock"}
             </span>
             <span className="app-chip px-3 py-1.5 text-sm" data-active="true">
               {product.rating.toFixed(1)} * ({product.ratingCount})
@@ -2156,9 +2232,41 @@ export function ClientProductDetailPageView({ productId, user }) {
 
         <h1 className="mt-4 text-3xl font-semibold text-[var(--foreground)]">{product.name}</h1>
         <p className="mt-3 text-3xl font-bold text-[var(--foreground)]">
-          {formatCurrency(product.price * (1 - product.discountPercent / 100))}
+          {formatCurrency(effectivePrice)}
         </p>
-        {product.discountPercent ? <p className="mt-1 text-sm font-semibold text-green-700">{product.discountPercent}% off</p> : null}
+        {effectiveDiscountPercent > 0 ? <p className="mt-1 text-sm font-semibold text-green-700">{effectiveDiscountPercent}% off</p> : null}
+
+        {/* Variant Selector */}
+        {isVariantProduct && product.variants.length > 0 ? (
+          <div className="mt-6">
+            <h3 className="text-sm font-semibold text-[var(--foreground)] mb-3">Choose option:</h3>
+            <div className="flex flex-wrap gap-2">
+              {product.variants.map((variant) => {
+                const isSelected = selectedVariantId === variant.id;
+                const variantPrice = variant.price * (1 - (variant.discountPercent || 0) / 100);
+                return (
+                  <button
+                    key={variant.id}
+                    type="button"
+                    onClick={() => setSelectedVariantId(variant.id)}
+                    className={cn(
+                      "rounded-xl border px-4 py-3 text-sm font-semibold transition text-left",
+                      isSelected
+                        ? "border-[var(--action)] bg-[color-mix(in_srgb,var(--action)_14%,var(--surface))] text-[var(--foreground)]"
+                        : "border-[var(--border-soft)] bg-[var(--surface)] text-[var(--muted-foreground)] hover:border-[var(--action)]",
+                    )}
+                  >
+                    <span className="block">{variant.name}</span>
+                    <span className="block mt-1 text-xs opacity-80">{formatCurrency(variantPrice)}</span>
+                    {variant.stock <= 0 ? (
+                      <span className="block mt-1 text-[10px] text-red-400">Out of stock</span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
 
         <p className="mt-5 text-base leading-8 text-[var(--muted-foreground)]">{product.description}</p>
 
@@ -2309,15 +2417,15 @@ export function ClientProductDetailPageView({ productId, user }) {
           <div>
             <p className="text-sm text-[var(--muted-foreground)]">Total</p>
             <p className="mt-1 text-2xl font-bold text-[var(--foreground)]">
-              {formatCurrency(product.price * (1 - product.discountPercent / 100))}
+              {formatCurrency(effectivePrice)}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             {store.cartQuantityFor(product.id) ? (
               <span className="text-sm font-medium text-[var(--muted-foreground)]">{store.cartQuantityFor(product.id)} in cart</span>
             ) : null}
-            <Button onClick={() => store.addToCart(product.id)} disabled={product.stock <= 0}>
-              {product.stock > 0 ? "Add to cart" : "Out of stock"}
+            <Button onClick={handleAddToCart} disabled={effectiveStock <= 0}>
+              {effectiveStock > 0 ? (isVariantProduct && !selectedVariantId ? "Select option" : "Add to cart") : "Out of stock"}
             </Button>
           </div>
         </div>

@@ -105,20 +105,33 @@ export async function POST(request) {
       return fail("Invalid order payload.", 422);
     }
 
-    // Lines may reference variantId (new) or productId (legacy cart).
-    // Separate them so we can do targeted lookups.
-    const directVariantIds = [...new Set(lines.map((l) => l.variantId).filter(Boolean))];
-    const productOnlyIds   = [...new Set(lines.filter((l) => !l.variantId && l.productId).map((l) => l.productId))];
+// Lines must reference variantId. Products with variants require variantId.
+    const variantIds = [...new Set(lines.map((l) => l.variantId).filter(Boolean))];
+
+    // Find products that have variants but no variantId was provided
+    const productOnlyIds = [...new Set(lines.filter((l) => !l.variantId && l.productId).map((l) => l.productId))];
+    if (productOnlyIds.length > 0) {
+      // Check if any of these products have variants
+      const productsWithVariants = await prisma.product.count({
+        where: {
+          id: { in: productOnlyIds },
+          isVariant: true,
+        },
+      });
+      if (productsWithVariants > 0) {
+        return fail("Variant selection is required for products with multiple options.", 422);
+      }
+    }
 
     // Fetch variants referenced directly
-    const directVariants = directVariantIds.length
+    const directVariants = variantIds.length
       ? await prisma.productVariant.findMany({
-          where: { id: { in: directVariantIds }, isActive: true },
+          where: { id: { in: variantIds }, isActive: true },
           include: { product: true },
         })
       : [];
 
-    // Resolve legacy productIds → first active variant for that product
+    // For non-variant products, resolve the first active variant
     const productVariants = productOnlyIds.length
       ? await prisma.productVariant.findMany({
           where: { productId: { in: productOnlyIds }, isActive: true },
@@ -141,21 +154,23 @@ export async function POST(request) {
       return fail("Some products are unavailable.", 422);
     }
 
-    // Combine into a unified variant map keyed by the ID that arrived in the line
+    // Combine into a unified variant map
     const variantMap = new Map();
     for (const v of directVariants) {
       variantMap.set(v.id, v);
     }
-    // For legacy lines, key by productId so the normalisation below can find them
     for (const [productId, v] of productToVariantMap.entries()) {
       variantMap.set(productId, v);
     }
 
     const normalizedLines = lines.map((line) => {
-      // Look up by variantId first, then fall back to productId (legacy cart key)
       const lookupKey = line.variantId || line.productId;
       const variant = variantMap.get(lookupKey);
+      if (!variant) {
+        throw new Error(`Variant not found for line: ${lookupKey}`);
+      }
       const quantity = Number(line.quantity || 0);
+      // Price is always calculated from the selected variant (never from legacy product.price)
       const unitPrice = Number(variant.price) * (1 - variant.discountPercent / 100);
 
       return {
@@ -179,7 +194,7 @@ export async function POST(request) {
       branchId = defaultBranch?.id;
     }
 
-    if (!branchId) {
+if (!branchId) {
       return fail("Store branch is not configured. Please contact support.", 503);
     }
 
@@ -197,6 +212,10 @@ export async function POST(request) {
       if (line.quantity > availQty) {
         return fail(`Insufficient stock for ${line.variant.product.name}.`, 422);
       }
+    }
+
+    if (normalizedLines.some((line) => line.quantity <= 0)) {
+      return fail("Invalid quantity for one or more products.", 422);
     }
 
     const subtotal = normalizedLines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
@@ -286,25 +305,24 @@ for (const line of normalizedLines) {
         await tx.inventory.upsert({
           where: { variantId_branchId: { variantId: line.variant.id, branchId } },
           update: {},
-          create: { variantId: line.variant.id, branchId, quantity: 0, availableQuantity: 0 },
+          create: { variantId: line.variant.id, branchId, quantity: 0, reservedQuantity: 0, availableQuantity: 0 },
         });
 
-        const stockUpdate = await tx.inventory.updateMany({
+        // Atomically check availableQuantity >= line.quantity AND reserve stock
+        // Using updateMany with gte condition on availableQuantity prevents race conditions
+        const reserveResult = await tx.inventory.updateMany({
           where: {
             variantId: line.variant.id,
             branchId,
-            quantity: {
-              gte: line.quantity,
-            },
+            availableQuantity: { gte: line.quantity },
           },
           data: {
-            quantity: {
-              decrement: line.quantity,
-            },
+            reservedQuantity: { increment: line.quantity },
+            availableQuantity: { decrement: line.quantity },
           },
         });
 
-        if (stockUpdate.count !== 1) {
+        if (reserveResult.count !== 1) {
           throw new Error("INSUFFICIENT_STOCK");
         }
 
@@ -314,6 +332,8 @@ for (const line of normalizedLines) {
           },
         });
 
+        const availBefore = updatedInventory ? (updatedInventory.quantity - updatedInventory.reservedQuantity + line.quantity) : 0;
+
         await createInventoryMovement(tx, {
           variantId: line.variant.id,
           branchId,
@@ -321,31 +341,11 @@ for (const line of normalizedLines) {
           type: "RESERVATION",
           channel: "ONLINE",
           quantity: line.quantity,
-          previousStock: Number(updatedInventory.quantity) + line.quantity,
-          nextStock: Number(updatedInventory.quantity),
+          previousStock: availBefore,
+          nextStock: Number(updatedInventory.availableQuantity),
           note: "Online order inventory reservation",
           userId: user.id,
         });
-
-        // Also decrement the legacy product.stock field so the client-facing
-        // catalog endpoint (/api/products → catalog.js normalizeProduct)
-        // reflects the correct available quantity.
-        const variant = await tx.productVariant.findUnique({
-          where: { id: line.variant.id },
-          select: { productId: true },
-        });
-        if (variant) {
-          const product = await tx.product.findUnique({
-            where: { id: variant.productId },
-            select: { stock: true },
-          });
-          if (product && product.stock >= line.quantity) {
-            await tx.product.update({
-              where: { id: variant.productId },
-              data: { stock: { decrement: line.quantity } },
-            });
-          }
-        }
       }
 
       await createAuditLog(tx, {

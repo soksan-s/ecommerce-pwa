@@ -80,7 +80,7 @@ export async function POST(request) {
       });
       const branchId = branch?.id;
 
-      if (branchId) {
+if (branchId) {
         await prisma.inventory.upsert({
           where: {
             variantId_branchId: {
@@ -90,11 +90,13 @@ export async function POST(request) {
           },
           update: {
             quantity: { increment: quantity },
+            availableQuantity: { increment: quantity },
           },
           create: {
             variantId: variant.id,
             branchId,
             quantity,
+            availableQuantity: quantity,
           },
         });
       }
