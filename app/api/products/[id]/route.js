@@ -6,6 +6,69 @@ import { requireAdminUser } from "@/lib/auth";
 import { normalizeProduct } from "@/lib/catalog";
 import { prisma } from "@/lib/prisma";
 
+/**
+ * DELETE /api/products/[id]
+ * Soft-deletes a product: sets deletedAt + isActive=false on the product
+ * and deactivates all its variants. Hard-deleting is unsafe because
+ * ProductVariant has many onDelete: Restrict relations (OrderItem, SaleItem,
+ * InventoryMovement, PurchaseOrderItem, etc.), so the schema intentionally
+ * ships with a deletedAt column for this purpose.
+ */
+export async function DELETE(request, { params }) {
+  try {
+    const admin = await requireAdminUser();
+
+    if (!admin) {
+      return fail("Admin access required.", 403);
+    }
+
+    const { id } = await params;
+
+    const deleted = await prisma.$transaction(async (tx) => {
+      const existing = await tx.product.findUnique({
+        where: { id },
+        include: { variants: true },
+      });
+
+      if (!existing) {
+        throw Object.assign(new Error("PRODUCT_NOT_FOUND"), { code: "P2025" });
+      }
+
+      // Deactivate all variants so they no longer appear on the storefront
+      await tx.productVariant.updateMany({
+        where: { productId: id },
+        data: { isActive: false },
+      });
+
+      const product = await tx.product.update({
+        where: { id },
+        data: {
+          deletedAt: new Date(),
+          isActive: false,
+        },
+      });
+
+      await createAuditLog(tx, {
+        userId: admin.id,
+        action: "DELETE",
+        module: "products",
+        recordId: product.id,
+        oldValue: normalizeProduct(existing),
+      });
+
+      return product;
+    });
+
+    return NextResponse.json({
+      data: normalizeProduct(deleted),
+    });
+  } catch (error) {
+    return handleRouteError(error, "Unable to delete product.", {
+      notFoundMessage: "Product not found.",
+    });
+  }
+}
+
 export async function PATCH(request, { params }) {
   try {
     const admin = await requireAdminUser();

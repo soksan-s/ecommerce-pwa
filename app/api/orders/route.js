@@ -148,10 +148,78 @@ export async function POST(request) {
       }
     }
 
-    // Verify every productId resolved to a variant
+    // Verify every productId resolved to a variant. For products that have no
+    // variants at all (e.g. legacy products created before the variant system,
+    // or products added without enabling variants), create a default variant on
+    // the fly so every line always resolves to a real, orderable variant whose
+    // price matches the product-level price.
     const unresolvedProducts = productOnlyIds.filter((id) => !productToVariantMap.has(id));
     if (unresolvedProducts.length) {
-      return fail("Some products are unavailable.", 422);
+      const unresolvedProductRows = await prisma.product.findMany({
+        where: { id: { in: unresolvedProducts }, deletedAt: null },
+      });
+
+      const fallbackBranchId = body.branchId
+        ? body.branchId
+        : (await prisma.branch.findFirst({ where: { code: "HQ" } }))?.id || null;
+
+      for (const legacyProduct of unresolvedProductRows) {
+        // Reuse an existing default variant if present (idempotent retries).
+        let defaultVariant = await prisma.productVariant.findFirst({
+          where: { productId: legacyProduct.id, name: "Default" },
+        });
+
+        if (!defaultVariant) {
+          defaultVariant = await prisma.productVariant.create({
+            data: {
+              productId: legacyProduct.id,
+              sku:
+                legacyProduct.sku ||
+                `DFLT-${String(legacyProduct.id).slice(-8).toUpperCase()}`,
+              name: "Default",
+              price: Number(legacyProduct.price || 0),
+              costPrice: legacyProduct.costPrice || null,
+              wholesalePrice: legacyProduct.wholesalePrice || null,
+              discountPercent: legacyProduct.discountPercent || 0,
+            },
+            include: { product: true },
+          });
+        } else if (!defaultVariant.isActive) {
+          defaultVariant = await prisma.productVariant.update({
+            where: { id: defaultVariant.id },
+            data: { isActive: true },
+            include: { product: true },
+          });
+        }
+
+        // Ensure the default variant has an inventory record at the branch so
+        // the stock check below uses the product's available quantity.
+        if (fallbackBranchId) {
+          await prisma.inventory.upsert({
+            where: {
+              variantId_branchId: {
+                variantId: defaultVariant.id,
+                branchId: fallbackBranchId,
+              },
+            },
+            update: {},
+            create: {
+              variantId: defaultVariant.id,
+              branchId: fallbackBranchId,
+              quantity: legacyProduct.stock || 0,
+              reservedQuantity: 0,
+              availableQuantity: legacyProduct.stock || 0,
+            },
+          });
+        }
+
+        productToVariantMap.set(legacyProduct.id, defaultVariant);
+      }
+
+      const stillUnresolved = unresolvedProducts.filter((id) => !productToVariantMap.has(id));
+      if (stillUnresolved.length) {
+        return fail("Some products are unavailable.", 422);
+      }
     }
 
     // Combine into a unified variant map

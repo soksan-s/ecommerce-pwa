@@ -113,11 +113,18 @@ function getOrderLineLabel(line) {
 }
 
 function getProductImageForLine(store, line) {
-  if (!line?.productId) {
+  if (!line?.productId && !line?.variantId) {
     return "";
   }
 
-  return store.products.find((product) => product.id === line.productId)?.image || "";
+  // For variant orders, `order.items` carries variantId (no productId) and
+  // the legacy `lines` alias maps productId to the variantId. Resolve the
+  // real product through both paths so the image is found.
+  const product =
+    store.products.find((p) => p.id === line.productId) ||
+    store.findProductForVariant?.(line.variantId || line.productId);
+
+  return product?.image || "";
 }
 
 function getProductInitials(name) {
@@ -238,23 +245,80 @@ const CLIENT_VISIBLE_COUNT = 3 * CLIENT_VISIBLE_ROWS;
 const CLIENT_SHOW_MORE_INCREMENT = CLIENT_VISIBLE_COUNT;
 const CLIENT_REVEAL_DURATION_MS = 900;
 
+function isMultiVariantProduct(product) {
+  return Boolean(
+    product &&
+      (product.hasVariants || (product.isVariant && product.variants && product.variants.length > 0)),
+  );
+}
+
+function getProductVariants(product) {
+  return (product?.variants || []).filter((variant) => variant.isActive !== false);
+}
+
 function getProductDiscountedPrice(product) {
-  return product.price * (1 - product.discountPercent / 100);
+  // Multi-variant products store their real sellable prices on each variant.
+  // displayPrice is the cheapest variant price, so use it for cards, hero,
+  // filters, and sorting to match exactly what the customer is charged.
+  if (isMultiVariantProduct(product) && product.displayPrice != null) {
+    return Number(product.displayPrice);
+  }
+  return Number((product?.price || 0) * (1 - (product?.discountPercent || 0) / 100));
+}
+
+function getProductVariantPrices(product) {
+  return getProductVariants(product).map((variant) =>
+    Number((Number(variant.price) * (1 - (Number(variant.discountPercent) || 0) / 100)).toFixed(2)),
+  );
+}
+
+function getProductMinPrice(product) {
+  const variants = getProductVariants(product);
+  if (variants.length) {
+    return Math.min(...getProductVariantPrices(product));
+  }
+  return getProductDiscountedPrice(product);
+}
+
+function getProductMaxPrice(product) {
+  const variants = getProductVariants(product);
+  if (variants.length) {
+    return Math.max(...getProductVariantPrices(product));
+  }
+  return getProductDiscountedPrice(product);
+}
+
+function getProductTotalStock(product) {
+  const variants = getProductVariants(product);
+  if (variants.length) {
+    return variants.reduce((sum, variant) => sum + (Number(variant.stock) || 0), 0);
+  }
+  return Number(product?.stock || 0);
+}
+
+function getProductMaxDiscountPercent(product) {
+  const variants = getProductVariants(product);
+  if (variants.length) {
+    return Math.max(0, ...variants.map((variant) => Number(variant.discountPercent || 0)));
+  }
+  return Number(product?.discountPercent || 0);
 }
 
 function ProductCard({ product, store }) {
   const { t } = useTranslation(store.language);
   const isFavorite = store.isFavorite(product.id);
   const discountedPrice = getProductDiscountedPrice(product);
-  const hasDiscount = product.discountPercent > 0 && discountedPrice < product.price;
-  const isVariantProduct = product.isVariant && product.variants && product.variants.length > 0;
+  const isVariantProduct = isMultiVariantProduct(product);
+  const totalStock = getProductTotalStock(product);
+  const maxDiscountPercent = getProductMaxDiscountPercent(product);
+  const hasDiscount = maxDiscountPercent > 0 && discountedPrice < Number(product.price || 0);
 
   // For variant products, use displayPrice
   const displayPrice = product.displayPrice || product.price;
   const displayDiscount = product.displayDiscountPercent ?? product.discountPercent ?? 0;
   const effectivePrice = displayPrice * (1 - displayDiscount / 100);
-  const priceRange = isVariantProduct && product.variants.length > 1
-    ? `${formatCurrency(Math.min(...product.variants.map(v => v.price * (1 - (v.discountPercent || 0) / 100))))} - ${formatCurrency(Math.max(...product.variants.map(v => v.price * (1 - (v.discountPercent || 0) / 100))))}`
+  const priceRange = isVariantProduct && getProductVariants(product).length > 1
+    ? `${formatCurrency(getProductMinPrice(product))} - ${formatCurrency(getProductMaxPrice(product))}`
     : null;
 
   return (
@@ -325,8 +389,8 @@ function ProductCard({ product, store }) {
           </span>
         </div>
 
-        <p className={cn("text-xs font-medium", product.stock <= 5 ? "text-red-400" : "text-emerald-400")}>
-          {product.stock > 0 ? t("in_stock").replace("{count}", product.stock) : t("out_of_stock")}
+        <p className={cn("text-xs font-medium", totalStock <= 5 ? "text-red-400" : "text-emerald-400")}>
+          {totalStock > 0 ? t("in_stock").replace("{count}", totalStock) : t("out_of_stock")}
         </p>
 
         {isVariantProduct ? (
@@ -336,18 +400,18 @@ function ProductCard({ product, store }) {
           >
             <Button
               className="w-full rounded-[0.95rem] border border-[color-mix(in_srgb,var(--action)_36%,transparent)] bg-[var(--action)] py-2.5 text-[var(--action-foreground)] shadow-none hover:brightness-[1.01]"
-              disabled={product.stock <= 0}
+              disabled={totalStock <= 0}
             >
-              {product.stock > 0 ? (t("choose_options") || "Choose Options") : t("out_of_stock")}
+              {totalStock > 0 ? (t("choose_options") || "Choose Options") : t("out_of_stock")}
             </Button>
           </Link>
         ) : (
           <Button
             className="mt-auto w-full rounded-[0.95rem] border border-[color-mix(in_srgb,var(--action)_36%,transparent)] bg-[var(--action)] py-2.5 text-[var(--action-foreground)] shadow-none hover:brightness-[1.01]"
             onClick={() => store.addToCart(product.id)}
-            disabled={product.stock <= 0}
+            disabled={totalStock <= 0}
           >
-            {product.stock > 0 ? t("add_to_cart") : t("out_of_stock")}
+            {totalStock > 0 ? t("add_to_cart") : t("out_of_stock")}
           </Button>
         )}
       </div>
@@ -355,7 +419,13 @@ function ProductCard({ product, store }) {
   );
 }
 
-function ClientHeroCard({ product }) {
+function ClientHeroCard({ product, language = "en" }) {
+  const { t } = useTranslation(language);
+  const isVariantProduct = isMultiVariantProduct(product);
+  const heroPrice = isVariantProduct
+    ? t("from_price").replace("{price}", formatCurrency(getProductDiscountedPrice(product)))
+    : formatCurrency(getProductDiscountedPrice(product));
+
   return (
     <article className="min-w-[17.75rem] snap-start sm:min-w-[19.5rem] lg:min-w-[21rem]">
       <Link href={`/client/product-detail/${product.id}`} className="group block w-full text-left">
@@ -376,7 +446,7 @@ function ClientHeroCard({ product }) {
               </p>
             </div>
             <div className="mt-4 inline-flex items-center rounded-[0.9rem] border border-white/12 bg-white/16 px-3 py-1.5 text-sm font-semibold text-white backdrop-blur-sm">
-              {formatCurrency(getProductDiscountedPrice(product))}
+              {heroPrice}
             </div>
           </div>
         </div>
@@ -385,7 +455,7 @@ function ClientHeroCard({ product }) {
   );
 }
 
-function ClientHeroCarousel({ products, reverse = false }) {
+function ClientHeroCarousel({ products, reverse = false, language = "en" }) {
   const USER_PAUSE_MS = 1000;
   const REPEAT_COUNT = 5;
   const BASE_CYCLE_INDEX = Math.floor(REPEAT_COUNT / 2);
@@ -499,7 +569,7 @@ function ClientHeroCarousel({ products, reverse = false }) {
       <div className="overflow-hidden pb-1">
         <div className="flex gap-4">
           {visibleProducts.map((product) => (
-            <ClientHeroCard key={`${product.id}-single`} product={product} />
+            <ClientHeroCard key={`${product.id}-single`} product={product} language={language} />
           ))}
         </div>
       </div>
@@ -538,7 +608,7 @@ function ClientHeroCarousel({ products, reverse = false }) {
             className={cn("flex shrink-0 gap-4", cycleIndex !== REPEAT_COUNT - 1 && "pr-4")}
           >
             {visibleProducts.map((product) => (
-              <ClientHeroCard key={`${product.id}-cycle-${cycleIndex}`} product={product} />
+              <ClientHeroCard key={`${product.id}-cycle-${cycleIndex}`} product={product} language={language} />
             ))}
           </div>
         ))}
@@ -636,24 +706,32 @@ export function ClientProductListPageView({ productsOverride = null }) {
     const lower = query.trim().toLowerCase();
     const filtered = sourceProducts.filter((product) => {
       const discountedPrice = getProductDiscountedPrice(product);
+      const totalStock = getProductTotalStock(product);
+      const maxDiscountPercent = getProductMaxDiscountPercent(product);
 
       if (selectedCategories.length > 0 && !selectedCategories.includes(product.category)) {
         return false;
       }
-      if (lower && ![product.name, product.description, product.category].some((value) => value.toLowerCase().includes(lower))) {
+      const searchableValues = [
+        product.name,
+        product.description,
+        product.category,
+        ...(product.variants || []).map((variant) => variant.name),
+      ];
+      if (lower && !searchableValues.some((value) => String(value || "").toLowerCase().includes(lower))) {
         return false;
       }
 
-      if (quickFilters.inStock && product.stock <= 0) {
+      if (quickFilters.inStock && totalStock <= 0) {
         return false;
       }
-      if (quickFilters.onSale && product.discountPercent <= 0) {
+      if (quickFilters.onSale && maxDiscountPercent <= 0) {
         return false;
       }
       if (quickFilters.topRated && (product.rating || 0) < 4.7) {
         return false;
       }
-      if (quickFilters.bulkBuy && product.stock < 20) {
+      if (quickFilters.bulkBuy && totalStock < 20) {
         return false;
       }
 
@@ -688,11 +766,11 @@ export function ClientProductListPageView({ productsOverride = null }) {
         case "Price: High to Low":
           return getProductDiscountedPrice(b) - getProductDiscountedPrice(a);
         case "Stock":
-          return b.stock - a.stock;
+          return getProductTotalStock(b) - getProductTotalStock(a);
         case "Name":
           return a.name.localeCompare(b.name);
         case "Biggest discount":
-          return b.discountPercent - a.discountPercent;
+          return getProductMaxDiscountPercent(b) - getProductMaxDiscountPercent(a);
         default:
           return b.rating - a.rating;
       }
@@ -974,7 +1052,7 @@ export function ClientProductListPageView({ productsOverride = null }) {
               <ClientProductGrid key={productGridKey} products={products} store={store} />
             ) : (
               <div className="space-y-6">
-                <ClientHeroCarousel products={products.slice(0, 5)} />
+                <ClientHeroCarousel products={products.slice(0, 5)} language={store.language || "en"} />
 
                 {groupedProducts.map((group) => (
                   <section key={group.category} className="space-y-4">
@@ -1554,10 +1632,25 @@ export function ClientOrderDetailPageView({ orderId }) {
   function reorderItems() {
     const orderLines = order?.items?.length ? order.items : order?.lines || [];
     orderLines.forEach((line) => {
-      // Use variantId if available, otherwise fall back to productId
-      const productId = line.variantId || line.productId;
-      if (productId) {
-        store.addToCart(productId, line.quantity || 1, line.variantId || null);
+      const quantity = line.quantity || 1;
+
+      // Modern order lines reference the product variant directly.
+      if (line.variantId) {
+        const product = store.findProductForVariant?.(line.variantId);
+        if (product) {
+          store.addToCart(product.id, quantity, line.variantId);
+        }
+        return;
+      }
+
+      if (line.productId) {
+        // Legacy alias: `productId` may actually hold the variant id.
+        const variantProduct = store.findProductForVariant?.(line.productId);
+        if (variantProduct) {
+          store.addToCart(variantProduct.id, quantity, line.productId);
+        } else {
+          store.addToCart(line.productId, quantity, null);
+        }
       }
     });
     router.push("/client?tab=cart");
@@ -2158,6 +2251,51 @@ export function ClientProductDetailPageView({ productId, user }) {
   const [selectedVariantId, setSelectedVariantId] = useState(null);
   const product = store.getProduct(productId);
 
+  // Hooks and derived values are computed before any early return so React
+  // Hook order stays stable across renders.
+  const isVariantProduct = Boolean(product) && product.isVariant && product.variants && product.variants.length > 0;
+  const productVariants = isVariantProduct ? product.variants.filter((v) => v.isActive !== false) : [];
+  const selectedVariant = productVariants.length && selectedVariantId
+    ? productVariants.find((v) => v.id === selectedVariantId)
+    : null;
+
+  // Auto-select the first in-stock variant on initial load so the customer
+  // always sees a concrete, orderable price instead of the cheapest legacy price.
+  useEffect(() => {
+    if (!isVariantProduct || selectedVariantId || !product) {
+      return;
+    }
+    const defaultVariant = product.variants.find((v) => v.isActive !== false && Number(v.stock) > 0);
+    if (defaultVariant) {
+      setSelectedVariantId(defaultVariant.id);
+    }
+  }, [isVariantProduct, product, selectedVariantId]);
+
+  // Determine effective price and stock
+  const effectivePrice = product
+    ? selectedVariant
+      ? Number((selectedVariant.price * (1 - (selectedVariant.discountPercent || 0) / 100)).toFixed(2))
+      : Number((Number(product.displayPrice || product.price) * (1 - ((product.displayDiscountPercent ?? product.discountPercent ?? 0) / 100))).toFixed(2))
+    : 0;
+  const effectiveStock = product
+    ? selectedVariant
+      ? Number(selectedVariant.stock || 0)
+      : Number(product.stock || 0)
+    : 0;
+  const effectiveDiscountPercent = product
+    ? selectedVariant
+      ? selectedVariant.discountPercent || 0
+      : (product.displayDiscountPercent ?? product.discountPercent ?? 0)
+    : 0;
+
+  // Show a per-variant "in cart" counter. For non-variant products keep the
+  // existing aggregate behaviour.
+  const selectedCartQuantity = product
+    ? isVariantProduct
+      ? store.cartQuantityFor(product.id, selectedVariant?.id || null)
+      : store.cartQuantityFor(product.id)
+    : 0;
+
   if (!product) {
     return (
       <Card>
@@ -2166,30 +2304,11 @@ export function ClientProductDetailPageView({ productId, user }) {
     );
   }
 
-  const isVariantProduct = product.isVariant && product.variants && product.variants.length > 0;
-  const selectedVariant = isVariantProduct && selectedVariantId
-    ? product.variants.find((v) => v.id === selectedVariantId)
-    : null;
-
-  // Determine effective price and stock
-  const effectivePrice = selectedVariant
-    ? selectedVariant.price * (1 - (selectedVariant.discountPercent || 0) / 100)
-    : (product.displayPrice || product.price) * (1 - ((product.displayDiscountPercent ?? product.discountPercent ?? 0) / 100));
-  const effectiveStock = selectedVariant
-    ? (selectedVariant.stock > 0 ? selectedVariant.stock : product.stock)
-    : product.stock;
-  const effectiveDiscountPercent = selectedVariant
-    ? selectedVariant.discountPercent || 0
-    : (product.displayDiscountPercent ?? product.discountPercent ?? 0);
-
   function handleAddToCart() {
+    // Never silently pick a variant. If the customer has not explicitly
+    // chosen an option, require the selection first. This prevents ordering
+    // the wrong (e.g. cheapest) variant by mistake.
     if (isVariantProduct && !selectedVariantId) {
-      // If no variant selected, select the first one
-      const firstVariant = product.variants[0];
-      if (firstVariant) {
-        store.addToCart(product.id, 1, firstVariant.id);
-        setSelectedVariantId(firstVariant.id);
-      }
       return;
     }
     store.addToCart(product.id, 1, selectedVariantId);
@@ -2421,8 +2540,8 @@ export function ClientProductDetailPageView({ productId, user }) {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            {store.cartQuantityFor(product.id) ? (
-              <span className="text-sm font-medium text-[var(--muted-foreground)]">{store.cartQuantityFor(product.id)} in cart</span>
+            {selectedCartQuantity ? (
+              <span className="text-sm font-medium text-[var(--muted-foreground)]">{selectedCartQuantity} in cart</span>
             ) : null}
             <Button onClick={handleAddToCart} disabled={effectiveStock <= 0}>
               {effectiveStock > 0 ? (isVariantProduct && !selectedVariantId ? "Select option" : "Add to cart") : "Out of stock"}

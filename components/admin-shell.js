@@ -36,11 +36,11 @@ import {
   AdminDashboardPageView,
   AdminInventoryPageView,
   AdminOrderManagementPageView,
-  AdminProductManagementPageView,
   AdminSalesReportPageView,
   AdminSupportInboxPageView,
   AdminUsersPageView,
 } from "@/components/admin-pages";
+import { AdminProductManagementPageView } from "@/components/admin-product-pages";
 import { useAppStore } from "@/components/app-store-provider";
 import { LogoutButton } from "@/components/logout-button";
 import { easeInOutCubic } from "@/components/motion/motion-utils";

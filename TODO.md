@@ -1,41 +1,60 @@
-# Variant Handling, Pricing & Inventory Reservation Fixes
+# E-Commerce Fix Plan
 
-## Progress Tracker
+## Goal
+Fix three related storefront issues:
+1. Product CSV import silently imports 0 products.
+2. Order price differs from storefront price (e.g. variant $100 vs $3.50).
+3. Multi-variant products don't show a variant picker when adding to cart.
 
-- [x] Phase 1 — Catalog: variant pricing metadata (`hasVariants`, `minPrice`, `maxPrice`, `displayPrice` = cheapest variant)
-- [x] Phase 1 — Store provider: `cartQuantityFor(id, variantId)` cartKey fix, `findProductForVariant`, variant-aware cart ops
-- [x] Phase 1 — Storefront UI: variant selector on product detail, "From $X" pricing, variant-aware add-to-cart, cart/checkout variant names, fixed reorder & product image lookup
-- [x] Phase 2 — Orders: strict `variantId` validation (422 when product has variants), price from selected variant only, reservation tracking (`reservedQuantity += qty`, `availableQuantity -= qty`)
-- [x] Phase 2 — Order cancel: release reservation only (`reservedQuantity -= qty`, recompute `availableQuantity`), no physical stock change
-- [ ] Phase 3 — POS: variant-aware cashier UI (select variant before adding), cart stores `variantId`, sale transaction saves `variantId`
-- [x] Phase 3 — POS transaction: rejects missing variantId for variant products, uses `availableQuantity` check, decrements both `quantity` and `availableQuantity`
-- [x] Phase 3 — POS returns: restores `availableQuantity` alongside `quantity`
-- [x] Phase 4 — Inventory: product stock PATCH requires `variantId` for variant products, syncs to variant inventory, maintains `availableQuantity` across restock import
-- [ ] Phase 4 — Admin UI: variant products show price/stock as "managed in Variants" (read-only), restock buttons only for non-variant products
-- [ ] Phase 5 — Validate: `next lint`, `next build`, manual test flows
+## Steps
 
-## Files edited
-1. ✅ `lib/server/services/catalog.js` — added `hasVariants`, `minPrice`, `maxPrice`, `discountedPrice` per variant
-2. ✅ `components/app-store-provider.js` — fixed `cartQuantityFor` with variantId, added `findProductForVariant`
-3. ✅ `components/client-pages.js` — variant selector, "From $X" pricing, variant-aware cart/checkout, fixed reorder
-4. ✅ `app/api/orders/route.js` — strict variantId validation, reservation tracking (reservedQuantity, not physical)
-5. ✅ `app/api/orders/[id]/route.js` — cancel releases reservation, no physical stock change
-6. 🔲 `components/pos-shell.js` — variant chips, store variantId, send variantId in sale lines
-7. ✅ `app/api/pos/transaction/route.js` — variantId validation, availableQuantity check, proper deduction
-8. ✅ `app/api/pos/returns/route.js` — restores availableQuantity
-9. ✅ `app/api/products/[id]/route.js` — variantId required for stock changes on variant products, syncs variant inventory
-10. ✅ `app/api/products/restock/import/route.js` — sets availableQuantity on restock
-11. 🔲 `components/admin-pages.js` — variant products show "managed in Variants" (read-only)
+### 1. Robust CSV parser
+- [x] Rewrite `lib/shared/utils/csv.js` to handle:
+  - UTF-8 BOM
+  - Quoted fields (Excel-style)
+  - Commas inside quoted fields
+  - CRLF / LF line endings
+  - Header normalization (trim, lowercase, spaces→underscores)
+  - Header aliases (`image` → `imageUrl`, `qty` → `stock`, etc.)
 
-## Key invariants
-- Inventory is always tracked at variant level (`Inventory.variantId`).
-- `availableQuantity = quantity - reservedQuantity`.
-- Online orders reserve stock (do not deduct physical quantity).
-- POS sales deduct physical quantity immediately.
-- Missing `variantId` for a variant product → 422 validation error (no silent fallback).
-- All atomic stock updates use `updateMany` with `gte` guard to prevent race conditions.
+### 2. Product import API
+- [x] Rewrite `app/api/products/import/route.js` to:
+  - Use the robust parser + alias normalization
+  - Validate each row with clear per-row skip reasons
+  - Upsert product by name or SKU
+  - Auto-create a default ProductVariant + HQ inventory for non-variant rows
+  - Return `{ importedCount, skippedCount, errors }` with useful feedback
+  - Import initial stock into variant inventory
+  - Create inventory movements + audit log
 
-## Atomic Race Condition Fix Applied
-- ✅ `app/api/orders/route.js` — online order reservation uses `updateMany` with `availableQuantity >= qty` guard
-- ✅ `app/api/orders/[id]/route.js` — cancellation release uses `updateMany` with `reservedQuantity >= qty` guard
-- ✅ `app/api/pos/transaction/route.js` — POS sale deduct uses `updateMany` with `availableQuantity >= qty` guard
+### 3. ✅ Admin form discount percent fix + variant creation + default variant seeding
+- [x] **Discount math fix** – `Math.round(((basePrice - discountPrice) / basePrice) * 100)` now correctly computes the discount % (e.g. $100 base with $3.50 discount price → 97% off).
+- [x] **Products POST route** – now creates a default `ProductVariant` + HQ inventory row on product creation, so the variant-based order API can resolve every product.
+- [x] **Variant creation route** – now seeds per-variant stock into HQ inventory and passes `isActive`.
+- [x] **Admin form** – passes `stock`, `isActive`, and `publishActive` to both product and variant API calls.
+- [x] **Store `addProduct`** – now forwards `sku`, `barcode`, `brand`, and `isActive` to the products API so publish/draft status and SKUs persist on create.
+
+### 4. Catalog normalization (price consistency)
+- [x] Update `lib/server/services/catalog.js` `normalizeProduct`:
+  - Report correct `displayDiscountPercent` for non-variant products
+  - Ensure `displayPrice`/`minPrice`/`maxPrice` reflect discounted variant prices
+  - Expose `priceRange` metadata for the storefront
+
+### 5. Storefront price display + variant picker
+- [x] Update `components/client-pages.js`:
+  - `getProductDiscountedPrice` → use `displayPrice` (variant-aware)
+  - `ProductCard` → show price range for multi-variant products, variant-aware pricing
+  - `ClientProductDetailPageView` → add variant selector (name + price + stock), show selected variant price in sticky bar, pass variantId to `addToCart`
+  - Cart page → show variant name + actual unitPrice per line
+  - Order detail reorder + image lookups → resolve variant → product
+
+### 6. Order API default variant fallback
+- [x] Update `app/api/orders/route.js` so legacy product-only lines resolve to a variant (create a default variant if none exists) so non-variant products can be ordered.
+
+## Follow-up
+- [ ] Test: create a product with base price $100, discount price $3.50 → verify storefront shows $3.50
+- [ ] Test: create a product with variants (Small $10, Medium $15, Large $20) → verify variant picker appears and each variant adds to cart at correct price
+- [ ] Test: order a product and verify order total matches storefront price
+- [ ] Test: import a CSV with quoted fields / commas; verify importedCount > 0
+- [ ] Run `npm run build` or dev server to confirm no lint errors
+

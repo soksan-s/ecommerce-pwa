@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { fail, handleRouteError } from "@/lib/api-response";
-import { createAuditLog } from "@/lib/business-events";
+import { createAuditLog, createInventoryMovement } from "@/lib/business-events";
 import { requireAdminUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { variantSchema } from "@/lib/validations";
@@ -86,6 +86,7 @@ export async function POST(request, { params }) {
           weight: result.data.weight || null,
           volume: result.data.volume || null,
           barcode: result.data.barcode || null,
+          isActive: result.data.isActive ?? true,
         },
       });
 
@@ -95,6 +96,48 @@ export async function POST(request, { params }) {
           where: { id },
           data: { isVariant: true },
         });
+      }
+
+      // Seed per-variant stock into HQ inventory so the storefront shows the
+      // correct quantity immediately (variant stock is inventory-derived).
+      const branch = await tx.branch.findFirst({
+        where: { code: "HQ" },
+      });
+
+      if (branch) {
+        const stock = Number(result.data.stock || 0);
+        await tx.inventory.upsert({
+          where: {
+            variantId_branchId: {
+              variantId: variant.id,
+              branchId: branch.id,
+            },
+          },
+          update: {
+            quantity: stock,
+            availableQuantity: stock,
+          },
+          create: {
+            variantId: variant.id,
+            branchId: branch.id,
+            quantity: stock,
+            availableQuantity: stock,
+          },
+        });
+
+        if (stock > 0) {
+          await createInventoryMovement(tx, {
+            variantId: variant.id,
+            branchId: branch.id,
+            type: "STOCK_IN",
+            channel: "POS",
+            quantity: stock,
+            previousStock: 0,
+            nextStock: stock,
+            note: "Initial variant stock",
+            userId: admin.id,
+          });
+        }
       }
 
       await createAuditLog(tx, {

@@ -165,12 +165,28 @@ useEffect(() => {
         if (!product) {
           return null;
         }
-        // Use the stored unitPrice from the cart item (set at add-to-cart time)
-        // This ensures variant prices are used correctly
-        const subtotal = Number((item.unitPrice * item.quantity).toFixed(2));
+        // Prefer the unitPrice captured at add-to-cart time (which already
+        // reflects the chosen variant). For legacy carts that lack a stored
+        // unitPrice, resolve it from the product/variant catalog so totals
+        // never become NaN and always match the selected variant.
+        let unitPrice = Number(item.unitPrice);
+        if (!Number.isFinite(unitPrice) || unitPrice <= 0) {
+          if (item.variantId) {
+            const variant = (product.variants || []).find((v) => v.id === item.variantId);
+            unitPrice = variant
+              ? Number((Number(variant.price) * (1 - (variant.discountPercent || 0) / 100)).toFixed(2))
+              : Number(product.displayPrice || product.price || 0);
+          } else {
+            const displayPrice = Number(product.displayPrice || product.price || 0);
+            const displayDiscount = Number(product.displayDiscountPercent ?? product.discountPercent ?? 0);
+            unitPrice = Number((displayPrice * (1 - displayDiscount / 100)).toFixed(2));
+          }
+        }
+        const subtotal = Number((unitPrice * item.quantity).toFixed(2));
         return {
           ...item,
           product,
+          unitPrice,
           subtotal,
         };
       })
@@ -232,9 +248,15 @@ useEffect(() => {
       isFavorite(id) {
         return state.favorites.includes(id);
       },
-cartQuantityFor(id, variantId = null) {
+      cartQuantityFor(id, variantId = null) {
         const cartKey = variantId ? `${id}::${variantId}` : id;
-        return state.cart.find((item) => item.cartKey === cartKey)?.quantity || 0;
+        if (variantId) {
+          return state.cart.find((item) => item.cartKey === cartKey)?.quantity || 0;
+        }
+        // For multi-variant products, aggregate quantity across all variant cart lines.
+        return state.cart
+          .filter((item) => item.cartKey === cartKey || item.productId === id)
+          .reduce((sum, item) => sum + item.quantity, 0);
       },
 
       // Find which product a variant belongs to
@@ -285,20 +307,29 @@ cartQuantityFor(id, variantId = null) {
             return current;
           }
 
+          // For multi-variant products always resolve a concrete variant so the
+          // cart price matches a real variant price (never the legacy display price).
+          const productVariants = (product.variants || []).filter((v) => v.isActive !== false);
+          const resolvedVariantId = variantId || (productVariants.length ? productVariants[0].id : null);
+
           // Determine the cart key: if variantId, use productId+variantId combo
-          const cartKey = variantId ? `${productId}::${variantId}` : productId;
+          const cartKey = resolvedVariantId ? `${productId}::${resolvedVariantId}` : productId;
 
           // Get the price from the selected variant or from the product
           let unitPrice;
           let variantName = "";
           let maxStock = product.stock;
 
-          if (variantId && product.variants) {
-            const variant = product.variants.find((v) => v.id === variantId);
+          if (resolvedVariantId && productVariants.length) {
+            const variant = productVariants.find((v) => v.id === resolvedVariantId);
             if (!variant) return current;
             unitPrice = Number((variant.price * (1 - (variant.discountPercent || 0) / 100)).toFixed(2));
             variantName = variant.name;
-            maxStock = variant.stock > 0 ? variant.stock : product.stock;
+            // A variant's own stock is authoritative when present (including a
+            // 0 → out-of-stock). Only fall back to the product-level stock when
+            // the variant truly has no stock value defined.
+            const variantStock = Number(variant.stock);
+            maxStock = Number.isFinite(variantStock) ? variantStock : Number(product.stock || 0);
           } else {
             const displayPrice = product.displayPrice || product.price;
             const displayDiscount = product.displayDiscountPercent ?? product.discountPercent ?? 0;
@@ -320,7 +351,7 @@ cartQuantityFor(id, variantId = null) {
                 {
                   cartKey,
                   productId,
-                  variantId: variantId || null,
+                  variantId: resolvedVariantId || null,
                   variantName,
                   unitPrice,
                   quantity,
@@ -481,15 +512,63 @@ cartQuantityFor(id, variantId = null) {
           if (!response.ok || !data.data) {
             return { success: false, message: data.error || "Unable to place order.", order: null };
           }
-          patch((current) => ({
-            ...current,
-            cart: [],
-            orders: [data.data, ...current.orders],
-            products: current.products.map((product) => {
-              const line = data.data.lines.find((entry) => entry.productId === product.id);
-              return line ? { ...product, stock: Math.max(0, product.stock - line.quantity) } : product;
-            }),
-          }));
+          patch((current) => {
+            const orderItems = data.data.items || data.data.lines || [];
+
+            // Group ordered quantities by variant id so we can decrement the
+            // exact variant's stock for multi-variant products.
+            const orderedByVariant = orderItems.reduce((map, item) => {
+              const variantId = item.variantId || item.productId;
+              if (variantId) {
+                map.set(variantId, (map.get(variantId) || 0) + Number(item.quantity || 0));
+              }
+              return map;
+            }, new Map());
+
+            const nextProducts = current.products.map((product) => {
+              // Decrement each variant that was ordered.
+              const nextVariants = (product.variants || []).map((variant) => {
+                const qty = orderedByVariant.get(variant.id);
+                return qty ? { ...variant, stock: Math.max(0, Number(variant.stock || 0) - qty) } : variant;
+              });
+
+              const totalOrdered = (product.variants || []).reduce(
+                (sum, variant) => sum + (orderedByVariant.get(variant.id) || 0),
+                0,
+              );
+
+              if (totalOrdered <= 0) {
+                // No variant match — check for a direct productId reference
+                // (products without variants ordered via the legacy path).
+                const directQty = orderItems.reduce((sum, item) => {
+                  if (item.productId === product.id && !item.variantId) {
+                    return sum + Number(item.quantity || 0);
+                  }
+                  return sum;
+                }, 0);
+                if (directQty <= 0) {
+                  return product;
+                }
+                return {
+                  ...product,
+                  stock: Math.max(0, Number(product.stock || 0) - directQty),
+                };
+              }
+
+              return {
+                ...product,
+                stock: Math.max(0, Number(product.stock || 0) - totalOrdered),
+                variants: nextVariants,
+              };
+            });
+
+            return {
+              ...current,
+              cart: [],
+              orders: [data.data, ...current.orders],
+              products: nextProducts,
+            };
+          });
           return { success: true, message: "", order: data.data };
         } catch {
           return { success: false, message: "Unable to place order right now.", order: null };
@@ -595,24 +674,32 @@ cartQuantityFor(id, variantId = null) {
             },
             body: JSON.stringify({
               name: input.name,
+              sku: input.sku || "",
+              barcode: input.barcode || "",
+              brand: input.brand || "",
               category: input.category,
               description: input.description,
               imageUrl: input.image,
               price: input.price,
               discountPercent: input.discountPercent,
               stock: input.stock,
+              costPrice: input.costPrice,
+              wholesalePrice: input.wholesalePrice,
+              minStockAlert: input.minStockAlert,
+              isActive: input.isActive ?? true,
             }),
           });
           const data = await response.json();
           if (!response.ok || !data.data) {
-            return;
+            return { success: false, message: data.error || "Unable to create product.", product: null };
           }
           patch((current) => ({
             ...current,
             products: [data.data, ...current.products],
           }));
+          return { success: true, message: "Product created.", product: data.data };
         } catch {
-          // ignore create failures in the optimistic UI layer
+          return { success: false, message: "Unable to create product.", product: null };
         }
       },
       async uploadAsset(file) {
@@ -698,7 +785,34 @@ cartQuantityFor(id, variantId = null) {
         if (!product) {
           return;
         }
-        await syncPatchedProduct(productId, { stock: product.stock + amount });
+        // For variant products, pass the first active variant id so the PATCH
+        // route can sync the variant-level inventory record (required for
+        // isVariant products).
+        const variantId =
+          product.hasVariants || (product.variants?.length ?? 0) > 0
+            ? product.variants?.find((variant) => variant.isActive !== false)?.id || product.variants?.[0]?.id || null
+            : null;
+        await syncPatchedProduct(productId, { stock: product.stock + amount, variantId });
+      },
+      async deleteProduct(productId) {
+        try {
+          const response = await fetch(`/api/products/${productId}`, {
+            method: "DELETE",
+          });
+          const data = await response.json();
+          if (!response.ok || !data.data) {
+            return { success: false, message: data.error || "Unable to delete product." };
+          }
+          patch((current) => ({
+            ...current,
+            products: current.products.map((product) =>
+              product.id === productId ? data.data : product,
+            ),
+          }));
+          return { success: true, message: "Product deleted." };
+        } catch {
+          return { success: false, message: "Unable to delete product." };
+        }
       },
       updateOrder(orderId, changes) {
         if (isLocalOnlyId(orderId)) {

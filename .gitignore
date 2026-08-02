@@ -16,9 +16,11 @@
 # next.js
 /.next/
 /out/
+/.agents/
 
 # production
 /build
+
 
 # misc
 .DS_Store
@@ -40,3 +42,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .aider*
+
+.MD*
+.md*
