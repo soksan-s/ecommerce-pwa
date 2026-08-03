@@ -41,7 +41,26 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-.aider*
 
-.MD*
-.md*
+# AI / agent tooling
+.aider*
+.agents
+**/.agents/
+.codex/
+.claude/
+.cline/
+.cursor/
+.continue/
+.copilot/
+.cascade/
+
+# AI-generated documentation & planning files
+*.md
+*.MD
+*.markdown
+!README.md
+!README.MD
+
+# AI tooling logs / dev logs
+context7*
+next-dev*

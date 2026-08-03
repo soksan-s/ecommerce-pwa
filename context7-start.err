@@ -1,8 +1,0 @@
-Fatal error in main(): Error: Upstash Redis credentials are required. Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN.
-    at getRedis (file:///C:/Users/SOEUM%20SAVY/AppData/Local/npm-cache/_npx/c35ab75beed40a3c/node_modules/@upstash/context7-mcp/dist/lib/redis.js:10:15)
-    at createSessionStore (file:///C:/Users/SOEUM%20SAVY/AppData/Local/npm-cache/_npx/c35ab75beed40a3c/node_modules/@upstash/context7-mcp/dist/lib/sessionStore.js:10:19)
-    at main (file:///C:/Users/SOEUM%20SAVY/AppData/Local/npm-cache/_npx/c35ab75beed40a3c/node_modules/@upstash/context7-mcp/dist/index.js:295:30)
-    at file:///C:/Users/SOEUM%20SAVY/AppData/Local/npm-cache/_npx/c35ab75beed40a3c/node_modules/@upstash/context7-mcp/dist/index.js:522:1
-    at ModuleJob.run (node:internal/modules/esm/module_job:262:25)
-    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:483:26)
-    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
