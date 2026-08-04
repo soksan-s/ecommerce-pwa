@@ -7,23 +7,33 @@ export const usePosStore = create((set, get) => ({
   heldSales: [],
   cashierName: "",
   pendingSyncCount: 0,
-  addToCart(product) {
+  catalogVersion: 0,
+  addToCart(product, variant = null) {
     const currentCart = get().cart;
-    const stock = Number(product.stock || 0);
-    const existing = currentCart.find((item) => item.productId === product.id);
+    const v = variant || (Array.isArray(product.variants) && product.variants.length === 1 ? product.variants[0] : null);
+    const keyId = v?.id ? `${product.id}-${v.id}` : product.id;
+    const stock = Number((v ? v.stock : product.stock) || 0);
+    const price = Number((v ? (v.discountedPrice ?? v.price) : product.price) || 0);
+    const name = v && v.name && v.name !== "Default" ? `${product.name} (${v.name})` : product.name;
+    const sku = v?.sku || product.sku || product.id;
 
     if (stock <= 0) {
       return;
     }
 
-    if (existing) {
+    const existingIndex = currentCart.findIndex(
+      (item) => item.keyId === keyId || (v?.id && item.variantId === v.id) || (!v?.id && item.productId === product.id && !item.variantId)
+    );
+
+    if (existingIndex >= 0) {
+      const existing = currentCart[existingIndex];
       if (existing.qty >= existing.stock) {
         return;
       }
 
       set({
-        cart: currentCart.map((item) =>
-          item.productId === product.id ? { ...item, qty: Math.min(item.qty + 1, item.stock) } : item,
+        cart: currentCart.map((item, idx) =>
+          idx === existingIndex ? { ...item, qty: Math.min(item.qty + 1, item.stock) } : item
         ),
       });
       return;
@@ -33,34 +43,37 @@ export const usePosStore = create((set, get) => ({
       cart: [
         ...currentCart,
         {
+          keyId,
           productId: product.id,
-          name: product.name,
-          price: Number(product.price || 0),
+          variantId: v?.id || null,
+          variantName: v?.name || null,
+          name,
+          price,
           qty: 1,
           stock,
-          sku: product.sku || product.id,
-          image: product.image || product.imageUrl || "",
+          sku,
+          image: v?.image || product.image || product.imageUrl || "",
           note: "",
         },
       ],
     });
   },
-  removeFromCart(productId) {
+  removeFromCart(keyId) {
     set({
-      cart: get().cart.filter((item) => item.productId !== productId),
+      cart: get().cart.filter((item) => item.keyId !== keyId && item.productId !== keyId),
     });
   },
-  updateQty(productId, qty) {
+  updateQty(keyId, qty) {
     const nextQty = Number(qty || 0);
 
     if (nextQty <= 0) {
-      get().removeFromCart(productId);
+      get().removeFromCart(keyId);
       return;
     }
 
     set({
       cart: get().cart.map((item) =>
-        item.productId === productId ? { ...item, qty: Math.min(nextQty, item.stock) } : item,
+        item.keyId === keyId || item.productId === keyId ? { ...item, qty: Math.min(nextQty, item.stock) } : item
       ),
     });
   },
@@ -70,9 +83,9 @@ export const usePosStore = create((set, get) => ({
   setCart(cart) {
     set({ cart });
   },
-  updateItemNote(productId, note) {
+  updateItemNote(keyId, note) {
     set({
-      cart: get().cart.map((item) => (item.productId === productId ? { ...item, note } : item)),
+      cart: get().cart.map((item) => (item.keyId === keyId || item.productId === keyId ? { ...item, note } : item)),
     });
   },
   holdCurrentSale() {
@@ -110,5 +123,8 @@ export const usePosStore = create((set, get) => ({
   },
   setPendingSyncCount(n) {
     set({ pendingSyncCount: Number(n || 0) });
+  },
+  incrementCatalogVersion() {
+    set({ catalogVersion: get().catalogVersion + 1 });
   },
 }));

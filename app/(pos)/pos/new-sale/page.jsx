@@ -7,14 +7,88 @@ import { convertMoney, formatDisplayMoney } from "@/components/pos/format";
 import { PaymentModal } from "@/components/pos/PaymentModal";
 import { ProductCard } from "@/components/pos/ProductCard";
 import { ReceiptView } from "@/components/pos/ReceiptView";
+import { VariantSelectorModal } from "@/components/pos/VariantSelectorModal";
 import { useOffline } from "@/hooks/useOffline";
 import { usePOSSettings } from "@/hooks/usePOSSettings";
-import { addToQueue, getAll, put } from "@/lib/db";
+import { addToQueue, getAll, getProductsFromCache, put, saveProductsToCache, updateLocalStock } from "@/lib/db";
+import { replayQueue } from "@/lib/sync";
 import { usePosStore } from "@/store/posStore";
 
 const mockProducts = [
-  { id: "angkor-rice", name: "Angkor Premium Jasmine Rice 5kg", sku: "RICE-001", category: "Rice", price: 7.8, stock: 18, image: "", isActive: true },
-  { id: "kampot-pepper", name: "Kampot Black Pepper 100g", sku: "SPICE-004", category: "Spices", price: 5.37, stock: 8, image: "", isActive: true },
+  {
+    id: "angkor-beer",
+    name: "Angkor Premium Beer",
+    sku: "BEER-001",
+    category: "Beverages",
+    price: 0.85,
+    stock: 120,
+    image: "",
+    isActive: true,
+    variants: [
+      {
+        id: "var-can-330",
+        name: "Can 330ml",
+        sku: "BEER-001-CAN",
+        price: 0.85,
+        stock: 48,
+        attributeValues: [{ attributeName: "Volume", value: "330ml" }, { attributeName: "Unit", value: "Can" }],
+      },
+      {
+        id: "var-btl-640",
+        name: "Bottle 640ml",
+        sku: "BEER-001-BTL",
+        price: 1.5,
+        stock: 24,
+        attributeValues: [{ attributeName: "Volume", value: "640ml" }, { attributeName: "Unit", value: "Bottle" }],
+      },
+      {
+        id: "var-case-24",
+        name: "Case (24x Cans)",
+        sku: "BEER-001-CASE",
+        price: 18.5,
+        stock: 10,
+        attributeValues: [{ attributeName: "Packaging", value: "Case 24x" }],
+      },
+    ],
+  },
+  {
+    id: "angkor-rice",
+    name: "Angkor Premium Jasmine Rice 5kg",
+    sku: "RICE-001",
+    category: "Rice",
+    price: 7.8,
+    stock: 18,
+    image: "",
+    isActive: true,
+  },
+  {
+    id: "kampot-pepper",
+    name: "Kampot Black Pepper",
+    sku: "SPICE-004",
+    category: "Spices",
+    price: 5.37,
+    stock: 20,
+    image: "",
+    isActive: true,
+    variants: [
+      {
+        id: "var-pep-100g",
+        name: "100g Bag",
+        sku: "SPICE-004-100",
+        price: 5.37,
+        stock: 12,
+        attributeValues: [{ attributeName: "Weight", value: "100g" }],
+      },
+      {
+        id: "var-pep-500g",
+        name: "500g Pack",
+        sku: "SPICE-004-500",
+        price: 22.0,
+        stock: 8,
+        attributeValues: [{ attributeName: "Weight", value: "500g" }],
+      },
+    ],
+  },
   { id: "iced-coffee", name: "Cambodian Iced Coffee", sku: "DRINK-010", category: "Drinks", price: 0.98, stock: 24, image: "", isActive: true },
   { id: "fish-sauce", name: "Fish Sauce Bottle", sku: "SAUCE-002", category: "Sauce", price: 1.59, stock: 5, image: "", isActive: true },
   { id: "palm-sugar", name: "Palm Sugar 500g", sku: "SWEET-003", category: "Grocery", price: 2.2, stock: 3, image: "", isActive: true },
@@ -32,15 +106,36 @@ function createTransactionId() {
 }
 
 function normalizeProduct(product) {
+  const rawVariants = Array.isArray(product.variants) ? product.variants : [];
+  const variants = rawVariants.map((v) => ({
+    id: v.id,
+    name: v.name || "Default",
+    sku: v.sku || product.sku || product.id,
+    price: Number(v.discountedPrice ?? v.price ?? product.price ?? 0),
+    originalPrice: Number(v.price ?? product.price ?? 0),
+    discountPercent: Number(v.discountPercent || 0),
+    stock: Number(v.stock ?? product.stock ?? 0),
+    attributeValues: Array.isArray(v.attributeValues) ? v.attributeValues : [],
+    isActive: v.isActive !== false,
+  }));
+
+  const prices = variants.map((v) => v.price);
+  const basePrice = (product.displayPrice ?? product.price) || 0;
+  const minPrice = prices.length ? Math.min(...prices) : Number(basePrice);
+  const maxPrice = prices.length ? Math.max(...prices) : Number(basePrice);
+
   return {
     id: product.id,
     name: product.name,
     sku: product.sku || product.id,
     category: product.category || "General",
-    price: Number(product.price || 0),
+    price: Number(basePrice),
+    minPrice,
+    maxPrice,
     stock: Number(product.stock || 0),
     image: product.image || product.imageUrl || "",
     isActive: product.isActive !== false,
+    variants,
   };
 }
 
@@ -63,7 +158,7 @@ export default function NewSalePage() {
   const cart = Array.isArray(cartState) ? cartState : [];
   const heldSales = Array.isArray(heldSalesState) ? heldSalesState : [];
 
-  const [products, setProducts] = useState(mockProducts);
+  const [products, setProducts] = useState([]);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
   const [lastSynced, setLastSynced] = useState("Never");
@@ -76,6 +171,10 @@ export default function NewSalePage() {
   const [appliedDiscount, setAppliedDiscount] = useState({ type: "percent", value: 0, amount: 0 });
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [receipt, setReceipt] = useState(null);
+  const [variantModalProduct, setVariantModalProduct] = useState(null);
+
+  const catalogVersion = usePosStore((state) => state.catalogVersion);
+  const incrementCatalogVersion = usePosStore((state) => state.incrementCatalogVersion);
 
   useEffect(() => {
     let active = true;
@@ -85,9 +184,13 @@ export default function NewSalePage() {
         setLastSynced(window.localStorage.getItem("pos-products-last-synced") || "Never");
       }
 
-      const localProducts = await getAll("products");
-      if (active && Array.isArray(localProducts) && localProducts.length) {
-        setProducts(localProducts.map(normalizeProduct));
+      const cached = await getProductsFromCache();
+      if (active) {
+        if (cached.length > 0) {
+          setProducts(cached);
+        } else {
+          setProducts(mockProducts.map(normalizeProduct));
+        }
       }
 
       if (!active || !isOnline) {
@@ -102,20 +205,20 @@ export default function NewSalePage() {
 
         const payload = await response.json();
         const rawProducts = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [];
-        const nextProducts = rawProducts.map(normalizeProduct);
 
-        if (nextProducts.length) {
-          await Promise.all(nextProducts.map((product) => put("products", product)));
+        if (rawProducts.length) {
+          const saved = await saveProductsToCache(rawProducts);
           const timestamp = new Date().toLocaleString();
           window.localStorage.setItem("pos-products-last-synced", timestamp);
 
-          if (active) {
-            setProducts(nextProducts);
+          if (active && saved) {
+            setProducts(saved);
             setLastSynced(timestamp);
+            incrementCatalogVersion();
           }
         }
       } catch {
-        // IndexedDB and mock products keep the POS usable offline.
+        // Keeps cached IndexedDB products
       }
     }
 
@@ -124,7 +227,7 @@ export default function NewSalePage() {
     return () => {
       active = false;
     };
-  }, [isOnline]);
+  }, [isOnline, catalogVersion]);
 
   const categories = useMemo(() => {
     const safeProducts = Array.isArray(products) ? products : [];
@@ -142,7 +245,6 @@ export default function NewSalePage() {
 
   const visibleProducts = useMemo(() => {
     const lower = query.trim().toLowerCase();
-
     const safeProducts = Array.isArray(products) ? products : [];
 
     return safeProducts.filter((product) => {
@@ -150,7 +252,11 @@ export default function NewSalePage() {
       const matchesQuery =
         !lower ||
         product.name.toLowerCase().includes(lower) ||
-        product.sku.toLowerCase().includes(lower);
+        product.sku.toLowerCase().includes(lower) ||
+        (product.variants &&
+          product.variants.some(
+            (v) => v.name.toLowerCase().includes(lower) || v.sku.toLowerCase().includes(lower)
+          ));
       return matchesCategory && matchesQuery;
     });
   }, [category, products, query]);
@@ -162,10 +268,20 @@ export default function NewSalePage() {
       ? Number((taxBase - taxBase / (1 + settings.tax.taxRate / 100)).toFixed(2))
       : Number((taxBase * (settings.tax.taxRate / 100)).toFixed(2))
     : 0;
-  const total = Number(Math.max(0, taxBase + (settings.tax.enabled && settings.tax.taxType === "exclusive" ? tax : 0)).toFixed(2));
+  const total = Number(
+    Math.max(0, taxBase + (settings.tax.enabled && settings.tax.taxType === "exclusive" ? tax : 0)).toFixed(2)
+  );
   const itemCount = cart.reduce((sum, item) => sum + item.qty, 0);
   const activeDisplayCurrency = displayCurrency || settings.currency.primaryCurrency || "USD";
   const money = (value, showBoth = true) => formatDisplayMoney(value, activeDisplayCurrency, settings, showBoth);
+
+  function handleProductAdd(product) {
+    if (product.variants && product.variants.length > 1) {
+      setVariantModalProduct(product);
+    } else {
+      addToCart(product);
+    }
+  }
 
   function applyDiscount(value = discountValue, type = discountType) {
     const numericValue = Number(value || 0);
@@ -198,8 +314,9 @@ export default function NewSalePage() {
   }
 
   async function confirmPayment(payment) {
+    const txnId = createTransactionId();
     const transaction = {
-      id: createTransactionId(),
+      id: txnId,
       items: cart,
       subtotal,
       tax,
@@ -209,36 +326,43 @@ export default function NewSalePage() {
       changeDue: payment.changeDue,
       paymentMethod: payment.paymentMethod,
       reference: payment.reference || "",
-      cashierName: payment.cashierName,
+      cashierName: payment.cashierName || cashierName || "Cashier",
       currency: payment.currency,
       timestamp: new Date().toISOString(),
       synced: false,
+      syncStatus: "pending",
     };
 
+    // 1. Save transaction locally
     await put("transactions", transaction);
 
-    if (isOnline) {
-      try {
-        const response = await fetch("/api/pos/transaction", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(transaction),
-        });
+    // 2. Decrement stock locally in IndexedDB for every sold item
+    for (const item of cart) {
+      await updateLocalStock(item.productId, item.variantId, item.qty);
+    }
 
-        if (response.ok) {
-          transaction.synced = true;
-          await put("transactions", transaction);
-        } else {
-          await addToQueue({ url: "/api/pos/transaction", method: "POST", body: JSON.stringify(transaction) });
-          setPendingSyncCount(pendingSyncCount + 1);
-        }
-      } catch {
-        await addToQueue({ url: "/api/pos/transaction", method: "POST", body: JSON.stringify(transaction) });
-        setPendingSyncCount(pendingSyncCount + 1);
-      }
-    } else {
-      await addToQueue({ url: "/api/pos/transaction", method: "POST", body: JSON.stringify(transaction) });
-      setPendingSyncCount(pendingSyncCount + 1);
+    // 3. Update products state in UI to reflect deducted stock
+    const updatedLocalProducts = await getAll("products");
+    if (Array.isArray(updatedLocalProducts) && updatedLocalProducts.length > 0) {
+      setProducts(updatedLocalProducts.map(normalizeProduct));
+    }
+
+    // 4. Add request to offline_queue
+    await addToQueue({
+      url: "/api/pos/transaction",
+      method: "POST",
+      body: JSON.stringify(transaction),
+    });
+
+    const queue = await getAll("offline_queue");
+    setPendingSyncCount(Array.isArray(queue) ? queue.length : 0);
+
+    // 5. If online, trigger background replay
+    if (isOnline) {
+      replayQueue().then(async () => {
+        const remainingQueue = await getAll("offline_queue");
+        setPendingSyncCount(Array.isArray(remainingQueue) ? remainingQueue.length : 0);
+      }).catch(() => {});
     }
 
     clearCart();
@@ -253,28 +377,32 @@ export default function NewSalePage() {
   }
 
   const checkoutPanel = (
-    <aside className="flex h-full min-h-0 flex-col rounded-t-3xl border border-slate-200 bg-white p-3.5 shadow-xl md:rounded-3xl">
+    <aside className="flex h-full min-h-0 flex-col rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-4 shadow-sm text-[var(--foreground)] transition-colors">
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <h2 className="text-xl font-black">New Sale</h2>
-          <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-black text-emerald-700">{itemCount}</span>
+        <div className="flex items-center gap-2.5">
+          <h2 className="text-lg font-black tracking-tight">Current Sale</h2>
+          <span className="rounded-full bg-[var(--pos-action-surface)] px-2.5 py-0.5 text-xs font-bold text-[var(--pos-action-on-muted)]">
+            {itemCount}
+          </span>
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => {
-              if (window.confirm("Clear all cart items?")) {
-                clearCart();
-              }
-            }}
-            className="text-sm font-black text-red-600"
-          >
-            Clear All
-          </button>
+        <div className="flex items-center gap-2">
+          {cart.length ? (
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm("Clear all cart items?")) {
+                  clearCart();
+                }
+              }}
+              className="text-xs font-bold text-red-600 dark:text-red-400 hover:underline"
+            >
+              Clear All
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => setDrawerOpen(false)}
-            className="rounded-full bg-slate-100 px-3 py-1.5 text-sm font-black text-slate-700 md:hidden"
+            className="rounded-lg bg-[var(--surface-soft)] px-2.5 py-1 text-xs font-bold text-[var(--muted-foreground)] md:hidden"
             aria-label="Close cart"
           >
             Close
@@ -282,65 +410,129 @@ export default function NewSalePage() {
         </div>
       </div>
 
-      <div className="mt-3 min-h-[26rem] flex-1 space-y-2 overflow-y-auto pr-1">
+      <div className="mt-3 min-h-[20rem] flex-1 space-y-2 overflow-y-auto pr-1">
         {cart.length ? (
-          cart.map((item) => (
-            <CartItem
-              key={item.productId}
-              item={item}
-              settings={settings}
-              displayCurrency={activeDisplayCurrency}
-              onUpdateQty={(qty) => updateQty(item.productId, qty)}
-              onRemove={() => removeFromCart(item.productId)}
-              onUpdateNote={(note) => updateItemNote(item.productId, note)}
-            />
-          ))
+          cart.map((item) => {
+            const key = item.keyId || item.productId;
+            return (
+              <CartItem
+                key={key}
+                item={item}
+                settings={settings}
+                displayCurrency={activeDisplayCurrency}
+                onUpdateQty={(qty) => updateQty(key, qty)}
+                onRemove={() => removeFromCart(key)}
+                onUpdateNote={(note) => updateItemNote(key, note)}
+              />
+            );
+          })
         ) : (
-          <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm font-bold text-slate-500">
-            No items added yet
+          <div className="flex h-full min-h-[18rem] flex-col items-center justify-center rounded-xl border border-dashed border-[var(--border-soft)] p-6 text-center text-xs font-semibold text-[var(--muted-foreground)]">
+            <p>No items in cart</p>
+            <p className="mt-1 text-[11px] opacity-75">Click any product to add it to the sale</p>
           </div>
         )}
       </div>
 
-      <div className="mt-3 shrink-0 space-y-2 border-t border-slate-200 pt-3">
-        <div className="flex justify-between text-sm font-bold leading-5"><span>Subtotal</span><span>{money(subtotal)}</span></div>
-        {appliedDiscount.amount > 0 ? <div className="flex justify-between text-sm font-bold leading-5 text-emerald-700"><span>Discount</span><span>-{money(appliedDiscount.amount)}</span></div> : null}
-        {settings.tax.enabled ? <div className="flex justify-between text-sm font-bold leading-5"><span>{settings.tax.taxName}</span><span>{money(tax)}</span></div> : null}
-        <div className="flex justify-between gap-3 text-xl font-black leading-7"><span>Total</span><span className="text-right">{money(total)}</span></div>
-        <div className="grid grid-cols-2 rounded-xl bg-slate-100 p-1">
+      <div className="mt-3 shrink-0 space-y-2 border-t border-[var(--border-soft)] pt-3">
+        <div className="flex justify-between text-xs font-semibold text-[var(--muted-foreground)]">
+          <span>Subtotal</span>
+          <span className="font-bold text-[var(--foreground)]">{money(subtotal)}</span>
+        </div>
+        {appliedDiscount.amount > 0 ? (
+          <div className="flex justify-between text-xs font-bold text-[var(--pos-action)]">
+            <span>Discount</span>
+            <span>-{money(appliedDiscount.amount)}</span>
+          </div>
+        ) : null}
+        {settings.tax.enabled ? (
+          <div className="flex justify-between text-xs font-semibold text-[var(--muted-foreground)]">
+            <span>{settings.tax.taxName}</span>
+            <span className="font-bold text-[var(--foreground)]">{money(tax)}</span>
+          </div>
+        ) : null}
+        <div className="flex justify-between gap-3 text-lg font-black text-[var(--foreground)]">
+          <span>Total</span>
+          <span className="text-right">{money(total)}</span>
+        </div>
+
+        <div className="grid grid-cols-2 rounded-lg bg-[var(--surface-soft)] p-1 border border-[var(--border-soft)]">
           {["KHR", "USD"].map((currency) => (
-            <button key={currency} type="button" onClick={() => setDisplayCurrency(currency)} className={activeDisplayCurrency === currency ? "rounded-lg bg-white py-1.5 text-sm font-black shadow-sm" : "py-1.5 text-sm font-black text-slate-600"}>
+            <button
+              key={currency}
+              type="button"
+              onClick={() => setDisplayCurrency(currency)}
+              className={
+                activeDisplayCurrency === currency
+                  ? "rounded-md bg-[var(--surface-strong)] py-1 text-xs font-extrabold text-[var(--foreground)] shadow-xs transition-all"
+                  : "py-1 text-xs font-bold text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+              }
+            >
               {currency}
             </button>
           ))}
         </div>
 
         <div>
-          <button type="button" onClick={() => setDiscountOpen((value) => !value)} className="text-sm font-black text-emerald-700">
-            Add Discount
+          <button
+            type="button"
+            onClick={() => setDiscountOpen((value) => !value)}
+            className="text-xs font-bold text-[var(--pos-action)] hover:underline"
+          >
+            {appliedDiscount.amount > 0 ? "Edit Discount" : "+ Add Discount"}
           </button>
           {discountOpen ? (
-            <div className="mt-2 rounded-2xl bg-slate-50 p-2.5">
-              <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-2">
-                <div className="grid grid-cols-2 gap-1.5">
+            <div className="mt-2 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] p-2.5">
+              <div className="grid grid-cols-[minmax(0,1fr)_6rem] gap-2">
+                <div className="grid grid-cols-2 gap-1 border border-[var(--border-soft)] rounded-lg p-0.5 bg-[var(--surface-strong)]">
                   {["percent", "fixed"].map((type) => (
-                    <button key={type} type="button" onClick={() => setDiscountType(type)} className={discountType === type ? "rounded-lg bg-slate-900 py-2 text-sm font-black text-white" : "rounded-lg bg-white py-2 text-sm font-black"}>
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setDiscountType(type)}
+                      className={
+                        discountType === type
+                          ? "rounded-md bg-[var(--pos-action)] py-1 text-xs font-bold text-[var(--pos-action-fg)]"
+                          : "py-1 text-xs font-bold text-[var(--muted-foreground)]"
+                      }
+                    >
                       {type === "percent" ? "%" : "Fixed"}
                     </button>
                   ))}
                 </div>
-                <input value={discountValue} onChange={(event) => setDiscountValue(event.target.value)} type="number" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold outline-none" />
+                <input
+                  value={discountValue}
+                  onChange={(event) => setDiscountValue(event.target.value)}
+                  type="number"
+                  placeholder="0"
+                  className="w-full rounded-lg border border-[var(--border-soft)] bg-[var(--surface-strong)] px-2.5 py-1 text-xs font-bold text-[var(--foreground)] outline-none focus:border-[var(--pos-action)]"
+                />
               </div>
-              {discountType === "percent" && Number(discountValue || 0) > Number(settings.discount.managerPinThresholdPercent || 0) ? (
-                <input value={managerPin} onChange={(event) => setManagerPin(event.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="Manager PIN" className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold outline-none" />
+              {discountType === "percent" &&
+              Number(discountValue || 0) > Number(settings.discount.managerPinThresholdPercent || 0) ? (
+                <input
+                  value={managerPin}
+                  onChange={(event) => setManagerPin(event.target.value.replace(/\D/g, "").slice(0, 4))}
+                  placeholder="Manager PIN"
+                  className="mt-2 w-full rounded-lg border border-[var(--border-soft)] bg-[var(--surface-strong)] px-2.5 py-1 text-xs font-bold text-[var(--foreground)] outline-none focus:border-[var(--pos-action)]"
+                />
               ) : null}
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <div className="mt-2 flex flex-wrap items-center gap-1">
                 {settings.discount.presets.map((preset) => (
-                  <button key={preset} type="button" onClick={() => applyDiscount(preset, "percent")} className="rounded-full bg-white px-3 py-1 text-xs font-black">
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => applyDiscount(preset, "percent")}
+                    className="rounded-full border border-[var(--border-soft)] bg-[var(--surface-strong)] px-2.5 py-0.5 text-[11px] font-bold text-[var(--foreground)] hover:bg-[var(--surface-quiet)]"
+                  >
                     {preset}%
                   </button>
                 ))}
-                <button type="button" onClick={() => applyDiscount()} className="ml-auto rounded-full bg-emerald-600 px-4 py-1.5 text-xs font-black text-white">
+                <button
+                  type="button"
+                  onClick={() => applyDiscount()}
+                  className="ml-auto rounded-full bg-[var(--pos-action)] px-3 py-1 text-xs font-bold text-[var(--pos-action-fg)]"
+                >
                   Apply
                 </button>
               </div>
@@ -348,7 +540,12 @@ export default function NewSalePage() {
           ) : null}
         </div>
 
-        <button type="button" disabled={!cart.length} onClick={() => setPaymentOpen(true)} className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-base font-black text-white disabled:bg-slate-300">
+        <button
+          type="button"
+          disabled={!cart.length}
+          onClick={() => setPaymentOpen(true)}
+          className="w-full rounded-xl bg-[var(--pos-action)] hover:bg-[var(--pos-action-hover)] px-4 py-3 text-base font-black text-[var(--pos-action-fg)] disabled:opacity-40 transition-all active:scale-[0.98] shadow-xs"
+        >
           Charge {money(total)}
         </button>
       </div>
@@ -357,43 +554,87 @@ export default function NewSalePage() {
 
   return (
     <div className="min-h-[calc(100dvh-2rem)] md:h-[calc(100dvh-3rem)] md:min-h-[44rem]">
-      <div className="min-h-[calc(100dvh-2rem)] md:grid md:h-full md:min-h-0 md:grid-cols-[minmax(0,1fr)_24rem] md:gap-5 xl:grid-cols-[minmax(0,1fr)_28rem]">
-        <section className="min-h-[36rem] overflow-hidden rounded-3xl border border-slate-200 bg-white p-4 shadow-sm md:min-h-0">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div className="min-h-[calc(100dvh-2rem)] md:grid md:h-full md:min-h-0 md:grid-cols-[minmax(0,1fr)_22rem] md:gap-5 xl:grid-cols-[minmax(0,1fr)_26rem]">
+        <section className="min-h-[36rem] overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-4 shadow-xs md:min-h-0 text-[var(--foreground)] transition-colors flex flex-col">
+          <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
             <div className="relative flex-1">
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search product name or SKU..." className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 pr-12 text-sm font-bold outline-none focus:border-emerald-500" />
-              {query ? <button type="button" onClick={() => setQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full px-2 py-1 text-sm font-black">X</button> : null}
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search product name, SKU, or variant..."
+                className="w-full rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3.5 py-2.5 text-xs font-semibold text-[var(--foreground)] outline-none focus:border-[var(--pos-action)] transition-colors placeholder:text-[var(--muted-foreground)]"
+              />
+              {query ? (
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-xs font-bold text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                >
+                  ✕
+                </button>
+              ) : null}
             </div>
-            <button type="button" onClick={holdCurrentSale} disabled={!cart.length} className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-black text-white disabled:bg-slate-300">
-              Hold Current Sale
+            <button
+              type="button"
+              onClick={holdCurrentSale}
+              disabled={!cart.length}
+              className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3.5 py-2.5 text-xs font-bold text-[var(--foreground)] hover:bg-[var(--surface-quiet)] disabled:opacity-40 transition-all active:scale-[0.98]"
+            >
+              Hold Sale
             </button>
           </div>
 
-          <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+          <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
             {categories.map((entry) => (
-              <button key={entry} type="button" onClick={() => setCategory(entry)} className={category === entry ? "shrink-0 rounded-full bg-slate-900 px-4 py-2 text-sm font-black text-white" : "shrink-0 rounded-full bg-slate-100 px-4 py-2 text-sm font-black text-slate-700"}>
-                {entry} <span className="ml-1 opacity-70">{categoryCounts[entry] || 0}</span>
+              <button
+                key={entry}
+                type="button"
+                onClick={() => setCategory(entry)}
+                className={
+                  category === entry
+                    ? "shrink-0 rounded-full bg-[var(--pos-action)] px-3.5 py-1.5 text-xs font-bold text-[var(--pos-action-fg)] transition-all shadow-xs"
+                    : "shrink-0 rounded-full border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3.5 py-1.5 text-xs font-semibold text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--surface-quiet)] transition-all"
+                }
+              >
+                {entry} <span className="ml-1 opacity-70">({categoryCounts[entry] || 0})</span>
               </button>
             ))}
           </div>
 
           {heldSales.length ? (
-            <div className="mt-4 flex items-center gap-2 overflow-x-auto rounded-2xl bg-amber-50 p-3">
-              <span className="shrink-0 text-sm font-black text-amber-900">Held Sales:</span>
+            <div className="mt-3 flex items-center gap-2 overflow-x-auto rounded-xl border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/30 p-2.5">
+              <span className="shrink-0 text-xs font-bold text-amber-900 dark:text-amber-300">Held Sales:</span>
               {heldSales.map((sale) => (
-                <button key={sale.id} type="button" onClick={() => restoreHeldSale(sale.id)} className="shrink-0 rounded-full bg-white px-3 py-1.5 text-xs font-black text-amber-900">
+                <button
+                  key={sale.id}
+                  type="button"
+                  onClick={() => restoreHeldSale(sale.id)}
+                  className="shrink-0 rounded-full bg-white dark:bg-amber-900/50 px-2.5 py-1 text-xs font-bold text-amber-900 dark:text-amber-200 shadow-xs hover:bg-amber-100 transition-colors"
+                >
                   {sale.label}
                 </button>
               ))}
             </div>
           ) : null}
 
-          <div className="mt-4 max-h-[calc(100dvh-16rem)] overflow-y-auto pr-1 md:h-[calc(100%-9rem)] md:max-h-none">
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-              {visibleProducts.map((product) => (
-                <ProductCard key={product.id} product={product} settings={settings} onAdd={addToCart} />
-              ))}
-            </div>
+          <div className="mt-3 flex-1 overflow-y-auto pr-1">
+            {visibleProducts.length ? (
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+                {visibleProducts.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    settings={settings}
+                    onAdd={handleProductAdd}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="flex h-full min-h-[16rem] flex-col items-center justify-center p-8 text-center text-xs font-semibold text-[var(--muted-foreground)]">
+                <p className="text-sm font-bold text-[var(--foreground)]">No products found</p>
+                <p className="mt-1">Try adjusting your search query or category filter.</p>
+              </div>
+            )}
           </div>
         </section>
 
@@ -401,14 +642,18 @@ export default function NewSalePage() {
       </div>
 
       {cart.length ? (
-        <button type="button" onClick={() => setDrawerOpen(true)} className="fixed bottom-4 left-4 right-4 z-40 rounded-2xl bg-emerald-600 px-4 py-4 text-lg font-black text-white shadow-xl md:hidden">
-          View Cart - {itemCount} items - {money(total, false)}
+        <button
+          type="button"
+          onClick={() => setDrawerOpen(true)}
+          className="fixed bottom-4 left-4 right-4 z-40 rounded-xl bg-[var(--pos-action)] px-4 py-3.5 text-base font-extrabold text-[var(--pos-action-fg)] shadow-xl md:hidden"
+        >
+          View Cart ({itemCount} items) — {money(total, false)}
         </button>
       ) : null}
 
       {drawerOpen ? (
         <div
-          className="fixed inset-0 z-50 flex items-end bg-slate-950/50 md:hidden"
+          className="fixed inset-0 z-50 flex items-end bg-slate-950/60 backdrop-blur-xs md:hidden"
           onClick={() => setDrawerOpen(false)}
         >
           <div className="max-h-[96dvh] w-full" onClick={(event) => event.stopPropagation()}>
@@ -416,6 +661,16 @@ export default function NewSalePage() {
           </div>
         </div>
       ) : null}
+
+      <VariantSelectorModal
+        open={Boolean(variantModalProduct)}
+        product={variantModalProduct}
+        settings={settings}
+        onClose={() => setVariantModalProduct(null)}
+        onSelectVariant={(product, variant) => {
+          addToCart(product, variant);
+        }}
+      />
 
       <PaymentModal
         open={paymentOpen}

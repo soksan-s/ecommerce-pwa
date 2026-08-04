@@ -1,12 +1,14 @@
 "use client";
 
+import { Download, Edit3, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { convertMoney, formatMoney, formatPrimaryMoney } from "@/components/pos/format";
 import { ProductFormModal } from "@/components/pos/ProductFormModal";
 import { useOffline } from "@/hooks/useOffline";
 import { usePOSSettings } from "@/hooks/usePOSSettings";
-import { clearStore, getAll, put, remove } from "@/lib/db";
+import { getProductsFromCache, put, remove, saveProductsToCache } from "@/lib/db";
+import { usePosStore } from "@/store/posStore";
 
 const mockProducts = [
   { id: "angkor-rice", name: "Angkor Premium Jasmine Rice", sku: "RICE-001", category: "Grocery", price: 7.8, stock: 18, lowStockThreshold: 5, unit: "bag", image: "", isActive: true, createdAt: "2026-01-01T01:00:00Z" },
@@ -39,14 +41,14 @@ function normalizeProduct(product, exchangeRate = 4100) {
 
 function stockLabel(product) {
   if (product.stock <= 0) {
-    return <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-black text-red-700">Out</span>;
+    return <span className="rounded-full bg-red-100 dark:bg-red-950/60 px-2.5 py-0.5 text-xs font-bold text-red-700 dark:text-red-300">Out</span>;
   }
 
   if (product.stock <= product.lowStockThreshold) {
-    return <span className="rounded-full bg-yellow-100 px-2.5 py-1 text-xs font-black text-yellow-800">Low</span>;
+    return <span className="rounded-full bg-amber-100 dark:bg-amber-950/60 px-2.5 py-0.5 text-xs font-bold text-amber-800 dark:text-amber-300">Low ({product.stock})</span>;
   }
 
-  return <span className="font-black text-emerald-700">{product.stock.toLocaleString()}</span>;
+  return <span className="font-extrabold text-[var(--pos-action)]">{product.stock.toLocaleString()}</span>;
 }
 
 function parseCsv(text, exchangeRate = 4100) {
@@ -78,7 +80,7 @@ export default function PosProductsPage() {
   const { isOnline } = useOffline();
   const { settings } = usePOSSettings();
   const fileInputRef = useRef(null);
-  const [products, setProducts] = useState(mockProducts.map(normalizeProduct));
+  const [products, setProducts] = useState([]);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
   const [sortBy, setSortBy] = useState("newest");
@@ -100,15 +102,22 @@ export default function PosProductsPage() {
     return formatMoney(converted, secondaryCurrency, settings.currency.exchangeRate, false);
   }
 
+  const catalogVersion = usePosStore((state) => state.catalogVersion);
+  const incrementCatalogVersion = usePosStore((state) => state.incrementCatalogVersion);
+
   useEffect(() => {
     let active = true;
 
     async function loadProducts() {
-      const localProducts = await getAll("products");
-      if (active && Array.isArray(localProducts) && localProducts.length) {
-        setProducts(localProducts.map((product) => normalizeProduct(product, settings.currency.exchangeRate)));
+      const cached = await getProductsFromCache();
+      if (active) {
+        if (cached.length > 0) {
+          setProducts(cached);
+        } else {
+          setProducts(mockProducts.map((p) => normalizeProduct(p, settings.currency.exchangeRate)));
+        }
+        setLastSynced(window.localStorage.getItem("pos-products-last-synced") || "Never");
       }
-      setLastSynced(window.localStorage.getItem("pos-products-last-synced") || "Never");
 
       if (!isOnline) {
         return;
@@ -122,9 +131,7 @@ export default function PosProductsPage() {
     return () => {
       active = false;
     };
-    // syncProducts intentionally stays out of deps so initial online refresh runs once per online state.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOnline]);
+  }, [isOnline, catalogVersion]);
 
   const categories = useMemo(() => ["All", ...new Set(products.map((product) => product.category))], [products]);
 
@@ -165,8 +172,8 @@ export default function PosProductsPage() {
 
   async function persistProducts(nextProducts) {
     setProducts(nextProducts);
-    await clearStore("products");
-    await Promise.all(nextProducts.map((product) => put("products", product)));
+    await saveProductsToCache(nextProducts);
+    incrementCatalogVersion();
   }
 
   async function syncProducts(showLoading = true) {
@@ -181,9 +188,12 @@ export default function PosProductsPage() {
       }
       const payload = await response.json();
       const rawProducts = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [];
-      const nextProducts = rawProducts.map((product) => normalizeProduct(product, settings.currency.exchangeRate));
-      if (nextProducts.length) {
-        await persistProducts(nextProducts);
+      if (rawProducts.length) {
+        const saved = await saveProductsToCache(rawProducts);
+        if (saved) {
+          setProducts(saved);
+          incrementCatalogVersion();
+        }
         const timestamp = new Date().toLocaleString();
         window.localStorage.setItem("pos-products-last-synced", timestamp);
         setLastSynced(timestamp);
@@ -290,31 +300,78 @@ export default function PosProductsPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 transition-colors">
       <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
         <div>
-          <p className="text-sm font-bold uppercase tracking-[0.2em] text-emerald-700">Products</p>
-          <h1 className="mt-2 text-3xl font-black tracking-tight">Products</h1>
-          <p className="mt-1 text-sm font-semibold text-slate-500">Last synced {lastSynced}</p>
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--pos-action)]">Products</p>
+          <h1 className="mt-1 text-2xl font-black tracking-tight text-[var(--foreground)]">Product Catalog</h1>
+          <p className="mt-0.5 text-xs font-semibold text-[var(--muted-foreground)]">Last synced {lastSynced}</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={openAdd} className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white">+ Add Product</button>
-          <button type="button" onClick={() => fileInputRef.current?.click()} className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-700 shadow-sm">Import CSV</button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button 
+            type="button" 
+            onClick={openAdd} 
+            className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--pos-action)] hover:bg-[var(--pos-action-hover)] px-3.5 py-2 text-xs font-extrabold text-[var(--pos-action-fg)] shadow-xs transition-all active:scale-[0.98]"
+          >
+            <Plus className="size-4" />
+            Add Product
+          </button>
+          <button 
+            type="button" 
+            onClick={() => fileInputRef.current?.click()} 
+            className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3.5 py-2 text-xs font-bold text-[var(--foreground)] hover:bg-[var(--surface-quiet)] transition-all active:scale-[0.98]"
+          >
+            <Download className="size-4" />
+            Import CSV
+          </button>
           <input ref={fileInputRef} type="file" accept=".csv,text/csv" onChange={(event) => handleCsvFile(event.target.files?.[0])} className="hidden" />
-          <button type="button" onClick={() => syncProducts()} disabled={syncing} className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-black text-white disabled:bg-slate-300">{syncing ? "Syncing..." : "Sync from Server"}</button>
-          <div className="grid grid-cols-2 rounded-2xl bg-white p-1 shadow-sm">
-            <button type="button" onClick={() => setView("table")} className={view === "table" ? "rounded-xl bg-emerald-600 px-3 py-2 text-sm font-black text-white" : "rounded-xl px-3 py-2 text-sm font-black"}>Table</button>
-            <button type="button" onClick={() => setView("grid")} className={view === "grid" ? "rounded-xl bg-emerald-600 px-3 py-2 text-sm font-black text-white" : "rounded-xl px-3 py-2 text-sm font-black"}>Grid</button>
+          <button 
+            type="button" 
+            onClick={() => syncProducts()} 
+            disabled={syncing} 
+            className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3.5 py-2 text-xs font-bold text-[var(--foreground)] hover:bg-[var(--surface-quiet)] disabled:opacity-50 transition-all active:scale-[0.98]"
+          >
+            <RefreshCw className={`size-3.5 ${syncing ? "animate-spin" : ""}`} />
+            {syncing ? "Syncing..." : "Sync Server"}
+          </button>
+          <div className="grid grid-cols-2 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] p-1">
+            <button 
+              type="button" 
+              onClick={() => setView("table")} 
+              className={view === "table" ? "rounded-lg bg-[var(--surface-strong)] px-3 py-1.5 text-xs font-extrabold text-[var(--foreground)] shadow-xs transition-all" : "px-3 py-1.5 text-xs font-bold text-[var(--muted-foreground)]"}
+            >
+              Table
+            </button>
+            <button 
+              type="button" 
+              onClick={() => setView("grid")} 
+              className={view === "grid" ? "rounded-lg bg-[var(--surface-strong)] px-3 py-1.5 text-xs font-extrabold text-[var(--foreground)] shadow-xs transition-all" : "px-3 py-1.5 text-xs font-bold text-[var(--muted-foreground)]"}
+            >
+              Grid
+            </button>
           </div>
         </div>
       </div>
 
-      <div className="grid gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm lg:grid-cols-[minmax(0,1fr)_13rem_13rem_11rem_auto]">
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by name or SKU" className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold outline-none focus:border-emerald-500" />
-        <select value={category} onChange={(event) => setCategory(event.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold outline-none focus:border-emerald-500">
-          {categories.map((entry) => <option key={entry}>{entry === "All" ? "All Categories" : entry}</option>)}
+      <div className="grid gap-2.5 rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-3.5 shadow-xs lg:grid-cols-[minmax(0,1fr)_12rem_12rem_10rem_auto]">
+        <input 
+          value={query} 
+          onChange={(event) => setQuery(event.target.value)} 
+          placeholder="Search by name or SKU..." 
+          className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3 py-2 text-xs font-semibold text-[var(--foreground)] outline-none focus:border-[var(--pos-action)] transition-colors placeholder:text-[var(--muted-foreground)]" 
+        />
+        <select 
+          value={category} 
+          onChange={(event) => setCategory(event.target.value)} 
+          className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3 py-2 text-xs font-semibold text-[var(--foreground)] outline-none focus:border-[var(--pos-action)] transition-colors"
+        >
+          {categories.map((entry) => <option key={entry} value={entry}>{entry === "All" ? "All Categories" : entry}</option>)}
         </select>
-        <select value={sortBy} onChange={(event) => setSortBy(event.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold outline-none focus:border-emerald-500">
+        <select 
+          value={sortBy} 
+          onChange={(event) => setSortBy(event.target.value)} 
+          className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3 py-2 text-xs font-semibold text-[var(--foreground)] outline-none focus:border-[var(--pos-action)] transition-colors"
+        >
           <option value="name-asc">Name A-Z</option>
           <option value="name-desc">Name Z-A</option>
           <option value="price-asc">Price Low-High</option>
@@ -323,38 +380,44 @@ export default function PosProductsPage() {
           <option value="stock-desc">Stock High-Low</option>
           <option value="newest">Newest</option>
         </select>
-        <select value={status} onChange={(event) => setStatus(event.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold outline-none focus:border-emerald-500">
-          <option value="all">All</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
+        <select 
+          value={status} 
+          onChange={(event) => setStatus(event.target.value)} 
+          className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3 py-2 text-xs font-semibold text-[var(--foreground)] outline-none focus:border-[var(--pos-action)] transition-colors"
+        >
+          <option value="all">All Status</option>
+          <option value="active">Active Only</option>
+          <option value="inactive">Inactive Only</option>
         </select>
-        <div className="flex items-center text-sm font-black text-slate-600">Showing {visibleProducts.length} of {products.length}</div>
+        <div className="flex items-center text-xs font-bold text-[var(--muted-foreground)] px-1">
+          {visibleProducts.length} of {products.length}
+        </div>
       </div>
 
       {selectedIds.length ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-amber-50 p-3 text-sm font-black text-amber-900">
-          {selectedIds.length} selected
-          <button type="button" onClick={() => bulkStatus(true)} className="rounded-xl bg-white px-3 py-2">Set Active</button>
-          <button type="button" onClick={() => bulkStatus(false)} className="rounded-xl bg-white px-3 py-2">Set Inactive</button>
-          <button type="button" onClick={() => deleteProducts(selectedIds)} className="rounded-xl bg-red-600 px-3 py-2 text-white">Delete Selected</button>
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/30 p-3 text-xs font-bold text-amber-900 dark:text-amber-300">
+          <span>{selectedIds.length} selected</span>
+          <button type="button" onClick={() => bulkStatus(true)} className="rounded-lg bg-white dark:bg-amber-900/40 px-3 py-1.5 shadow-xs text-amber-950 dark:text-amber-200">Set Active</button>
+          <button type="button" onClick={() => bulkStatus(false)} className="rounded-lg bg-white dark:bg-amber-900/40 px-3 py-1.5 shadow-xs text-amber-950 dark:text-amber-200">Set Inactive</button>
+          <button type="button" onClick={() => deleteProducts(selectedIds)} className="rounded-lg bg-red-600 px-3 py-1.5 text-white shadow-xs">Delete Selected</button>
         </div>
       ) : null}
 
       {csvRows.length ? (
-        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-4 shadow-xs">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-xl font-black">CSV Preview ({csvRows.length} rows)</h2>
-            <button type="button" onClick={importCsvRows} className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white">
+            <h2 className="text-base font-extrabold text-[var(--foreground)]">CSV Preview ({csvRows.length} rows)</h2>
+            <button type="button" onClick={importCsvRows} className="rounded-xl bg-[var(--pos-action)] px-4 py-2 text-xs font-extrabold text-[var(--pos-action-fg)] shadow-xs">
               Import {csvRows.filter((row) => !row.errors.length).length} valid rows
             </button>
           </div>
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[40rem] text-left text-sm">
-              <thead><tr className="bg-slate-50"><th className="px-3 py-2">Row</th><th>Name</th><th>SKU</th><th>Category</th><th>Price</th><th>Stock</th><th>Errors</th></tr></thead>
-              <tbody>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full min-w-[36rem] text-left text-xs">
+              <thead><tr className="bg-[var(--surface-soft)] text-[var(--muted-foreground)]"><th className="px-3 py-2">Row</th><th>Name</th><th>SKU</th><th>Category</th><th>Price</th><th>Stock</th><th>Errors</th></tr></thead>
+              <tbody className="divide-y divide-[var(--border-soft)]">
                 {csvRows.map((row) => (
-                  <tr key={row.rowNumber} className={row.errors.length ? "bg-red-50" : ""}>
-                    <td className="px-3 py-2 font-bold">{row.rowNumber}</td><td>{row.name}</td><td>{row.sku}</td><td>{row.category}</td><td>{formatPrimaryMoney(row.price, settings, false)}</td><td>{row.stock}</td><td className="text-red-700">{row.errors.join(", ")}</td>
+                  <tr key={row.rowNumber} className={row.errors.length ? "bg-red-50 dark:bg-red-950/40" : ""}>
+                    <td className="px-3 py-2 font-bold">{row.rowNumber}</td><td>{row.name}</td><td>{row.sku}</td><td>{row.category}</td><td>{formatPrimaryMoney(row.price, settings, false)}</td><td>{row.stock}</td><td className="text-red-600 dark:text-red-400">{row.errors.join(", ")}</td>
                   </tr>
                 ))}
               </tbody>
@@ -362,30 +425,59 @@ export default function PosProductsPage() {
           </div>
         </div>
       ) : null}
-      {importResult ? <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700">{importResult}</div> : null}
+      {importResult ? <div className="rounded-xl bg-[var(--pos-action-surface)] px-4 py-3 text-xs font-bold text-[var(--pos-action-on-muted)]">{importResult}</div> : null}
 
       {view === "table" ? (
-        <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] text-[var(--foreground)] shadow-xs">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[68rem] text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-[0.16em] text-slate-500">
+            <table className="w-full min-w-[64rem] text-left text-xs">
+              <thead className="bg-[var(--surface-soft)] text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
                 <tr>
                   <th className="px-4 py-3"><input type="checkbox" checked={selectedIds.length === visibleProducts.length && visibleProducts.length > 0} onChange={(event) => setSelectedIds(event.target.checked ? visibleProducts.map((product) => product.id) : [])} /></th>
-                  <th className="px-4 py-3">Image</th><th className="px-4 py-3">Name + SKU</th><th className="px-4 py-3">Category</th><th className="px-4 py-3">Display ({primaryCurrency})</th><th className="px-4 py-3">Converted ({secondaryCurrency})</th><th className="px-4 py-3">Stock</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Actions</th>
+                  <th className="px-4 py-3">Image</th><th className="px-4 py-3">Name &amp; SKU</th><th className="px-4 py-3">Category</th><th className="px-4 py-3">Display ({primaryCurrency})</th><th className="px-4 py-3">Converted ({secondaryCurrency})</th><th className="px-4 py-3">Stock</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-[var(--border-soft)]">
                 {visibleProducts.map((product) => (
-                  <tr key={product.id}>
+                  <tr key={product.id} className="hover:bg-[var(--surface-soft)]/50 transition-colors">
                     <td className="px-4 py-3"><input type="checkbox" checked={selectedIds.includes(product.id)} onChange={() => toggleSelected(product.id)} /></td>
-                    <td className="px-4 py-3"><div className="flex size-10 items-center justify-center rounded-xl bg-slate-200 bg-cover bg-center font-black text-slate-500" style={product.image ? { backgroundImage: `url(${product.image})` } : undefined}>{product.image ? "" : product.name.charAt(0)}</div></td>
-                    <td className="px-4 py-3"><p className="font-black">{product.name}</p><p className="text-xs font-bold text-slate-500">{product.sku}</p></td>
-                    <td className="px-4 py-3 font-bold text-slate-600">{product.category}</td>
-                    <td className="px-4 py-3 font-black">{formatPrimaryMoney(product.price, settings, false)}</td>
-                    <td className="px-4 py-3 font-bold text-slate-600">{formatSecondaryPrice(product.price)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex size-9 items-center justify-center rounded-lg bg-[var(--surface-soft)] bg-cover bg-center font-black text-[var(--muted-foreground)]" style={product.image ? { backgroundImage: `url(${product.image})` } : undefined}>
+                        {product.image ? "" : product.name.charAt(0)}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3"><p className="font-extrabold text-[var(--foreground)]">{product.name}</p><p className="text-[11px] font-semibold text-[var(--muted-foreground)]">{product.sku}</p></td>
+                    <td className="px-4 py-3 font-semibold text-[var(--muted-foreground)]">{product.category}</td>
+                    <td className="px-4 py-3 font-extrabold text-[var(--foreground)]">{formatPrimaryMoney(product.price, settings, false)}</td>
+                    <td className="px-4 py-3 font-semibold text-[var(--muted-foreground)]">{formatSecondaryPrice(product.price)}</td>
                     <td className="px-4 py-3">{stockLabel(product)}</td>
-                    <td className="px-4 py-3"><span className={product.isActive ? "rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-700" : "rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-500"}>{product.isActive ? "Active" : "Inactive"}</span></td>
-                    <td className="px-4 py-3"><div className="flex gap-2"><button type="button" onClick={() => openEdit(product)} className="rounded-xl bg-slate-100 px-3 py-2 font-black">✎</button><button type="button" onClick={() => window.confirm("Delete this product?") && deleteProducts([product.id])} className="rounded-xl bg-red-50 px-3 py-2 font-black text-red-700">🗑</button></div></td>
+                    <td className="px-4 py-3">
+                      <span className={product.isActive ? "rounded-full bg-[var(--pos-action-surface)] px-2.5 py-0.5 text-[11px] font-bold text-[var(--pos-action-on-muted)]" : "rounded-full bg-[var(--surface-soft)] px-2.5 py-0.5 text-[11px] font-bold text-[var(--muted-foreground)]"}>
+                        {product.isActive ? "Active" : "Inactive"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5">
+                        <button 
+                          type="button" 
+                          onClick={() => openEdit(product)} 
+                          className="grid size-7 place-items-center rounded-lg bg-[var(--surface-soft)] text-[var(--foreground)] hover:bg-[var(--surface-quiet)] transition-colors"
+                          title="Edit product"
+                          aria-label="Edit product"
+                        >
+                          <Edit3 className="size-3.5" />
+                        </button>
+                        <button 
+                          type="button" 
+                          onClick={() => window.confirm("Delete this product?") && deleteProducts([product.id])} 
+                          className="grid size-7 place-items-center rounded-lg bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 hover:bg-red-100 transition-colors"
+                          title="Delete product"
+                          aria-label="Delete product"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -393,18 +485,23 @@ export default function PosProductsPage() {
           </div>
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        <div className="grid gap-3.5 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
           {visibleProducts.map((product) => (
-            <article key={product.id} className="group overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-              <div className="relative flex h-48 items-center justify-center bg-slate-200 bg-cover bg-center text-5xl font-black text-slate-500" style={product.image ? { backgroundImage: `url(${product.image})` } : undefined}>
+            <article key={product.id} className="group overflow-hidden rounded-xl border border-[var(--border-soft)] bg-[var(--surface-strong)] text-[var(--foreground)] shadow-xs transition-all hover:border-[var(--pos-action)]/40">
+              <div className="relative flex h-40 items-center justify-center bg-[var(--surface-soft)] bg-cover bg-center text-3xl font-extrabold text-[var(--muted-foreground)]" style={product.image ? { backgroundImage: `url(${product.image})` } : undefined}>
                 {product.image ? "" : product.name.charAt(0)}
-                <button type="button" onClick={() => openEdit(product)} className="absolute inset-x-4 bottom-4 hidden rounded-2xl bg-slate-950/90 py-3 text-sm font-black text-white group-hover:block">Edit</button>
+                <button type="button" onClick={() => openEdit(product)} className="absolute inset-x-3 bottom-3 hidden rounded-lg bg-[var(--foreground)]/90 backdrop-blur-xs py-2 text-xs font-bold text-[var(--background)] group-hover:block transition-all">Edit Product</button>
               </div>
-              <div className="p-4">
-                <p className="font-black">{product.name}</p><p className="text-xs font-bold text-slate-500">{product.sku} · {product.category}</p>
-                <p className="mt-3 text-lg font-black">{formatPrimaryMoney(product.price, settings, false)}</p>
-                <p className="text-sm font-bold text-slate-500">{formatSecondaryPrice(product.price)}</p>
-                <div className="mt-3">{stockLabel(product)}</div>
+              <div className="p-3.5">
+                <p className="font-extrabold text-xs text-[var(--foreground)]">{product.name}</p>
+                <p className="mt-0.5 text-[11px] font-semibold text-[var(--muted-foreground)]">{product.sku} · {product.category}</p>
+                <div className="mt-2.5 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-extrabold text-[var(--foreground)]">{formatPrimaryMoney(product.price, settings, false)}</p>
+                    <p className="text-[11px] font-medium text-[var(--muted-foreground)]">{formatSecondaryPrice(product.price)}</p>
+                  </div>
+                  <div>{stockLabel(product)}</div>
+                </div>
               </div>
             </article>
           ))}

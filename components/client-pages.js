@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 
 import { useAppStore } from "@/components/app-store-provider";
+import { AuthModal } from "@/components/auth-modal";
 import { DeliveryLocationPicker } from "@/components/delivery-location-picker";
 import { LogoutButton } from "@/components/logout-button";
 import { easeInOutCubic } from "@/components/motion/motion-utils";
@@ -304,7 +305,7 @@ function getProductMaxDiscountPercent(product) {
   return Number(product?.discountPercent || 0);
 }
 
-function ProductCard({ product, store }) {
+function ProductCard({ product, store, requireAuth = null }) {
   const { t } = useTranslation(store.language);
   const isFavorite = store.isFavorite(product.id);
   const discountedPrice = getProductDiscountedPrice(product);
@@ -343,6 +344,7 @@ function ProductCard({ product, store }) {
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();
+              if (requireAuth && !requireAuth("Sign in to save favorites")) return;
               store.toggleFavorite(product.id);
             }}
             className={cn(
@@ -408,7 +410,10 @@ function ProductCard({ product, store }) {
         ) : (
           <Button
             className="mt-auto w-full rounded-[0.95rem] border border-[color-mix(in_srgb,var(--action)_36%,transparent)] bg-[var(--action)] py-2.5 text-[var(--action-foreground)] shadow-none hover:brightness-[1.01]"
-            onClick={() => store.addToCart(product.id)}
+            onClick={() => {
+              if (requireAuth && !requireAuth("Sign in to add items to your cart")) return;
+              store.addToCart(product.id);
+            }}
             disabled={totalStock <= 0}
           >
             {totalStock > 0 ? t("add_to_cart") : t("out_of_stock")}
@@ -456,113 +461,33 @@ function ClientHeroCard({ product, language = "en" }) {
 }
 
 function ClientHeroCarousel({ products, reverse = false, language = "en" }) {
-  const USER_PAUSE_MS = 1000;
-  const REPEAT_COUNT = 5;
-  const BASE_CYCLE_INDEX = Math.floor(REPEAT_COUNT / 2);
   const scrollRef = useRef(null);
-  const animationRef = useRef(null);
-  const lastTimeRef = useRef(0);
-  const interactionUntilRef = useRef(0);
-  const pointerActiveRef = useRef(false);
-  const currentVelocityRef = useRef(0);
-  const targetVelocityRef = useRef(0);
-  const isVisibleRef = useRef(false);
-  const shouldAutoScroll = products.length > 1;
-  const visibleProducts = products.slice(0, 5);
-  const productIdsKey = visibleProducts.map((product) => product.id).join("|");
+  const isInteractingRef = useRef(false);
+  const visibleProducts = useMemo(() => products.slice(0, 8), [products]);
+  const shouldAutoScroll = visibleProducts.length > 1;
 
   useEffect(() => {
     const scrollNode = scrollRef.current;
-
-    if (!scrollNode) {
+    if (!scrollNode || !shouldAutoScroll || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       return undefined;
     }
 
-    lastTimeRef.current = 0;
-    interactionUntilRef.current = 0;
-    pointerActiveRef.current = false;
-    currentVelocityRef.current = 0;
-    targetVelocityRef.current = 0;
-
-    if (!shouldAutoScroll || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      return undefined;
-    }
-
-    const cycleWidth = scrollNode.scrollWidth / REPEAT_COUNT;
-    if (!cycleWidth) {
-      return undefined;
-    }
-
-    scrollNode.scrollLeft = cycleWidth * BASE_CYCLE_INDEX;
-
-    const step = (now) => {
-      if (!scrollNode || !isVisibleRef.current) {
-        animationRef.current = null;
+    const interval = setInterval(() => {
+      if (isInteractingRef.current || !scrollRef.current) {
         return;
       }
+      const firstCard = scrollNode.querySelector("article");
+      const cardWidth = firstCard ? firstCard.offsetWidth + 16 : 300;
 
-      if (lastTimeRef.current === 0) {
-        lastTimeRef.current = now;
-      }
-
-      const delta = now - lastTimeRef.current;
-      lastTimeRef.current = now;
-
-      const baseSpeed = window.innerWidth < 640 ? 0.04 : 0.05;
-      const directionalSpeed = reverse ? -baseSpeed : baseSpeed;
-
-      if (!pointerActiveRef.current && now >= interactionUntilRef.current) {
-        targetVelocityRef.current = directionalSpeed;
+      if (scrollNode.scrollLeft + scrollNode.clientWidth >= scrollNode.scrollWidth - 10) {
+        scrollNode.scrollTo({ left: 0, behavior: "smooth" });
       } else {
-        targetVelocityRef.current = 0;
+        scrollNode.scrollBy({ left: reverse ? -cardWidth : cardWidth, behavior: "smooth" });
       }
+    }, 4500);
 
-      const easing = pointerActiveRef.current ? 0.12 : 0.045;
-      currentVelocityRef.current += (targetVelocityRef.current - currentVelocityRef.current) * easing;
-
-      if (Math.abs(currentVelocityRef.current) < 0.0006) {
-        currentVelocityRef.current = 0;
-      }
-
-      if (currentVelocityRef.current !== 0) {
-        scrollNode.scrollLeft += delta * currentVelocityRef.current;
-      }
-
-      while (scrollNode.scrollLeft <= cycleWidth * (BASE_CYCLE_INDEX - 0.5)) {
-        scrollNode.scrollLeft += cycleWidth;
-      }
-
-      while (scrollNode.scrollLeft >= cycleWidth * (BASE_CYCLE_INDEX + 0.5)) {
-        scrollNode.scrollLeft -= cycleWidth;
-      }
-
-      animationRef.current = window.requestAnimationFrame(step);
-    };
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        isVisibleRef.current = entry.isIntersecting;
-
-        if (entry.isIntersecting && !animationRef.current) {
-          lastTimeRef.current = 0;
-          animationRef.current = window.requestAnimationFrame(step);
-        } else if (!entry.isIntersecting && animationRef.current) {
-          window.cancelAnimationFrame(animationRef.current);
-          animationRef.current = null;
-          lastTimeRef.current = 0;
-        }
-      },
-      { rootMargin: "64px" },
-    );
-    observer.observe(scrollNode);
-
-    return () => {
-      observer.disconnect();
-      if (animationRef.current) {
-        window.cancelAnimationFrame(animationRef.current);
-      }
-    };
-  }, [BASE_CYCLE_INDEX, REPEAT_COUNT, productIdsKey, reverse, shouldAutoScroll]);
+    return () => clearInterval(interval);
+  }, [reverse, shouldAutoScroll]);
 
   if (!shouldAutoScroll) {
     return (
@@ -580,36 +505,24 @@ function ClientHeroCarousel({ products, reverse = false, language = "en" }) {
     <div
       className="overflow-hidden pb-1"
       onPointerDown={() => {
-        pointerActiveRef.current = true;
-        interactionUntilRef.current = performance.now() + USER_PAUSE_MS;
-        targetVelocityRef.current = 0;
+        isInteractingRef.current = true;
       }}
       onPointerUp={() => {
-        pointerActiveRef.current = false;
-        interactionUntilRef.current = performance.now() + USER_PAUSE_MS;
+        setTimeout(() => {
+          isInteractingRef.current = false;
+        }, 2500);
       }}
       onPointerCancel={() => {
-        pointerActiveRef.current = false;
-        interactionUntilRef.current = performance.now() + USER_PAUSE_MS;
-      }}
-      onWheel={() => {
-        interactionUntilRef.current = performance.now() + USER_PAUSE_MS;
-        targetVelocityRef.current = 0;
+        isInteractingRef.current = false;
       }}
     >
       <div
         ref={scrollRef}
-        className="flex gap-0 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        className="flex gap-4 overflow-x-auto pb-1 snap-x snap-mandatory [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
       >
-        {Array.from({ length: REPEAT_COUNT }, (_, cycleIndex) => (
-          <div
-            key={`cycle-${cycleIndex}`}
-            aria-hidden={cycleIndex !== BASE_CYCLE_INDEX}
-            className={cn("flex shrink-0 gap-4", cycleIndex !== REPEAT_COUNT - 1 && "pr-4")}
-          >
-            {visibleProducts.map((product) => (
-              <ClientHeroCard key={`${product.id}-cycle-${cycleIndex}`} product={product} language={language} />
-            ))}
+        {visibleProducts.map((product) => (
+          <div key={product.id} className="snap-start">
+            <ClientHeroCard product={product} language={language} />
           </div>
         ))}
       </div>
@@ -617,7 +530,7 @@ function ClientHeroCarousel({ products, reverse = false, language = "en" }) {
   );
 }
 
-function ClientProductGrid({ products, store }) {
+function ClientProductGrid({ products, store, requireAuth = null }) {
   const [visibleCount, setVisibleCount] = useState(CLIENT_VISIBLE_COUNT);
   const [revealStartIndex, setRevealStartIndex] = useState(null);
 
@@ -657,7 +570,7 @@ function ClientProductGrid({ products, store }) {
                 ease: easeInOutCubic,
               }}
             >
-              <ProductCard product={product} store={store} />
+              <ProductCard product={product} store={store} requireAuth={requireAuth} />
             </motion.div>
           );
         })}
@@ -679,7 +592,7 @@ function ClientProductGrid({ products, store }) {
   );
 }
 
-export function ClientProductListPageView({ productsOverride = null }) {
+export function ClientProductListPageView({ productsOverride = null, requireAuth = null }) {
   const store = useAppStore();
   const { t } = useTranslation(store.language);
   const isCustomCollection = Boolean(productsOverride);
@@ -702,26 +615,36 @@ export function ClientProductListPageView({ productsOverride = null }) {
     return sourceCategories.filter((category) => category.toLowerCase().includes(lower));
   }, [categorySearch, sourceCategories]);
 
+  const preparedProducts = useMemo(
+    () =>
+      sourceProducts.map((product) => ({
+        product,
+        discountedPrice: getProductDiscountedPrice(product),
+        totalStock: getProductTotalStock(product),
+        maxDiscountPercent: getProductMaxDiscountPercent(product),
+        searchStr: [
+          product.name,
+          product.description,
+          product.category,
+          ...(product.variants || []).map((variant) => variant.name),
+        ]
+          .join(" ")
+          .toLowerCase(),
+      })),
+    [sourceProducts]
+  );
+
   const products = useMemo(() => {
     const lower = query.trim().toLowerCase();
-    const filtered = sourceProducts.filter((product) => {
-      const discountedPrice = getProductDiscountedPrice(product);
-      const totalStock = getProductTotalStock(product);
-      const maxDiscountPercent = getProductMaxDiscountPercent(product);
+    const filtered = preparedProducts.filter((item) => {
+      const { product, discountedPrice, totalStock, maxDiscountPercent, searchStr } = item;
 
       if (selectedCategories.length > 0 && !selectedCategories.includes(product.category)) {
         return false;
       }
-      const searchableValues = [
-        product.name,
-        product.description,
-        product.category,
-        ...(product.variants || []).map((variant) => variant.name),
-      ];
-      if (lower && !searchableValues.some((value) => String(value || "").toLowerCase().includes(lower))) {
+      if (lower && !searchStr.includes(lower)) {
         return false;
       }
-
       if (quickFilters.inStock && totalStock <= 0) {
         return false;
       }
@@ -759,23 +682,25 @@ export function ClientProductListPageView({ productsOverride = null }) {
     });
 
     const sorted = [...filtered];
-    return sorted.sort((a, b) => {
+    sorted.sort((a, b) => {
       switch (sort) {
         case "Price: Low to High":
-          return getProductDiscountedPrice(a) - getProductDiscountedPrice(b);
+          return a.discountedPrice - b.discountedPrice;
         case "Price: High to Low":
-          return getProductDiscountedPrice(b) - getProductDiscountedPrice(a);
+          return b.discountedPrice - a.discountedPrice;
         case "Stock":
-          return getProductTotalStock(b) - getProductTotalStock(a);
+          return b.totalStock - a.totalStock;
         case "Name":
-          return a.name.localeCompare(b.name);
+          return a.product.name.localeCompare(b.product.name);
         case "Biggest discount":
-          return getProductMaxDiscountPercent(b) - getProductMaxDiscountPercent(a);
+          return b.maxDiscountPercent - a.maxDiscountPercent;
         default:
-          return b.rating - a.rating;
+          return b.product.rating - a.product.rating;
       }
     });
-  }, [priceFilter, query, quickFilters, selectedCategories, sort, sourceProducts]);
+
+    return sorted.map((item) => item.product);
+  }, [preparedProducts, priceFilter, query, quickFilters, selectedCategories, sort]);
 
   const activeFilterCount = useMemo(
     () =>
@@ -1049,7 +974,7 @@ export function ClientProductListPageView({ productsOverride = null }) {
 
           {products.length ? (
             isCustomCollection ? (
-              <ClientProductGrid key={productGridKey} products={products} store={store} />
+              <ClientProductGrid key={productGridKey} products={products} store={store} requireAuth={requireAuth} />
             ) : (
               <div className="space-y-6">
                 <ClientHeroCarousel products={products.slice(0, 5)} language={store.language || "en"} />
@@ -1077,7 +1002,7 @@ export function ClientProductListPageView({ productsOverride = null }) {
                                 ease: easeInOutCubic,
                               }}
                             >
-                              <ProductCard product={product} store={store} />
+                              <ProductCard product={product} store={store} requireAuth={requireAuth} />
                             </motion.div>
                           );
                         })}
@@ -2249,18 +2174,31 @@ export function ClientProductDetailPageView({ productId, user }) {
   const [editingId, setEditingId] = useState("");
   const [editingMessage, setEditingMessage] = useState("");
   const [selectedVariantId, setSelectedVariantId] = useState(null);
+  const [authModal, setAuthModal] = useState({ isOpen: false, hint: "" });
   const product = store.getProduct(productId);
 
-  // Hooks and derived values are computed before any early return so React
-  // Hook order stays stable across renders.
-  const isVariantProduct = Boolean(product) && product.isVariant && product.variants && product.variants.length > 0;
-  const productVariants = isVariantProduct ? product.variants.filter((v) => v.isActive !== false) : [];
-  const selectedVariant = productVariants.length && selectedVariantId
-    ? productVariants.find((v) => v.id === selectedVariantId)
-    : null;
+  /** Opens the auth modal for guests; returns false so callers can bail early. */
+  function requireAuth(hint) {
+    if (!user) {
+      setAuthModal({ isOpen: true, hint: hint || "" });
+      return false;
+    }
+    return true;
+  }
 
-  // Auto-select the first in-stock variant on initial load so the customer
-  // always sees a concrete, orderable price instead of the cheapest legacy price.
+  const isVariantProduct = useMemo(
+    () => Boolean(product) && product.isVariant && Array.isArray(product.variants) && product.variants.length > 0,
+    [product]
+  );
+  const productVariants = useMemo(
+    () => (isVariantProduct ? product.variants.filter((v) => v.isActive !== false) : []),
+    [isVariantProduct, product]
+  );
+  const selectedVariant = useMemo(
+    () => (productVariants.length && selectedVariantId ? productVariants.find((v) => v.id === selectedVariantId) : null),
+    [productVariants, selectedVariantId]
+  );
+
   useEffect(() => {
     if (!isVariantProduct || selectedVariantId || !product) {
       return;
@@ -2271,30 +2209,30 @@ export function ClientProductDetailPageView({ productId, user }) {
     }
   }, [isVariantProduct, product, selectedVariantId]);
 
-  // Determine effective price and stock
-  const effectivePrice = product
-    ? selectedVariant
-      ? Number((selectedVariant.price * (1 - (selectedVariant.discountPercent || 0) / 100)).toFixed(2))
-      : Number((Number(product.displayPrice || product.price) * (1 - ((product.displayDiscountPercent ?? product.discountPercent ?? 0) / 100))).toFixed(2))
-    : 0;
-  const effectiveStock = product
-    ? selectedVariant
-      ? Number(selectedVariant.stock || 0)
-      : Number(product.stock || 0)
-    : 0;
-  const effectiveDiscountPercent = product
-    ? selectedVariant
-      ? selectedVariant.discountPercent || 0
-      : (product.displayDiscountPercent ?? product.discountPercent ?? 0)
-    : 0;
+  const { effectivePrice, effectiveStock, effectiveDiscountPercent } = useMemo(() => {
+    if (!product) return { effectivePrice: 0, effectiveStock: 0, effectiveDiscountPercent: 0 };
+    if (selectedVariant) {
+      return {
+        effectivePrice: Number((selectedVariant.price * (1 - (selectedVariant.discountPercent || 0) / 100)).toFixed(2)),
+        effectiveStock: Number(selectedVariant.stock || 0),
+        effectiveDiscountPercent: selectedVariant.discountPercent || 0,
+      };
+    }
+    const displayPrice = Number(product.displayPrice || product.price || 0);
+    const displayDiscount = Number(product.displayDiscountPercent ?? product.discountPercent ?? 0);
+    return {
+      effectivePrice: Number((displayPrice * (1 - displayDiscount / 100)).toFixed(2)),
+      effectiveStock: Number(product.stock || 0),
+      effectiveDiscountPercent: displayDiscount,
+    };
+  }, [product, selectedVariant]);
 
-  // Show a per-variant "in cart" counter. For non-variant products keep the
-  // existing aggregate behaviour.
-  const selectedCartQuantity = product
-    ? isVariantProduct
+  const selectedCartQuantity = useMemo(() => {
+    if (!product) return 0;
+    return isVariantProduct
       ? store.cartQuantityFor(product.id, selectedVariant?.id || null)
-      : store.cartQuantityFor(product.id)
-    : 0;
+      : store.cartQuantityFor(product.id);
+  }, [product, isVariantProduct, store, selectedVariant]);
 
   if (!product) {
     return (
@@ -2311,10 +2249,12 @@ export function ClientProductDetailPageView({ productId, user }) {
     if (isVariantProduct && !selectedVariantId) {
       return;
     }
+    if (!requireAuth("Sign in to add items to your cart")) return;
     store.addToCart(product.id, 1, selectedVariantId);
   }
 
   return (
+    <>
     <div className="space-y-4 pb-28">
       <div className="sticky top-0 z-30 bg-[var(--background-start)]/90 backdrop-blur-md py-2 -mx-5 px-5">
         <Link href="/client" className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--action)] transition hover:text-[var(--foreground)]">
@@ -2339,7 +2279,10 @@ export function ClientProductDetailPageView({ productId, user }) {
           </div>
           <button
             type="button"
-            onClick={() => store.toggleFavorite(product.id)}
+            onClick={() => {
+              if (!requireAuth("Sign in to save this product to favorites")) return;
+              store.toggleFavorite(product.id);
+            }}
             className={cn(
               "rounded-full p-3",
               store.isFavorite(product.id) ? "bg-rose-100 text-rose-600" : "bg-[var(--surface)] text-[var(--muted-foreground)]",
@@ -2550,5 +2493,13 @@ export function ClientProductDetailPageView({ productId, user }) {
         </div>
       </div>
     </div>
+
+    {/* Auth modal — shown to guests when they attempt a protected action */}
+    <AuthModal
+      isOpen={authModal.isOpen}
+      onClose={() => setAuthModal({ isOpen: false, hint: "" })}
+      hint={authModal.hint}
+    />
+    </>
   );
 }

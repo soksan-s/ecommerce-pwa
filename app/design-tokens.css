@@ -61,6 +61,14 @@
   /* Spacing */
   --unit: 8px;
   --gutter: 24px;
+
+  /* ── POS Semantic Tokens (emerald accent — distinct from admin indigo) ── */
+  --pos-action: #059669;
+  --pos-action-hover: #047857;
+  --pos-action-fg: #ffffff;
+  --pos-action-surface: #ecfdf5;
+  --pos-action-muted: #d1fae5;
+  --pos-action-on-muted: #065f46;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -117,4 +125,12 @@ body[data-mode="dark"],
   --shadow-soft: 0 4px 12px rgba(0,0,0,0.5);
   --shadow-card: 0 8px 24px rgba(0,0,0,0.4);
   --shadow-strong: 0 16px 40px rgba(0,0,0,0.6);
+
+  /* ── POS Semantic Tokens (Dark Mode) ── */
+  --pos-action: #10b981;
+  --pos-action-hover: #059669;
+  --pos-action-fg: #020617;
+  --pos-action-surface: #064e3b;
+  --pos-action-muted: #022c22;
+  --pos-action-on-muted: #6ee7b7;
 }

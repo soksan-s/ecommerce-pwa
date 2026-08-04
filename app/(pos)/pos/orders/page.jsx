@@ -1,5 +1,6 @@
 "use client";
 
+import { RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { formatPrimaryMoney } from "@/components/pos/format";
@@ -147,14 +148,14 @@ export default function PosOrdersPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 transition-colors">
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
-          <p className="text-sm font-bold uppercase tracking-[0.2em] text-emerald-700">Orders</p>
-          <h1 className="mt-2 text-3xl font-black tracking-tight">Online Queue & Today&apos;s Transactions</h1>
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--pos-action)]">Orders</p>
+          <h1 className="mt-1 text-2xl font-black tracking-tight text-[var(--foreground)]">Online Queue &amp; Today&apos;s Transactions</h1>
         </div>
 
-        <div className="grid grid-cols-3 rounded-2xl bg-white p-1 shadow-sm">
+        <div className="grid grid-cols-3 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] p-1 shadow-xs">
           {["all", "synced", "pending"].map((entry) => (
             <button
               key={entry}
@@ -162,8 +163,8 @@ export default function PosOrdersPage() {
               onClick={() => setFilter(entry)}
               className={
                 filter === entry
-                  ? "rounded-xl bg-emerald-600 px-4 py-2 text-sm font-black capitalize text-white"
-                  : "rounded-xl px-4 py-2 text-sm font-black capitalize text-slate-600"
+                  ? "rounded-lg bg-[var(--pos-action)] px-3 py-1.5 text-xs font-extrabold capitalize text-[var(--pos-action-fg)] shadow-xs transition-all"
+                  : "rounded-lg px-3 py-1.5 text-xs font-bold capitalize text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
               }
             >
               {entry}
@@ -172,37 +173,42 @@ export default function PosOrdersPage() {
         </div>
       </div>
 
-      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col justify-between gap-3 border-b border-slate-100 px-4 py-4 md:flex-row md:items-center">
+      <section className="overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] text-[var(--foreground)] shadow-xs">
+        <div className="flex flex-col justify-between gap-3 border-b border-[var(--border-soft)] px-4 py-3.5 md:flex-row md:items-center">
           <div>
-            <h2 className="text-xl font-black">Online Order Queue</h2>
-            <p className="mt-1 text-sm font-semibold text-slate-500">{queueOrders.length} active online orders</p>
+            <h2 className="text-base font-extrabold text-[var(--foreground)]">Online Order Queue</h2>
+            <p className="mt-0.5 text-xs font-semibold text-[var(--muted-foreground)]">{queueOrders.length} active online orders</p>
           </div>
-          <button type="button" onClick={loadOnlineOrders} className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-black text-slate-700">
+          <button 
+            type="button" 
+            onClick={loadOnlineOrders} 
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3 py-1.5 text-xs font-bold text-[var(--foreground)] hover:bg-[var(--surface-quiet)] transition-all active:scale-[0.98]"
+          >
+            <RefreshCw className="size-3.5" />
             Refresh
           </button>
         </div>
 
-        <div className="divide-y divide-slate-100">
+        <div className="divide-y divide-[var(--border-soft)]">
           {queueOrders.map((order) => (
-            <article key={order.id} className="grid gap-4 px-4 py-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto] xl:items-center">
+            <article key={order.id} className="grid gap-4 px-4 py-3.5 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto] xl:items-center">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="truncate text-base font-black">{order.id}</h3>
-                  <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-black uppercase text-emerald-700">{order.status}</span>
+                  <h3 className="truncate text-xs font-extrabold text-[var(--foreground)]">{order.id}</h3>
+                  <span className="rounded-full bg-[var(--pos-action-surface)] px-2.5 py-0.5 text-[10px] font-bold uppercase text-[var(--pos-action-on-muted)]">{order.status}</span>
                 </div>
-                <p className="mt-1 line-clamp-2 text-sm font-semibold text-slate-500">{order.shippingAddress}</p>
-                <p className="mt-1 text-xs font-bold text-slate-400">{new Date(order.createdAt).toLocaleString()}</p>
+                <p className="mt-1 line-clamp-2 text-xs font-medium text-[var(--muted-foreground)]">{order.shippingAddress}</p>
+                <p className="mt-1 text-[11px] font-semibold text-[var(--muted-foreground)] opacity-75">{new Date(order.createdAt).toLocaleString()}</p>
               </div>
 
               <div className="min-w-0">
-                <p className="text-sm font-black">{formatPrimaryMoney(order.total, settings, false)}</p>
-                <p className="mt-1 text-xs font-bold text-slate-500">
+                <p className="text-xs font-extrabold text-[var(--foreground)]">{formatPrimaryMoney(order.total, settings, false)}</p>
+                <p className="mt-0.5 text-[11px] font-medium text-[var(--muted-foreground)]">
                   {(order.lines || []).map((line) => `${line.quantity} x ${line.productName}`).join(", ")}
                 </p>
               </div>
 
-              <div className="flex flex-wrap gap-2 xl:justify-end">
+              <div className="flex flex-wrap gap-1.5 xl:justify-end">
                 {(queueActions[order.status] || []).map((action) => (
                   <button
                     key={`${order.id}-${action.status}`}
@@ -210,8 +216,8 @@ export default function PosOrdersPage() {
                     onClick={() => updateOrderStatus(order.id, action.status)}
                     className={
                       action.status === "cancelled"
-                        ? "rounded-xl bg-red-50 px-3 py-2 text-sm font-black text-red-700"
-                        : "rounded-xl bg-emerald-600 px-3 py-2 text-sm font-black text-white"
+                        ? "rounded-lg bg-red-50 dark:bg-red-950/40 px-3 py-1.5 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-100 transition-colors"
+                        : "rounded-lg bg-[var(--pos-action)] hover:bg-[var(--pos-action-hover)] px-3 py-1.5 text-xs font-extrabold text-[var(--pos-action-fg)] shadow-xs transition-all active:scale-[0.98]"
                     }
                   >
                     {action.label}
@@ -222,45 +228,51 @@ export default function PosOrdersPage() {
           ))}
 
           {!queueOrders.length ? (
-            <div className="px-4 py-10 text-center text-sm font-bold text-slate-500">
+            <div className="px-4 py-8 text-center text-xs font-semibold text-[var(--muted-foreground)]">
               {queueMessage || "No active online orders."}
             </div>
           ) : null}
         </div>
       </section>
 
-      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-100 px-4 py-4">
-          <h2 className="text-xl font-black">Today&apos;s POS Transactions</h2>
+      <div className="overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] text-[var(--foreground)] shadow-xs">
+        <div className="border-b border-[var(--border-soft)] px-4 py-3.5">
+          <h2 className="text-base font-extrabold text-[var(--foreground)]">Today&apos;s POS Transactions</h2>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[44rem] text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-[0.16em] text-slate-500">
+          <table className="w-full min-w-[40rem] text-left text-xs">
+            <thead className="bg-[var(--surface-soft)] text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
               <tr>
-                <th className="px-4 py-3">Transaction ID</th>
-                <th className="px-4 py-3">Time</th>
-                <th className="px-4 py-3">Items</th>
-                <th className="px-4 py-3">Total</th>
-                <th className="px-4 py-3">Synced</th>
+                <th className="px-4 py-2.5">Transaction ID</th>
+                <th className="px-4 py-2.5">Time</th>
+                <th className="px-4 py-2.5">Items</th>
+                <th className="px-4 py-2.5">Total</th>
+                <th className="px-4 py-2.5">Synced</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-[var(--border-soft)]">
               {visibleTransactions.map((transaction) => (
-                <tr key={transaction.id}>
-                  <td className="px-4 py-3 font-black">{transaction.id}</td>
-                  <td className="px-4 py-3 font-semibold text-slate-600">
+                <tr key={transaction.id} className="hover:bg-[var(--surface-soft)]/50 transition-colors">
+                  <td className="px-4 py-2.5 font-bold font-mono text-[var(--foreground)]">{transaction.id}</td>
+                  <td className="px-4 py-2.5 font-medium text-[var(--muted-foreground)]">
                     {hydrated ? formatTime(transaction.timestamp) : "--"}
                   </td>
-                  <td className="px-4 py-3 font-semibold">
+                  <td className="px-4 py-2.5 font-medium text-[var(--foreground)]">
                     {(transaction.items || []).reduce((sum, item) => sum + Number(item.qty || 0), 0).toLocaleString()}
                   </td>
-                  <td className="px-4 py-3 font-black">{formatPrimaryMoney(transaction.total, settings, false)}</td>
-                  <td className="px-4 py-3 text-sm font-black">{transaction.synced ? "Yes" : "Pending"}</td>
+                  <td className="px-4 py-2.5 font-extrabold text-[var(--foreground)]">{formatPrimaryMoney(transaction.total, settings, false)}</td>
+                  <td className="px-4 py-2.5 font-bold">
+                    {transaction.synced ? (
+                      <span className="text-[var(--pos-action)]">Yes</span>
+                    ) : (
+                      <span className="text-amber-600 dark:text-amber-400">Pending</span>
+                    )}
+                  </td>
                 </tr>
               ))}
               {!visibleTransactions.length ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-sm font-bold text-slate-500">
+                  <td colSpan={5} className="px-4 py-8 text-center text-xs font-semibold text-[var(--muted-foreground)]">
                     No transactions found.
                   </td>
                 </tr>

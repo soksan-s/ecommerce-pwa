@@ -57,54 +57,29 @@ export async function POST(request) {
 
       if (!name) {
         skippedCount += 1;
-        errors.push({ row: rowNumber, message: "Missing required column: name." });
+        errors.push({ row: rowNumber, message: "Missing required product name." });
         continue;
       }
 
-      if (!row.category) {
-        skippedCount += 1;
-        errors.push({ row: rowNumber, message: `"${name}" is missing required column: category.` });
-        continue;
-      }
+      // Safe defaults for optional fields so CSV files without image, description, or category can import seamlessly
+      const category = String(row.category || "").trim() || "General";
+      const description = String(row.description || "").trim() || name;
+      const imageUrl = String(row.imageUrl || row.image || "").trim();
 
-      const description = String(row.description || "").trim();
-      if (!description) {
-        skippedCount += 1;
-        errors.push({ row: rowNumber, message: `"${name}" is missing required column: description.` });
-        continue;
-      }
+      const priceRaw = parseNumber(row.price);
+      const price = priceRaw != null && priceRaw >= 0 ? priceRaw : 0;
 
-      const imageUrl = String(row.imageUrl || "").trim();
-      if (!imageUrl) {
-        skippedCount += 1;
-        errors.push({ row: rowNumber, message: `"${name}" is missing required column: imageUrl (or image).` });
-        continue;
-      }
-
-      const price = parseNumber(row.price);
       const costPrice = parseNumber(row.costPrice);
       const wholesalePrice = parseNumber(row.wholesalePrice);
-      const discountPercent = parseNumber(row.discountPercent);
-      const stock = parseNumber(row.stock);
-      const minStockAlert = parseNumber(row.minStockAlert);
 
-      if (price == null || price < 0) {
-        skippedCount += 1;
-        errors.push({ row: rowNumber, message: `"${name}" has an invalid price.` });
-        continue;
-      }
+      const discountRaw = parseNumber(row.discountPercent);
+      const discountPercent = discountRaw != null ? Math.max(0, Math.min(100, discountRaw)) : 0;
 
-      if (stock == null || !Number.isInteger(stock) || stock < 0) {
-        skippedCount += 1;
-        errors.push({ row: rowNumber, message: `"${name}" has an invalid stock quantity.` });
-        continue;
-      }
+      const stockRaw = parseNumber(row.stock);
+      const stock = stockRaw != null && stockRaw >= 0 ? Math.round(stockRaw) : 0;
 
-      if (discountPercent != null && (discountPercent < 0 || discountPercent > 100)) {
-        skippedCount += 1;
-        errors.push({ row: rowNumber, message: `"${name}" discount must be between 0 and 100.` });
-        continue;
-      }
+      const minStockAlertRaw = parseNumber(row.minStockAlert);
+      const minStockAlert = minStockAlertRaw != null && minStockAlertRaw >= 0 ? Math.round(minStockAlertRaw) : 5;
 
       const sku = String(row.sku || "").trim() || null;
       const isActive = parseBoolean(row.isActive);
@@ -125,15 +100,15 @@ export async function POST(request) {
         const productData = {
           name,
           sku,
-          category: row.category,
+          category,
           description,
           imageUrl,
           price,
           costPrice: costPrice ?? null,
           wholesalePrice: wholesalePrice ?? null,
-          discountPercent: discountPercent ?? 0,
-          stock: Math.round(stock),
-          minStockAlert: minStockAlert != null ? Math.round(minStockAlert) : 5,
+          discountPercent,
+          stock,
+          minStockAlert,
           isActive,
         };
 
@@ -152,15 +127,30 @@ export async function POST(request) {
           });
         }
 
-        // Auto-create a default variant so the product can be ordered through
-        // the variant-based order API. Variant prices are authoritative.
+        // Auto-create or update a default variant so the product can be ordered through
+        // the variant-based order API.
         const existingVariant = await prisma.productVariant.findFirst({
           where: { productId: createdProduct.id },
         });
 
+        const branch = await prisma.branch.findFirst({
+          where: { code: "HQ" },
+        });
+
+        let targetVariant = existingVariant;
+
         if (!existingVariant) {
-          const variantSku = sku || buildVariantSku(name, sku, "DEFAULT");
-          const variant = await prisma.productVariant.create({
+          const baseVariantSku = sku || buildVariantSku(name, sku, "DEFAULT");
+          let variantSku = baseVariantSku;
+
+          const colliding = await prisma.productVariant.findUnique({
+            where: { sku: variantSku },
+          });
+          if (colliding) {
+            variantSku = `${baseVariantSku}-${createdProduct.id.slice(-6).toUpperCase()}`;
+          }
+
+          targetVariant = await prisma.productVariant.create({
             data: {
               productId: createdProduct.id,
               sku: variantSku,
@@ -168,61 +158,54 @@ export async function POST(request) {
               price,
               costPrice: costPrice ?? null,
               wholesalePrice: wholesalePrice ?? null,
-              discountPercent: discountPercent ?? 0,
-              isActive: isActive,
+              discountPercent,
+              isActive,
             },
           });
-
-          // Sync inventory at the HQ branch so the storefront stock reflects
-          // the imported quantity.
-          const branch = await prisma.branch.findFirst({
-            where: { code: "HQ" },
-          });
-
-          if (branch) {
-            await prisma.inventory.upsert({
-              where: {
-                variantId_branchId: {
-                  variantId: variant.id,
-                  branchId: branch.id,
-                },
-              },
-              update: {
-                quantity: { increment: Math.round(stock) },
-                availableQuantity: { increment: Math.round(stock) },
-              },
-              create: {
-                variantId: variant.id,
-                branchId: branch.id,
-                quantity: Math.round(stock),
-                availableQuantity: Math.round(stock),
-              },
-            });
-
-            await createInventoryMovement(prisma, {
-              variantId: variant.id,
-              branchId: branch.id,
-              type: "STOCK_IN",
-              channel: "POS",
-              quantity: Math.round(stock),
-              previousStock: 0,
-              nextStock: Math.round(stock),
-              note: "Imported from CSV",
-              userId: admin.id,
-            });
-          }
-        } else if (existingVariant) {
-          // Keep the variant price in sync with the imported product price so
-          // storefront display and order pricing never diverge.
-          await prisma.productVariant.update({
+        } else {
+          targetVariant = await prisma.productVariant.update({
             where: { id: existingVariant.id },
             data: {
               price,
               costPrice: costPrice ?? null,
               wholesalePrice: wholesalePrice ?? null,
-              discountPercent: discountPercent ?? 0,
+              discountPercent,
               isActive,
             },
+          });
+        }
+
+        // Sync inventory at the HQ branch so storefront stock matches imported stock
+        if (branch && targetVariant) {
+          await prisma.inventory.upsert({
+            where: {
+              variantId_branchId: {
+                variantId: targetVariant.id,
+                branchId: branch.id,
+              },
+            },
+            update: {
+              quantity: stock,
+              availableQuantity: stock,
+            },
+            create: {
+              variantId: targetVariant.id,
+              branchId: branch.id,
+              quantity: stock,
+              availableQuantity: stock,
+            },
+          });
+
+          await createInventoryMovement(prisma, {
+            variantId: targetVariant.id,
+            branchId: branch.id,
+            type: "STOCK_IN",
+            channel: "POS",
+            quantity: stock,
+            previousStock: 0,
+            nextStock: stock,
+            note: "Imported from CSV",
+            userId: admin.id,
           });
         }
 
@@ -234,9 +217,9 @@ export async function POST(request) {
           newValue: {
             name,
             sku: sku || undefined,
-            category: row.category,
+            category,
             price,
-            stock: Math.round(stock),
+            stock,
             source: "csv-import",
           },
         });

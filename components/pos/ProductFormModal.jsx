@@ -28,6 +28,11 @@ function generateSku() {
   return `PRD-${Math.floor(1000 + Math.random() * 9000)}`;
 }
 
+const inputCls =
+  "mt-1.5 w-full rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3.5 py-2.5 text-xs font-bold text-[var(--foreground)] outline-none transition-colors focus:border-[var(--pos-action)] focus:bg-[var(--surface-strong)] placeholder:text-[var(--muted-foreground)]";
+
+const labelCls = "text-xs font-bold text-[var(--foreground)]";
+
 export function ProductFormModal({ open, mode = "add", product, categories = [], exchangeRate = 4100, onClose, onSave }) {
   const [form, setForm] = useState(emptyProduct);
   const [newCategory, setNewCategory] = useState("");
@@ -113,9 +118,10 @@ export function ProductFormModal({ open, mode = "add", product, categories = [],
       ...form,
       category: finalCategory,
       sku: form.sku || generateSku(),
-      price: overrideSecondary && priceSecondary
-        ? convertMoney(Number(priceSecondary), secondaryCurrency, "USD", exchangeRate)
-        : Number(form.price),
+      price:
+        overrideSecondary && priceSecondary
+          ? convertMoney(Number(priceSecondary), secondaryCurrency, "USD", exchangeRate)
+          : Number(form.price),
       stock: Number(form.stock || 0),
       lowStockThreshold: Number(form.lowStockThreshold || 0),
       updatedAt: new Date().toISOString(),
@@ -131,119 +137,203 @@ export function ProductFormModal({ open, mode = "add", product, categories = [],
   }
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/60 p-4">
-      <div className="mx-auto max-w-4xl rounded-3xl bg-white p-5 shadow-2xl">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/60 p-4 backdrop-blur-xs">
+      <div className="mx-auto max-w-4xl rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-5 shadow-2xl text-[var(--foreground)] transition-colors">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-sm font-bold uppercase tracking-[0.18em] text-emerald-700">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--pos-action)]">
               {mode === "add" ? "Add Product" : "Edit Product"}
             </p>
-            <h2 className="mt-2 text-3xl font-black">Product Details</h2>
+            <h2 className="mt-1.5 text-2xl font-black tracking-tight text-[var(--foreground)]">Product Details</h2>
           </div>
-          <button type="button" onClick={onClose} className="rounded-full bg-slate-100 px-4 py-2 text-sm font-black">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3.5 py-1.5 text-xs font-bold text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--surface-quiet)] transition-colors"
+          >
             Close
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-6 grid gap-6 lg:grid-cols-[14rem_minmax(0,1fr)]">
+        <form onSubmit={handleSubmit} className="mt-5 grid gap-5 lg:grid-cols-[12rem_minmax(0,1fr)]">
+          {/* Image panel */}
           <section>
             <div
-              className="flex aspect-square w-full items-center justify-center rounded-3xl border border-slate-200 bg-slate-100 bg-cover bg-center text-5xl font-black text-slate-400"
+              className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] bg-cover bg-center text-4xl font-black text-[var(--muted-foreground)]"
               style={form.image ? { backgroundImage: `url(${form.image})` } : undefined}
             >
               {form.image ? null : form.name.charAt(0).toUpperCase() || "P"}
             </div>
-            <label className="mt-4 block cursor-pointer rounded-2xl bg-slate-900 px-4 py-3 text-center text-sm font-black text-white">
+            <label className="mt-3 block cursor-pointer rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] px-4 py-2.5 text-center text-xs font-bold text-[var(--foreground)] hover:bg-[var(--surface-quiet)] transition-colors">
               Upload Image
               <input type="file" accept="image/*" onChange={(event) => handleImageUpload(event.target.files?.[0])} className="hidden" />
             </label>
             {form.image ? (
-              <button type="button" onClick={() => patch({ image: "" })} className="mt-3 w-full text-sm font-black text-red-600">
+              <button
+                type="button"
+                onClick={() => patch({ image: "" })}
+                className="mt-2 w-full text-xs font-bold text-red-600 dark:text-red-400 hover:underline"
+              >
                 Remove Image
               </button>
             ) : null}
           </section>
 
-          <section className="space-y-6">
+          {/* Fields panel */}
+          <section className="space-y-5">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="md:col-span-2">
-                <label className="text-sm font-bold text-slate-700">Product Name*</label>
-                <input value={form.name} onChange={(event) => patch({ name: event.target.value })} className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 font-bold outline-none focus:border-emerald-500" />
+                <label className={labelCls}>Product Name*</label>
+                <input
+                  value={form.name}
+                  onChange={(event) => patch({ name: event.target.value })}
+                  className={inputCls}
+                />
               </div>
               <div>
-                <label className="text-sm font-bold text-slate-700">SKU</label>
-                <div className="mt-2 flex gap-2">
-                  <input value={form.sku} onChange={(event) => patch({ sku: event.target.value })} className="w-full rounded-2xl border border-slate-200 px-4 py-3 font-bold outline-none focus:border-emerald-500" />
-                  <button type="button" onClick={() => patch({ sku: generateSku() })} className="rounded-2xl bg-slate-100 px-4 text-sm font-black">
+                <label className={labelCls}>SKU</label>
+                <div className="mt-1.5 flex gap-2">
+                  <input
+                    value={form.sku}
+                    onChange={(event) => patch({ sku: event.target.value })}
+                    className="w-full rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3.5 py-2.5 text-xs font-bold text-[var(--foreground)] outline-none focus:border-[var(--pos-action)]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => patch({ sku: generateSku() })}
+                    className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3.5 text-xs font-bold text-[var(--foreground)] hover:bg-[var(--surface-quiet)] transition-colors"
+                  >
                     Auto
                   </button>
                 </div>
               </div>
               <div>
-                <label className="text-sm font-bold text-slate-700">Category</label>
-                <select value={form.category} onChange={(event) => patch({ category: event.target.value })} className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 font-bold outline-none focus:border-emerald-500">
-                  {categoryOptions.map((entry) => <option key={entry}>{entry}</option>)}
+                <label className={labelCls}>Category</label>
+                <select
+                  value={form.category}
+                  onChange={(event) => patch({ category: event.target.value })}
+                  className={inputCls}
+                >
+                  {categoryOptions.map((entry) => (
+                    <option key={entry}>{entry}</option>
+                  ))}
                   <option value="__new">+ New Category</option>
                 </select>
               </div>
               {form.category === "__new" ? (
                 <div className="md:col-span-2">
-                  <label className="text-sm font-bold text-slate-700">New Category</label>
-                  <input value={newCategory} onChange={(event) => setNewCategory(event.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 font-bold outline-none focus:border-emerald-500" />
+                  <label className={labelCls}>New Category</label>
+                  <input
+                    value={newCategory}
+                    onChange={(event) => setNewCategory(event.target.value)}
+                    className={inputCls}
+                  />
                 </div>
               ) : null}
               <div className="md:col-span-2">
-                <label className="text-sm font-bold text-slate-700">Description</label>
-                <textarea value={form.description} onChange={(event) => patch({ description: event.target.value })} className="mt-2 min-h-24 w-full rounded-2xl border border-slate-200 px-4 py-3 font-bold outline-none focus:border-emerald-500" />
+                <label className={labelCls}>Description</label>
+                <textarea
+                  value={form.description}
+                  onChange={(event) => patch({ description: event.target.value })}
+                  className={`${inputCls} min-h-20 resize-none`}
+                />
               </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <label className="text-sm font-bold text-slate-700">Price in USD*</label>
-                <input type="number" value={form.price} onChange={(event) => patch({ price: Number(event.target.value) })} className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 font-bold outline-none focus:border-emerald-500" />
+                <label className={labelCls}>Price in USD*</label>
+                <input
+                  type="number"
+                  value={form.price}
+                  onChange={(event) => patch({ price: Number(event.target.value) })}
+                  className={inputCls}
+                />
               </div>
               <div>
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-bold text-slate-700">Price in {secondaryCurrency}</label>
-                  <label className="flex items-center gap-2 text-xs font-black text-slate-600">
-                    <input type="checkbox" checked={overrideSecondary} onChange={(event) => setOverrideSecondary(event.target.checked)} className="accent-emerald-600" />
+                  <label className={labelCls}>Price in {secondaryCurrency}</label>
+                  <label className="flex items-center gap-1.5 text-[11px] font-bold text-[var(--muted-foreground)] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={overrideSecondary}
+                      onChange={(event) => setOverrideSecondary(event.target.checked)}
+                      className="accent-[var(--pos-action)]"
+                    />
                     Override
                   </label>
                 </div>
-                <input value={overrideSecondary ? priceSecondary : calculatedSecondary} onChange={(event) => setPriceSecondary(event.target.value)} readOnly={!overrideSecondary} className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 font-bold outline-none focus:border-emerald-500 read-only:bg-slate-50" />
+                <input
+                  value={overrideSecondary ? priceSecondary : calculatedSecondary}
+                  onChange={(event) => setPriceSecondary(event.target.value)}
+                  readOnly={!overrideSecondary}
+                  className={`${inputCls} read-only:opacity-60`}
+                />
               </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-3">
               <div>
-                <label className="text-sm font-bold text-slate-700">Current Stock*</label>
-                <input type="number" value={form.stock} onChange={(event) => patch({ stock: Number(event.target.value) })} className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 font-bold outline-none focus:border-emerald-500" />
+                <label className={labelCls}>Current Stock*</label>
+                <input
+                  type="number"
+                  value={form.stock}
+                  onChange={(event) => patch({ stock: Number(event.target.value) })}
+                  className={inputCls}
+                />
               </div>
               <div>
-                <label className="text-sm font-bold text-slate-700">Low Stock Alert</label>
-                <input type="number" value={form.lowStockThreshold} onChange={(event) => patch({ lowStockThreshold: Number(event.target.value) })} className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 font-bold outline-none focus:border-emerald-500" />
+                <label className={labelCls}>Low Stock Alert</label>
+                <input
+                  type="number"
+                  value={form.lowStockThreshold}
+                  onChange={(event) => patch({ lowStockThreshold: Number(event.target.value) })}
+                  className={inputCls}
+                />
               </div>
               <div>
-                <label className="text-sm font-bold text-slate-700">Unit</label>
-                <input value={form.unit} onChange={(event) => patch({ unit: event.target.value })} className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 font-bold outline-none focus:border-emerald-500" />
+                <label className={labelCls}>Unit</label>
+                <input
+                  value={form.unit}
+                  onChange={(event) => patch({ unit: event.target.value })}
+                  className={inputCls}
+                />
               </div>
             </div>
 
-            <div className="flex items-center justify-between rounded-2xl bg-slate-50 p-4">
-              <span className="text-sm font-bold text-slate-700">Active</span>
-              <button type="button" onClick={() => patch({ isActive: !form.isActive })} className={form.isActive ? "h-8 w-14 rounded-full bg-emerald-600 p-1" : "h-8 w-14 rounded-full bg-slate-300 p-1"}>
-                <span className={form.isActive ? "block size-6 translate-x-6 rounded-full bg-white transition" : "block size-6 rounded-full bg-white transition"} />
+            <div className="flex items-center justify-between rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] px-4 py-3">
+              <span className="text-xs font-bold text-[var(--foreground)]">Active</span>
+              <button
+                type="button"
+                onClick={() => patch({ isActive: !form.isActive })}
+                className={`h-7 w-12 rounded-full p-[3px] transition-colors ${form.isActive ? "bg-[var(--pos-action)]" : "bg-[var(--border-soft)]"}`}
+                aria-pressed={form.isActive}
+              >
+                <span
+                  className={`block size-5 rounded-full bg-white shadow-sm transition-transform ${form.isActive ? "translate-x-5" : "translate-x-0"}`}
+                />
               </button>
             </div>
 
-            {error ? <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div> : null}
+            {error ? (
+              <div className="rounded-xl border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/30 px-4 py-3 text-xs font-bold text-red-600 dark:text-red-400">
+                {error}
+              </div>
+            ) : null}
 
-            <div className="flex justify-end gap-3">
-              <button type="button" onClick={onClose} className="rounded-2xl bg-slate-100 px-5 py-3 text-sm font-black">
+            <div className="flex justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] px-4 py-2.5 text-xs font-bold text-[var(--foreground)] hover:bg-[var(--surface-quiet)] transition-all"
+              >
                 Cancel
               </button>
-              <button type="submit" disabled={saving} className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white disabled:bg-slate-300">
+              <button
+                type="submit"
+                disabled={saving}
+                className="rounded-xl bg-[var(--pos-action)] hover:bg-[var(--pos-action-hover)] px-4 py-2.5 text-xs font-extrabold text-[var(--pos-action-fg)] disabled:opacity-40 transition-all active:scale-[0.98] shadow-xs"
+              >
                 {saving ? "Saving..." : "Save Product"}
               </button>
             </div>

@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Globe,
   Heart,
+  LogIn,
   Menu,
   ReceiptText,
   ShoppingCart,
@@ -15,12 +16,17 @@ import {
 } from "lucide-react";
 
 import { useAppStore } from "@/components/app-store-provider";
+import { AuthModal } from "@/components/auth-modal";
 import { ClientCartPageView, ClientFavoritesPageView, ClientOrderDetailPageView, ClientOrderHistoryPageView, ClientProductListPageView, ClientProfilePageView } from "@/components/client-pages";
 import { LogoutButton } from "@/components/logout-button";
 import { easeInOutCubic } from "@/components/motion/motion-utils";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/translations";
+
+// Tabs that require a logged-in session
+const PROTECTED_TABS = new Set(["favorites", "cart", "orders", "profile"]);
 
 const clientTabs = [
   { key: "shop", label: "Shop", icon: Store },
@@ -61,6 +67,7 @@ export function ClientShell({ user, initialTab = "shop", orderDetailId = "" }) {
   const searchParams = useSearchParams();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedTab, setSelectedTab] = useState(() => resolveClientTab(searchParams.get("tab") || initialTab));
+  const [authModal, setAuthModal] = useState({ isOpen: false, hint: "" });
 
   const lang = store.language || "en";
   const { t } = useTranslation(lang);
@@ -95,7 +102,24 @@ export function ClientShell({ user, initialTab = "shop", orderDetailId = "" }) {
     }
   }, [activeTab, t]);
 
+  /** Opens the auth modal for guests; returns false so callers can bail early. */
+  const requireAuth = useCallback(
+    function (hint) {
+      if (!user) {
+        setAuthModal({ isOpen: true, hint: hint || "" });
+        return false;
+      }
+      return true;
+    },
+    [user],
+  );
+
   function openTab(tab) {
+    // Protected tabs require a session
+    if (PROTECTED_TABS.has(tab) && !user) {
+      requireAuth("Sign in to access this section");
+      return;
+    }
     const nextTab = resolveClientTab(tab);
     setSelectedTab(nextTab);
     setDrawerOpen(false);
@@ -117,7 +141,7 @@ export function ClientShell({ user, initialTab = "shop", orderDetailId = "" }) {
       case "profile":
         return <ClientProfilePageView user={user} />;
       default:
-        return <ClientProductListPageView />;
+        return <ClientProductListPageView requireAuth={requireAuth} />;
     }
   }
 
@@ -149,7 +173,18 @@ export function ClientShell({ user, initialTab = "shop", orderDetailId = "" }) {
               <span>{lang === "en" ? "EN" : "ខ្មែរ"}</span>
             </button>
             <ThemeToggle />
-            {activeTab !== "cart" ? (
+            {/* Sign-in shortcut for guests in header */}
+            {!user ? (
+              <button
+                type="button"
+                onClick={() => setAuthModal({ isOpen: true, hint: "" })}
+                className="app-icon-button flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-[var(--action)]"
+                aria-label="Sign in"
+              >
+                <LogIn className="size-3.5" />
+                <span>Sign In</span>
+              </button>
+            ) : activeTab !== "cart" ? (
               <button
                 type="button"
                 onClick={() => openTab("cart")}
@@ -189,8 +224,12 @@ export function ClientShell({ user, initialTab = "shop", orderDetailId = "" }) {
             >
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted-foreground)]">Client</p>
-                <p className="mt-1 text-sm font-semibold text-[var(--foreground)]">{user.email}</p>
+                <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted-foreground)]">
+                  {user ? "Client" : "Guest"}
+                </p>
+                <p className="mt-1 text-sm font-semibold text-[var(--foreground)]">
+                  {user ? user.email : "Browsing as guest"}
+                </p>
               </div>
               <button
                 type="button"
@@ -206,7 +245,20 @@ export function ClientShell({ user, initialTab = "shop", orderDetailId = "" }) {
                 <DrawerButton key={tab.key} active={activeTab === tab.key} icon={tab.icon} label={t(tab.key)} onClick={() => openTab(tab.key)} />
               ))}
             </div>
-            <LogoutButton className="mt-5 w-full" />
+            {user ? (
+              <LogoutButton className="mt-5 w-full" />
+            ) : (
+              <Button
+                className="mt-5 w-full rounded-2xl"
+                onClick={() => {
+                  setDrawerOpen(false);
+                  setAuthModal({ isOpen: true, hint: "" });
+                }}
+              >
+                <LogIn className="mr-2 size-4" />
+                Sign In / Register
+              </Button>
+            )}
             </motion.div>
           </motion.div>
         ) : null}
@@ -231,6 +283,13 @@ export function ClientShell({ user, initialTab = "shop", orderDetailId = "" }) {
           </button>
         ))}
       </nav>
+
+      {/* Auth modal — shown to guests when they attempt a protected action */}
+      <AuthModal
+        isOpen={authModal.isOpen}
+        onClose={() => setAuthModal({ isOpen: false, hint: "" })}
+        hint={authModal.hint}
+      />
     </main>
   );
 }

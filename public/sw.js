@@ -1,8 +1,8 @@
-const CACHE_NAME = "myshop-cache-v1";
+const CACHE_NAME = "myshop-cache-v2";
 const STATIC_CACHE_EXTENSIONS = [".js", ".css", ".png", ".jpg", ".jpeg", ".webp", ".svg", ".ico", ".woff", ".woff2"];
 const APP_SHELL = ["/", "/pos", "/ecommerce", "/offline", "/manifest.json", "/icons/icon-192.svg", "/icons/icon-512.svg"];
 const DB_NAME = "myshop-db";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 function openOfflineDb() {
   return new Promise((resolve, reject) => {
@@ -13,6 +13,17 @@ function openOfflineDb() {
 
       if (!db.objectStoreNames.contains("products")) {
         db.createObjectStore("products", { keyPath: "id" });
+      }
+
+      if (!db.objectStoreNames.contains("variants")) {
+        const variantStore = db.createObjectStore("variants", { keyPath: "id" });
+        variantStore.createIndex("productId", "productId", { unique: false });
+        variantStore.createIndex("sku", "sku", { unique: false });
+      }
+
+      if (!db.objectStoreNames.contains("inventory")) {
+        const invStore = db.createObjectStore("inventory", { keyPath: "variantId" });
+        invStore.createIndex("productId", "productId", { unique: false });
       }
 
       if (!db.objectStoreNames.contains("cart")) {
@@ -29,6 +40,10 @@ function openOfflineDb() {
 
       if (!db.objectStoreNames.contains("transactions")) {
         db.createObjectStore("transactions", { keyPath: "id" });
+      }
+
+      if (!db.objectStoreNames.contains("sync_meta")) {
+        db.createObjectStore("sync_meta", { keyPath: "key" });
       }
     };
 

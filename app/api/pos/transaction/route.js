@@ -22,6 +22,21 @@ export async function POST(request) {
       return fail("Transaction requires at least one item.", 422);
     }
 
+    if (body.id) {
+      const existing = await prisma.sale.findUnique({
+        where: { id: String(body.id) },
+      });
+      if (existing) {
+        return ok({
+          data: {
+            id: existing.id,
+            synced: true,
+            message: "Transaction already processed",
+          },
+        });
+      }
+    }
+
     // Verify shift check-in for cashiers
     const activeShift = await prisma.shift.findFirst({
       where: { cashierId: user.id, status: "OPEN" },

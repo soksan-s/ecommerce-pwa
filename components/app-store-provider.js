@@ -153,47 +153,67 @@ useEffect(() => {
   //   saveOfflineAppState(state);
   // }, [state]);
 
-  const value = useMemo(() => {
-    const products = state.products;
-    const productsById = new Map(products.map((product) => [product.id, product]));
-    const activeProducts = products.filter((product) => product.isActive);
-    const categories = ["All", ...new Set(products.map((product) => product.category))];
-    const favoriteProducts = products.filter((product) => state.favorites.includes(product.id));
-    const cartItems = state.cart
-      .map((item) => {
-        const product = productsById.get(item.productId);
-        if (!product) {
-          return null;
-        }
-        // Prefer the unitPrice captured at add-to-cart time (which already
-        // reflects the chosen variant). For legacy carts that lack a stored
-        // unitPrice, resolve it from the product/variant catalog so totals
-        // never become NaN and always match the selected variant.
-        let unitPrice = Number(item.unitPrice);
-        if (!Number.isFinite(unitPrice) || unitPrice <= 0) {
-          if (item.variantId) {
-            const variant = (product.variants || []).find((v) => v.id === item.variantId);
-            unitPrice = variant
-              ? Number((Number(variant.price) * (1 - (variant.discountPercent || 0) / 100)).toFixed(2))
-              : Number(product.displayPrice || product.price || 0);
-          } else {
-            const displayPrice = Number(product.displayPrice || product.price || 0);
-            const displayDiscount = Number(product.displayDiscountPercent ?? product.discountPercent ?? 0);
-            unitPrice = Number((displayPrice * (1 - displayDiscount / 100)).toFixed(2));
-          }
-        }
-        const subtotal = Number((unitPrice * item.quantity).toFixed(2));
-        return {
-          ...item,
-          product,
-          unitPrice,
-          subtotal,
-        };
-      })
-      .filter(Boolean);
-    const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
-    const cartTotal = Number(cartItems.reduce((sum, item) => sum + item.subtotal, 0).toFixed(2));
+  const products = state.products;
+  const productsById = useMemo(
+    () => new Map(products.map((product) => [product.id, product])),
+    [products]
+  );
+  const activeProducts = useMemo(
+    () => products.filter((product) => product.isActive),
+    [products]
+  );
+  const categories = useMemo(
+    () => ["All", ...new Set(products.map((product) => product.category))],
+    [products]
+  );
+  const favoriteProducts = useMemo(
+    () => products.filter((product) => state.favorites.includes(product.id)),
+    [products, state.favorites]
+  );
 
+  const cartItems = useMemo(
+    () =>
+      state.cart
+        .map((item) => {
+          const product = productsById.get(item.productId);
+          if (!product) {
+            return null;
+          }
+          let unitPrice = Number(item.unitPrice);
+          if (!Number.isFinite(unitPrice) || unitPrice <= 0) {
+            if (item.variantId) {
+              const variant = (product.variants || []).find((v) => v.id === item.variantId);
+              unitPrice = variant
+                ? Number((Number(variant.price) * (1 - (variant.discountPercent || 0) / 100)).toFixed(2))
+                : Number(product.displayPrice || product.price || 0);
+            } else {
+              const displayPrice = Number(product.displayPrice || product.price || 0);
+              const displayDiscount = Number(product.displayDiscountPercent ?? product.discountPercent ?? 0);
+              unitPrice = Number((displayPrice * (1 - displayDiscount / 100)).toFixed(2));
+            }
+          }
+          const subtotal = Number((unitPrice * item.quantity).toFixed(2));
+          return {
+            ...item,
+            product,
+            unitPrice,
+            subtotal,
+          };
+        })
+        .filter(Boolean),
+    [state.cart, productsById]
+  );
+
+  const cartCount = useMemo(
+    () => cartItems.reduce((sum, item) => sum + item.quantity, 0),
+    [cartItems]
+  );
+  const cartTotal = useMemo(
+    () => Number(cartItems.reduce((sum, item) => sum + item.subtotal, 0).toFixed(2)),
+    [cartItems]
+  );
+
+  const value = useMemo(() => {
     function patch(nextState) {
       setState((current) => {
         const resolved = typeof nextState === "function" ? nextState(current) : nextState;
@@ -731,7 +751,7 @@ useEffect(() => {
           });
           const data = await response.json();
           if (!response.ok) {
-            return { success: false, message: data.error || "Import failed." };
+            return { success: false, message: data.error?.message || data.error || "Import failed." };
           }
 
           const freshProducts = await readJson("/api/products", fallbackProducts);
@@ -740,9 +760,17 @@ useEffect(() => {
             products: freshProducts,
           }));
 
-          return { success: true, message: `Imported ${data.importedCount || 0} products.` };
+          let message = `Successfully imported ${data.importedCount || 0} product(s).`;
+          if (data.skippedCount > 0) {
+            message += ` (${data.skippedCount} skipped)`;
+          }
+          if (data.errors && data.errors.length > 0) {
+            message += `: Row ${data.errors[0].row} - ${data.errors[0].message}`;
+          }
+
+          return { success: (data.importedCount || 0) > 0, message };
         } catch {
-          return { success: false, message: "Import failed." };
+          return { success: false, message: "Import failed due to a network or server error." };
         }
       },
       async importInventoryCsv(csv) {
@@ -898,7 +926,7 @@ useEffect(() => {
           .catch(() => {});
       },
     };
-  }, [state]);
+  }, [state, products, activeProducts, categories, favoriteProducts, cartItems, cartCount, cartTotal]);
 
   return <AppStoreContext.Provider value={value}>{children}</AppStoreContext.Provider>;
 }

@@ -5,10 +5,12 @@ import { canAccessClient, getCurrentUser, getDefaultRouteForRole } from "@/lib/a
 export default async function ClientLayout({ children }) {
   const user = await getCurrentUser({ suppressDatabaseErrors: true });
 
+  // Guests (no session) are welcome to browse as visitors
   if (!user) {
-    redirect("/");
+    return children;
   }
 
+  // Staff/admins with a non-client role get sent to their own area
   if (!canAccessClient(user.role)) {
     redirect(getDefaultRouteForRole(user.role));
   }
