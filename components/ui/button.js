@@ -12,9 +12,9 @@ const buttonVariants = cva(
     variants: {
       variant: {
         primary:
-          "bg-[var(--action)] px-[1.125rem] py-[0.875rem] text-[var(--action-foreground)] shadow-[var(--shadow-soft)] hover:brightness-[1.03]",
+          "bg-[var(--action)] px-[1.125rem] py-[0.875rem] text-[var(--action-foreground)] shadow-[var(--shadow-soft)] hover:bg-[var(--action-hover)] hover:shadow-[var(--shadow-glow)]",
         secondary:
-          "border border-[var(--border-soft)] bg-[var(--surface)] px-[1.125rem] py-[0.875rem] text-[var(--foreground)] hover:bg-[color-mix(in_srgb,var(--surface)_82%,var(--accent))]",
+          "border border-[var(--border-strong)] bg-transparent px-[1.125rem] py-[0.875rem] text-[var(--foreground)] hover:border-[color-mix(in_srgb,var(--action)_40%,transparent)] hover:text-[var(--action-on-muted)]",
         ghost: "px-3 py-2 text-[var(--muted-foreground)] hover:text-[var(--foreground)]",
       },
     },

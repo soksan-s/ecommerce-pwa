@@ -214,7 +214,6 @@ export default function NewSalePage() {
           if (active && saved) {
             setProducts(saved);
             setLastSynced(timestamp);
-            incrementCatalogVersion();
           }
         }
       } catch {

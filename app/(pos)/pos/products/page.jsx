@@ -192,7 +192,6 @@ export default function PosProductsPage() {
         const saved = await saveProductsToCache(rawProducts);
         if (saved) {
           setProducts(saved);
-          incrementCatalogVersion();
         }
         const timestamp = new Date().toLocaleString();
         window.localStorage.setItem("pos-products-last-synced", timestamp);

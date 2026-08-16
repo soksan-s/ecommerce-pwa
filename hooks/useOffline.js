@@ -3,9 +3,12 @@
 import { useEffect, useState } from "react";
 
 export function useOffline() {
-  const [isOnline, setIsOnline] = useState(() => (typeof navigator !== "undefined" ? navigator.onLine : true));
+  const [mounted, setMounted] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
 
   useEffect(() => {
+    setMounted(true);
+
     let active = true;
 
     async function checkConnectivity() {
@@ -59,6 +62,7 @@ export function useOffline() {
 
   return {
     isOnline,
-    isOffline: !isOnline,
+    isOffline: mounted ? !isOnline : false,
+    isChecking: !mounted,
   };
 }

@@ -1,68 +1,81 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Emerald Noir — Design Tokens
+   Dark premium + emerald accent. See DESIGN.md for the full spec.
+   Dark mode is the primary brand experience; light is the accessible variant.
+   ───────────────────────────────────────────────────────────────────────────── */
+
 :root {
-  /* Palette (Ethos of Stillness - Light) */
+  /* Surfaces — light */
   --surface: #ffffff;
-  --surface-dim: #f8fafc;
+  --surface-dim: #f4f6f5;
   --surface-bright: #ffffff;
   --surface-container-lowest: #ffffff;
-  --surface-container-low: #f8fafc;
-  --surface-container: #f1f5f9;
-  --surface-container-high: #e2e8f0;
-  --surface-container-highest: #cbd5e1;
-  --on-surface: #0f172a;
-  --on-surface-variant: #64748b;
-  --inverse-surface: #0f172a;
-  --inverse-on-surface: #f8fafc;
-  --outline: #e2e8f0;
-  --outline-variant: #cbd5e1;
-  --surface-tint: #4f46e5;
-  --primary: #4f46e5;
+  --surface-container-low: #fafbfa;
+  --surface-container: #f0f4f2;
+  --surface-container-high: #e6ede9;
+  --surface-container-highest: #dce5e0;
+  --on-surface: #0b120f;
+  --on-surface-variant: #5c6b64;
+  --inverse-surface: #0b120f;
+  --inverse-on-surface: #f4f7f5;
+  --outline: #d7e0db;
+  --outline-variant: #e3eae6;
+  --surface-tint: #059669;
+
+  /* Brand — emerald */
+  --primary: #059669;
   --on-primary: #ffffff;
-  --primary-container: #e0e7ff;
-  --on-primary-container: #3730a3;
-  --inverse-primary: #818cf8;
-  --secondary: #0ea5e9;
+  --primary-container: #ecfdf5;
+  --on-primary-container: #047857;
+  --inverse-primary: #10b981;
+  --secondary: #0284c7;
   --on-secondary: #ffffff;
   --secondary-container: #e0f2fe;
   --on-secondary-container: #0369a1;
-  --tertiary: #10b981;
+  --tertiary: #059669;
   --on-tertiary: #ffffff;
-  --tertiary-container: #d1fae5;
-  --on-tertiary-container: #065f46;
-  --error: #ef4444;
+  --tertiary-container: #ecfdf5;
+  --on-tertiary-container: #047857;
+  --error: #dc2626;
   --on-error: #ffffff;
   --error-container: #fee2e2;
   --on-error-container: #991b1b;
 
-  --background: #f8fafc;
-  --on-background: #0f172a;
-  --surface-variant: #e2e8f0;
+  --background: #fafbfa;
+  --on-background: #0b120f;
+  --surface-variant: #e6ede9;
 
-  /* Mappings */
-  --background-start: #f8fafc;
-  --background-end: #f1f5f9;
-  --foreground: #0f172a;
+  /* Mappings — light */
+  --background-start: #fafbfa;
+  --background-end: #f0f4f2;
+  --foreground: #0b120f;
   --surface-strong: #ffffff;
-  --surface-soft: #f8fafc;
-  --surface-quiet: #f1f5f9;
-  --muted-foreground: #64748b;
-  --action: #4f46e5;
+  --surface-soft: #f0f4f2;
+  --surface-quiet: #e6ede9;
+  --muted-foreground: #5c6b64;
+  --action: #059669;
+  --action-hover: #047857;
   --action-foreground: #ffffff;
-  --accent: #0ea5e9;
-  --accent-secondary: #e0f2fe;
-  --border-soft: #e2e8f0;
+  --action-surface: #ecfdf5;
+  --action-on-muted: #047857;
+  --accent: #059669;
+  --accent-secondary: #ecfdf5;
+  --border-soft: #e3eae6;
+  --border-strong: #cfdad4;
   --input-fill: #ffffff;
-  --shadow-soft: 0 1px 3px 0 rgb(0 0 0 / 0.05), 0 1px 2px -1px rgb(0 0 0 / 0.05);
-  --shadow-card: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
-  --shadow-strong: 0 10px 15px -3px rgb(0 0 0 / 0.07), 0 4px 6px -4px rgb(0 0 0 / 0.07);
+  --shadow-soft: 0 1px 2px rgb(11 18 15 / 0.05);
+  --shadow-card: 0 4px 16px rgb(11 18 15 / 0.06);
+  --shadow-strong: 0 12px 32px rgb(11 18 15 / 0.10);
+  --shadow-glow: 0 8px 32px rgb(5 150 105 / 0.14);
 
-  /* Typography tokens */
+  /* Typography */
   --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 
   /* Spacing */
   --unit: 8px;
   --gutter: 24px;
 
-  /* ── POS Semantic Tokens (emerald accent — distinct from admin indigo) ── */
+  /* POS semantic tokens — unified with brand */
   --pos-action: #059669;
   --pos-action-hover: #047857;
   --pos-action-fg: #ffffff;
@@ -72,65 +85,78 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Night Mode (Dark) Tokens
+   Dark Mode (primary brand experience)
    ───────────────────────────────────────────────────────────────────────────── */
 html[data-mode="dark"],
 body[data-mode="dark"],
 [data-mode="dark"] {
-  --surface: #0f172a;
-  --surface-dim: #020617;
-  --surface-bright: #1e293b;
-  --surface-container-lowest: #020617;
-  --surface-container-low: #0f172a;
-  --surface-container: #1e293b;
-  --surface-container-high: #334155;
-  --surface-container-highest: #475569;
-  --on-surface: #f8fafc;
-  --on-surface-variant: #94a3b8;
-  --inverse-surface: #f8fafc;
-  --inverse-on-surface: #0f172a;
-  --outline: #1e293b;
-  --outline-variant: #334155;
-  --surface-tint: #6366f1;
-  --primary: #6366f1;
-  --on-primary: #ffffff;
-  --primary-container: #1e1b4b;
-  --on-primary-container: #c7d2fe;
+  --surface: #101614;
+  --surface-dim: #0a0f0d;
+  --surface-bright: #16201c;
+  --surface-container-lowest: #070b09;
+  --surface-container-low: #101614;
+  --surface-container: #16201c;
+  --surface-container-high: #1c2823;
+  --surface-container-highest: #243129;
+  --on-surface: #f4f7f5;
+  --on-surface-variant: #8fa39a;
+  --inverse-surface: #f4f7f5;
+  --inverse-on-surface: #0b120f;
+  --outline: #1c2823;
+  --outline-variant: #243129;
+  --surface-tint: #10b981;
+
+  /* Brand — emerald */
+  --primary: #10b981;
+  --on-primary: #04110b;
+  --primary-container: #052e1e;
+  --on-primary-container: #6ee7b7;
+  --inverse-primary: #059669;
   --secondary: #38bdf8;
-  --on-secondary: #0f172a;
-  --secondary-container: #075985;
-  --on-secondary-container: #e0f2fe;
+  --on-secondary: #04110b;
+  --secondary-container: #082f49;
+  --on-secondary-container: #bae6fd;
   --tertiary: #34d399;
-  --on-tertiary: #0f172a;
-  --tertiary-container: #064e3b;
-  --on-tertiary-container: #d1fae5;
+  --on-tertiary: #04110b;
+  --tertiary-container: #052e1e;
+  --on-tertiary-container: #6ee7b7;
+  --error: #f87171;
+  --on-error: #0b0908;
+  --error-container: #2a1211;
+  --on-error-container: #fca5a5;
 
-  --background: #020617;
-  --on-background: #f8fafc;
-  --surface-variant: #1e293b;
+  --background: #0a0f0d;
+  --on-background: #f4f7f5;
+  --surface-variant: #16201c;
 
-  --background-start: #020617;
-  --background-end: #0f172a;
-  --foreground: #f8fafc;
-  --surface-strong: #0f172a;
-  --surface-soft: #1e293b;
-  --surface-quiet: #1e293b;
-  --muted-foreground: #94a3b8;
-  --action: #6366f1;
-  --action-foreground: #ffffff;
-  --accent: #38bdf8;
-  --accent-secondary: #075985;
-  --border-soft: #1e293b;
-  --input-fill: #1e293b;
-  --shadow-soft: 0 4px 12px rgba(0,0,0,0.5);
-  --shadow-card: 0 8px 24px rgba(0,0,0,0.4);
-  --shadow-strong: 0 16px 40px rgba(0,0,0,0.6);
+  /* Mappings — dark */
+  --background-start: #0a0f0d;
+  --background-end: #0d1310;
+  --foreground: #f4f7f5;
+  --surface-strong: #101614;
+  --surface-soft: #16201c;
+  --surface-quiet: #1c2823;
+  --muted-foreground: #8fa39a;
+  --action: #10b981;
+  --action-hover: #34d399;
+  --action-foreground: #04110b;
+  --action-surface: rgba(16, 185, 129, 0.10);
+  --action-on-muted: #6ee7b7;
+  --accent: #10b981;
+  --accent-secondary: #052e1e;
+  --border-soft: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.12);
+  --input-fill: #0d1210;
+  --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.35);
+  --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.40);
+  --shadow-strong: 0 16px 48px rgba(0, 0, 0, 0.55);
+  --shadow-glow: 0 8px 32px rgba(16, 185, 129, 0.15);
 
-  /* ── POS Semantic Tokens (Dark Mode) ── */
+  /* POS semantic tokens — dark */
   --pos-action: #10b981;
-  --pos-action-hover: #059669;
-  --pos-action-fg: #020617;
-  --pos-action-surface: #064e3b;
-  --pos-action-muted: #022c22;
+  --pos-action-hover: #34d399;
+  --pos-action-fg: #04110b;
+  --pos-action-surface: rgba(16, 185, 129, 0.12);
+  --pos-action-muted: #052e1e;
   --pos-action-on-muted: #6ee7b7;
 }

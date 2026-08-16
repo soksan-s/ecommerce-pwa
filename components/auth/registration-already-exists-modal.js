@@ -16,10 +16,10 @@ export function RegistrationAlreadyExistsModal({
     >
       <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-lg">
         <div className="text-lg font-bold">Account already exists</div>
-        <div className="mt-2 text-sm text-slate-700">
+        <div className="mt-2 text-sm text-[var(--foreground)]">
           An account with this phone number already exists. Please sign in or use a different phone number.
           {phoneNumber ? (
-            <div className="mt-2 text-xs font-semibold text-slate-500">{phoneNumber}</div>
+            <div className="mt-2 text-xs font-semibold text-[var(--muted-foreground)]">{phoneNumber}</div>
           ) : null}
         </div>
 
@@ -27,7 +27,7 @@ export function RegistrationAlreadyExistsModal({
           <button
             type="button"
             onClick={onSignIn}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-900 hover:bg-slate-50"
+            className="rounded-xl border border-[var(--border-strong)] bg-white px-4 py-2 text-sm font-bold text-[var(--foreground)] hover:bg-[var(--surface-soft)]"
           >
             Sign In
           </button>

@@ -148,7 +148,7 @@ function getDashboardRangeConfig(rangeKey, customStart, customEnd) {
 function statusClasses(status) {
   switch (status) {
     case "delivered":
-      return "bg-emerald-100 text-emerald-700";
+      return "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400";
     case "shipped":
       return "bg-sky-100 text-sky-700";
     case "processing":
@@ -156,7 +156,7 @@ function statusClasses(status) {
     case "cancelled":
       return "bg-rose-100 text-rose-700";
     case "closed":
-      return "bg-zinc-100 text-zinc-700";
+      return "bg-[var(--surface-quiet)] text-[var(--muted-foreground)]";
     default:
       return "bg-violet-100 text-violet-700";
   }
@@ -1539,7 +1539,7 @@ export function AdminProductManagementPageView() {
                 </Link>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <span className={cn("rounded-full px-3 py-1 text-xs font-semibold uppercase", product.isActive ? "bg-emerald-100 text-emerald-700" : "bg-zinc-100 text-zinc-700")}>
+                <span className={cn("rounded-full px-3 py-1 text-xs font-semibold uppercase", product.isActive ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" : "bg-[var(--surface-quiet)] text-[var(--muted-foreground)]")}>
                   {product.isActive ? "Active" : "Hidden"}
                 </span>
                 <button type="button" onClick={() => store.toggleProductStatus(product.id)} className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-2 text-sm font-semibold">

@@ -1,35 +1,36 @@
 import "./globals.css";
 import { AppStoreProvider } from "@/components/app-store-provider";
 import { PwaProvider } from "@/components/pwa-provider";
-import { ThemeBlastOverlay } from "@/components/theme-blast-overlay";
 
 export const metadata = {
   title: {
-    default: "Grocery Store POS and E-Commerce",
-    template: "%s | Grocery Store",
+    default: "MyShop — Premium Store, POS & Delivery",
+    template: "%s | MyShop",
   },
-  description: "Shared PWA for customer shopping, cashier POS, and store operations.",
-  applicationName: "Grocery Store",
+  description: "Shop premium products online, or visit our store. Fast delivery, secure checkout.",
+  applicationName: "MyShop",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    title: "Grocery Store",
-    statusBarStyle: "default",
+    title: "MyShop",
+    statusBarStyle: "black-translucent",
   },
 };
 
 export const viewport = {
-  themeColor: "#127c73",
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#0a0f0d" },
+    { media: "(prefers-color-scheme: light)", color: "#fafbfa" },
+  ],
 };
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
+    <html lang="en" data-mode="dark">
       <body className="theme-classic antialiased">
         <AppStoreProvider>
           {children}
           <PwaProvider />
-          <ThemeBlastOverlay />
         </AppStoreProvider>
       </body>
     </html>

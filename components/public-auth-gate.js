@@ -97,7 +97,7 @@ export function PublicAuthGate({ initialAuthView = "" }) {
           {/* Left Hero Banner (Desktop Feature Showcase) */}
           <div className="hidden lg:col-span-6 lg:block lg:pr-4">
             <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border-soft)] bg-[var(--surface-quiet)]/60 px-3.5 py-1.5 text-xs font-semibold text-[var(--foreground)] backdrop-blur-md">
-              <Sparkles className="size-3.5 text-amber-500" />
+              <Sparkles className="size-3.5 text-[var(--action)]" />
               <span>Next-Gen Cambodian Beverage Platform</span>
             </div>
 
@@ -111,7 +111,7 @@ export function PublicAuthGate({ initialAuthView = "" }) {
             {/* Feature Badges */}
             <div className="mt-8 grid grid-cols-2 gap-4">
               <div className="flex items-start gap-3 rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)]/70 p-4 backdrop-blur-md">
-                <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--action-surface)] text-[var(--action)]">
                   <Zap className="size-5" />
                 </div>
                 <div>
@@ -121,7 +121,7 @@ export function PublicAuthGate({ initialAuthView = "" }) {
               </div>
 
               <div className="flex items-start gap-3 rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)]/70 p-4 backdrop-blur-md">
-                <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-500">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--action-surface)] text-[var(--action)]">
                   <PackageCheck className="size-5" />
                 </div>
                 <div>
@@ -131,7 +131,7 @@ export function PublicAuthGate({ initialAuthView = "" }) {
               </div>
 
               <div className="flex items-start gap-3 rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)]/70 p-4 backdrop-blur-md">
-                <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--action-surface)] text-[var(--action)]">
                   <Smartphone className="size-5" />
                 </div>
                 <div>
@@ -141,7 +141,7 @@ export function PublicAuthGate({ initialAuthView = "" }) {
               </div>
 
               <div className="flex items-start gap-3 rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)]/70 p-4 backdrop-blur-md">
-                <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-purple-500/10 text-purple-500">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--action-surface)] text-[var(--action)]">
                   <ShieldCheck className="size-5" />
                 </div>
                 <div>

@@ -68,15 +68,15 @@ function formatStatusLabel(status) {
 function statusClasses(status) {
   switch (status) {
     case "delivered":
-      return "bg-emerald-100 text-emerald-700";
+      return "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400";
     case "shipped":
-      return "bg-sky-100 text-sky-700";
+      return "bg-sky-500/15 text-sky-600 dark:text-sky-400";
     case "processing":
-      return "bg-amber-100 text-amber-700";
+      return "bg-amber-500/15 text-amber-600 dark:text-amber-400";
     case "cancelled":
-      return "bg-rose-100 text-rose-700";
+      return "bg-rose-500/15 text-rose-600 dark:text-rose-400";
     default:
-      return "bg-zinc-100 text-zinc-700";
+      return "bg-[var(--surface-quiet)] text-[var(--muted-foreground)]";
   }
 }
 
@@ -1644,12 +1644,12 @@ export function ClientOrderDetailPageView({ orderId }) {
                 {cancelling ? "Cancelling..." : "Cancel Order"}
               </button>
               {cancelConfirm ? (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={() => setCancelConfirm(false)}>
-                  <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-                    <h3 className="text-lg font-semibold text-slate-900">Cancel Order?</h3>
-                    <p className="mt-2 text-sm text-slate-600">This will restore inventory. This action cannot be undone.</p>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm" onClick={() => setCancelConfirm(false)}>
+                  <div className="w-full max-w-sm rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-6 shadow-[var(--shadow-strong)]" onClick={(e) => e.stopPropagation()}>
+                    <h3 className="text-lg font-semibold text-[var(--foreground)]">Cancel Order?</h3>
+                    <p className="mt-2 text-sm text-[var(--muted-foreground)]">This will restore inventory. This action cannot be undone.</p>
                     <div className="mt-5 flex gap-3">
-                      <button type="button" onClick={() => setCancelConfirm(false)} className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700">Keep Order</button>
+                      <button type="button" onClick={() => setCancelConfirm(false)} className="flex-1 rounded-xl border border-[var(--border-strong)] px-4 py-2.5 text-sm font-semibold text-[var(--foreground)]">Keep Order</button>
                       <button type="button" onClick={handleCancelOrder} disabled={cancelling} className="flex-1 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">Yes, Cancel</button>
                     </div>
                   </div>
@@ -1924,7 +1924,7 @@ export function ClientProfilePageView({ user }) {
                   onClick={() => store.setLanguage("en")}
                   className={cn(
                     "rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all duration-200",
-                    lang === "en" ? "border-emerald-600 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    lang === "en" ? "border-[color-mix(in_srgb,var(--action)_45%,transparent)] bg-[var(--action-surface)] text-[var(--action-on-muted)]" : "border-[var(--border-strong)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
                   )}
                 >
                   {t("english")}
@@ -1934,7 +1934,7 @@ export function ClientProfilePageView({ user }) {
                   onClick={() => store.setLanguage("km")}
                   className={cn(
                     "rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all duration-200",
-                    lang === "km" ? "border-emerald-600 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    lang === "km" ? "border-[color-mix(in_srgb,var(--action)_45%,transparent)] bg-[var(--action-surface)] text-[var(--action-on-muted)]" : "border-[var(--border-strong)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
                   )}
                 >
                   {t("khmer")}

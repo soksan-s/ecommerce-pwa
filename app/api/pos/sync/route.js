@@ -39,18 +39,20 @@ export async function GET(request) {
         where: { branchId },
         select: {
           variantId: true,
-          productId: true,
           quantity: true,
           availableQuantity: true,
-          minStockAlert: true,
+          minStockLevel: true,
+          variant: {
+            select: { productId: true },
+          },
         },
       });
       inventory = invRecords.map((i) => ({
         variantId: i.variantId,
-        productId: i.productId,
+        productId: i.variant.productId,
         quantity: Number(i.quantity),
         availableQuantity: Number(i.availableQuantity),
-        minStockAlert: Number(i.minStockAlert || 5),
+        minStockAlert: Number(i.minStockLevel || 5),
       }));
     }
 

@@ -26,7 +26,7 @@ const navItems = [
 export function PosLayoutShell({ children }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { isOnline, isOffline } = useOffline();
+  const { isOnline, isOffline, isChecking } = useOffline();
   const pendingSyncCount = usePosStore((state) => state.pendingSyncCount);
   const setPendingSyncCount = usePosStore((state) => state.setPendingSyncCount);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -50,15 +50,12 @@ export function PosLayoutShell({ children }) {
     }
   }, [isOnline, setPendingSyncCount]);
 
-  const incrementCatalogVersion = usePosStore((state) => state.incrementCatalogVersion);
-
   async function handleAutoSync() {
     setIsSyncing(true);
     try {
       await replayQueue();
       const queue = await getAll("offline_queue");
       setPendingSyncCount(Array.isArray(queue) ? queue.length : 0);
-      incrementCatalogVersion();
     } catch {
       // Offline sync failure
     } finally {
@@ -85,6 +82,15 @@ export function PosLayoutShell({ children }) {
   }
 
   function renderStatusBadge() {
+    if (isChecking) {
+      return (
+        <span className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground">
+          <span className="size-2.5 rounded-full bg-muted-foreground/40 animate-pulse" />
+          Checking…
+        </span>
+      );
+    }
+
     if (isSyncing) {
       return (
         <span className="flex items-center gap-1.5 text-xs font-bold text-amber-600 dark:text-amber-400">

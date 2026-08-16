@@ -1,12 +1,12 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600&family=Libre+Caslon+Text:ital,wght@0,400;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 @import "./design-tokens.css";
 
 @theme inline {
-  --color-background: var(--background-start);
+  --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-space-grotesk), "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-sans: var(--font-sans);
   --font-mono: "Consolas", "Courier New", monospace;
 }
 
@@ -21,57 +21,12 @@ html {
 body {
   min-height: 100vh;
   overflow-x: hidden;
-  background:
-    linear-gradient(135deg, var(--background-start), var(--background-end));
+  background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-space-grotesk), "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-  transition:
-    background 520ms cubic-bezier(0.645, 0.045, 0.355, 1),
-    color 520ms cubic-bezier(0.645, 0.045, 0.355, 1),
-    border-color 520ms cubic-bezier(0.645, 0.045, 0.355, 1);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 200ms ease, color 200ms ease;
 }
-
-body::before,
-body::after {
-  content: "";
-  position: fixed;
-  z-index: -1;
-  border-radius: 999px;
-  opacity: 0.42;
-  pointer-events: none;
-  transition:
-    background-color 620ms cubic-bezier(0.645, 0.045, 0.355, 1),
-    opacity 620ms cubic-bezier(0.645, 0.045, 0.355, 1),
-    transform 620ms cubic-bezier(0.645, 0.045, 0.355, 1);
-}
-
-body::before {
-  top: -120px;
-  right: -80px;
-  height: 260px;
-  width: 260px;
-  background: var(--accent);
-}
-
-body::after {
-  bottom: -140px;
-  left: -60px;
-  height: 320px;
-  width: 320px;
-  background: var(--accent-secondary);
-}
-
-/* legacy theme-classic removed — use app/design-tokens.css for theme tokens */
-
-/* legacy theme-classic dark variant removed — use app/design-tokens.css for theme tokens */
-
-/* legacy theme-golden removed — use app/design-tokens.css for theme tokens */
-
-/* legacy theme-golden dark variant removed — use app/design-tokens.css for theme tokens */
-
-/* legacy theme-pink removed — use app/design-tokens.css for theme tokens */
-
-/* legacy theme-pink dark variant removed — use app/design-tokens.css for theme tokens */
 
 a {
   color: inherit;
@@ -83,8 +38,17 @@ img {
 }
 
 ::selection {
-  background: color-mix(in srgb, var(--action) 30%, white);
+  background: color-mix(in srgb, var(--action) 30%, transparent);
+  color: var(--foreground);
 }
+
+/* Tabular figures for all money values */
+.tnum,
+input[type="number"] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── App shell ─────────────────────────────────────────────────────────── */
 
 .app-shell {
   min-height: 100vh;
@@ -97,29 +61,44 @@ img {
     max(1rem, env(safe-area-inset-left));
 }
 
+.app-shell > * {
+  min-width: 0;
+}
+
 .app-bar {
   position: sticky;
   top: 1rem;
   z-index: 30;
   border: 1px solid var(--border-soft);
-  background: var(--surface-strong);
-  border-radius: 1.125rem;
-  box-shadow: var(--shadow-soft);
-  backdrop-filter: blur(10px);
+  background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
+  border-radius: 1rem;
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(12px);
 }
+
+/* ── Cards ─────────────────────────────────────────────────────────────── */
 
 .app-card,
 .app-card-soft,
 .app-card-inset {
   min-width: 0;
-  border-radius: 0;
+  border-radius: 1rem;
   border: 1px solid var(--border-soft);
   box-shadow: var(--shadow-card);
+  background: var(--surface-strong);
 }
 
-.app-shell > * {
-  min-width: 0;
+.app-card-soft {
+  background: var(--surface-soft);
+  box-shadow: none;
 }
+
+.app-card-inset {
+  background: var(--surface-quiet);
+  box-shadow: none;
+}
+
+/* ── Interactive transitions ────────────────────────────────────────────── */
 
 .app-bar,
 .app-card,
@@ -131,184 +110,224 @@ img {
 .app-icon-button,
 .app-nav-surface,
 .app-nav-button,
-.app-theme-trigger,
-.app-theme-trigger-badge,
-.app-theme-menu,
-.app-theme-menu-item,
 .app-input,
 .app-select {
   transition:
-    background-color 520ms cubic-bezier(0.645, 0.045, 0.355, 1),
-    color 520ms cubic-bezier(0.645, 0.045, 0.355, 1),
-    border-color 520ms cubic-bezier(0.645, 0.045, 0.355, 1),
-    box-shadow 520ms cubic-bezier(0.645, 0.045, 0.355, 1);
+    background-color 180ms ease,
+    color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 140ms ease;
 }
 
-.app-card {
-  background: var(--surface-strong);
-}
-
-.app-card-soft {
-  background: color-mix(in srgb, var(--surface) 88%, var(--background-start));
-}
-
-.app-card-inset {
-  background: color-mix(in srgb, var(--surface-quiet) 86%, var(--surface));
-}
+/* ── Inputs ────────────────────────────────────────────────────────────── */
 
 .app-input,
 .app-select {
   width: 100%;
-  border: none;
-  border-bottom: 1px solid color-mix(in srgb, var(--outline) 24%, transparent);
-  border-radius: 0;
-  background: transparent;
+  min-height: 2.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.75rem;
+  background: var(--input-fill);
   color: var(--on-surface);
-  padding: 0.5rem 0;
+  padding: 0.5rem 0.875rem;
   outline: none;
-  transition: border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+
+.app-input::placeholder {
+  color: var(--muted-foreground);
 }
 
 .app-input:focus,
 .app-select:focus {
-  border-bottom-color: var(--charcoal-ink);
+  border-color: var(--action);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--action) 18%, transparent);
+}
+
+/* ── Search ────────────────────────────────────────────────────────────── */
+
+.app-search-shell {
+  border-radius: 0.75rem;
+  border: 1px solid var(--border-soft);
+  background: var(--input-fill);
   box-shadow: none;
 }
 
-.app-search-shell {
-  border-radius: 1.125rem;
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--surface-quiet) 90%, var(--surface)),
-    color-mix(in srgb, var(--action) 8%, var(--surface))
-  );
-  box-shadow: var(--shadow-soft);
-}
+/* ── Chips ─────────────────────────────────────────────────────────────── */
 
 .app-chip {
-  border-radius: 0;
-  border: 1px solid var(--outline-variant);
-  background: var(--surface-container);
+  border-radius: 999px;
+  border: 1px solid var(--border-soft);
+  background: var(--surface-soft);
   color: var(--on-surface-variant);
-  padding: 0.25rem 0.5rem;
-  font-size: var(--label-caps-font-size);
+  padding: 0.375rem 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  transition: background-color 180ms ease, color 180ms ease, border-color 180ms ease;
+  white-space: nowrap;
+  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
 }
 
 .app-chip[data-active="true"] {
-  background: var(--secondary-container);
-  border-color: color-mix(in srgb, var(--secondary) 24%, transparent);
-  color: var(--on-secondary-container);
+  background: var(--action-surface);
+  border-color: color-mix(in srgb, var(--action) 32%, transparent);
+  color: var(--action-on-muted);
 }
 
+/* ── Buttons ───────────────────────────────────────────────────────────── */
+
 .app-link-button {
-  border-radius: 0;
-  padding: 0.75rem 2rem;
+  border-radius: 0.75rem;
+  padding: 0.625rem 1.5rem;
   font-size: 0.875rem;
   font-weight: 700;
-  color: var(--on-primary);
-  background: var(--primary);
+  color: var(--action-foreground);
+  background: var(--action);
   transform: translateZ(0);
-  transition: background-color 180ms ease, transform 140ms cubic-bezier(0.645, 0.045, 0.355, 1);
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
 }
 
 .app-link-button:hover {
-  background: color-mix(in srgb, var(--primary) 88%, var(--surface));
+  background: var(--action-hover);
+  box-shadow: var(--shadow-glow);
 }
 
 .app-icon-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.75rem;
-  height: 2.75rem;
-  border-radius: 0;
-  border: 1px solid var(--outline-variant);
-  background: var(--surface);
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border-strong);
+  background: transparent;
   color: var(--on-surface);
-  box-shadow: none;
-  transform: translateZ(0);
-  transition: background-color 180ms ease, border-color 180ms ease, transform 140ms cubic-bezier(0.645, 0.045, 0.355, 1);
 }
 
+.app-icon-button:hover {
+  border-color: color-mix(in srgb, var(--action) 40%, transparent);
+  color: var(--action-on-muted);
+}
+
+/* ── Labels & nav ──────────────────────────────────────────────────────── */
+
 .app-top-label {
-  font-size: var(--label-caps-font-size);
+  font-size: 0.6875rem;
   font-family: var(--font-sans);
   font-weight: 600;
-  letter-spacing: 0.15em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--on-surface-variant);
+  color: var(--muted-foreground);
 }
 
 .app-nav-surface {
   border: 1px solid var(--border-soft);
   border-radius: 1rem;
   background: var(--surface-strong);
-  box-shadow: var(--shadow-soft);
+  box-shadow: var(--shadow-card);
 }
 
 .app-nav-button {
-  border-radius: 0;
+  border-radius: 0.75rem;
   color: var(--on-surface-variant);
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  transform: translateZ(0);
-  transition: background-color 180ms ease, color 180ms ease, transform 140ms cubic-bezier(0.645, 0.045, 0.355, 1);
 }
 
 .app-nav-button[data-active="true"] {
-  background: var(--surface-container);
-  color: var(--on-surface);
-  border-bottom: 2px solid var(--primary);
+  background: var(--action-surface);
+  color: var(--action-on-muted);
 }
 
-.app-theme-trigger {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.75rem;
-  height: 2.75rem;
-  border-radius: 0;
-  border: 1px solid var(--outline-variant);
-  background: var(--surface);
-  color: var(--on-surface);
-  box-shadow: none;
-  transform: translateZ(0);
-  transition: background-color 180ms ease, border-color 180ms ease, transform 140ms cubic-bezier(0.645, 0.045, 0.355, 1);
+/* ── Public shells ─────────────────────────────────────────────────────── */
+
+.app-shell-public,
+.app-shell-auth {
+  padding:
+    0
+    max(0px, env(safe-area-inset-right))
+    env(safe-area-inset-bottom)
+    max(0px, env(safe-area-inset-left));
 }
 
-.app-theme-trigger-badge {
-  position: absolute;
-  right: -0.1rem;
-  top: -0.15rem;
-  display: inline-flex;
-  min-width: 1rem;
-  height: 1rem;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--action) 16%, var(--surface));
+/* ── Storefront home ───────────────────────────────────────────────────── */
+
+.public-home-screen {
+  min-height: 100dvh;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.public-home-banner {
+  background:
+    radial-gradient(120% 120% at 85% 0%, color-mix(in srgb, var(--action) 22%, transparent) 0%, transparent 55%),
+    linear-gradient(180deg, var(--surface-strong) 0%, var(--background) 100%);
+}
+
+.public-home-search-shell {
+  background: var(--input-fill);
   border: 1px solid var(--border-soft);
-  font-size: 0.625rem;
-  font-weight: 700;
 }
 
-.app-theme-menu {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 0.55rem);
-  z-index: 120;
-  min-width: 13.5rem;
-  max-width: min(13.5rem, calc(100vw - 1.5rem));
-  padding: 0.5rem;
+.public-home-chip {
+  border-color: var(--border-soft);
+  background: var(--surface-soft);
 }
+
+.public-home-chip[data-active="true"] {
+  border-color: color-mix(in srgb, var(--action) 32%, transparent);
+  background: var(--action-surface);
+}
+
+.public-home-select {
+  border-color: var(--border-soft);
+  background: var(--surface-soft);
+}
+
+.public-home-product-card {
+  background: var(--surface-strong);
+  border: 1px solid var(--border-soft);
+  border-radius: 1rem;
+  transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.public-home-product-card:hover {
+  transform: translateY(-4px);
+  border-color: color-mix(in srgb, var(--action) 35%, transparent);
+  box-shadow: var(--shadow-glow);
+}
+
+.public-home-product-title {
+  color: var(--foreground);
+}
+
+.public-home-product-muted {
+  color: var(--muted-foreground);
+}
+
+/* ── Press feedback ────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: no-preference) {
+  .app-chip:active,
+  .app-link-button:active,
+  .app-icon-button:active,
+  .app-nav-button:active {
+    transform: scale(0.97);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Responsive shell padding ──────────────────────────────────────────── */
 
 @media (max-width: 699px) {
   .app-shell {
@@ -323,126 +342,6 @@ img {
     top: 0.75rem;
     border-radius: 1rem;
   }
-
-  .app-theme-menu {
-    width: min(13.5rem, calc(100vw - 1.5rem));
-  }
-}
-
-.app-theme-menu-section {
-  padding: 0.35rem 0.5rem;
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--muted-foreground);
-}
-
-.app-theme-menu-item {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  justify-content: space-between;
-  border-radius: 0.75rem;
-  padding: 0.65rem 0.75rem;
-  font-size: 0.92rem;
-  color: var(--foreground);
-  transform: translateZ(0);
-  transition:
-    background-color 180ms ease,
-    color 180ms ease,
-    transform 140ms cubic-bezier(0.645, 0.045, 0.355, 1);
-}
-
-.app-theme-menu-item:hover {
-  background: color-mix(in srgb, var(--surface-quiet) 88%, var(--surface));
-}
-
-.app-theme-menu-item[data-active="true"] {
-  background: color-mix(in srgb, var(--action) 12%, var(--surface));
-}
-
-.app-shell-public {
-  padding:
-    0
-    max(0px, env(safe-area-inset-right))
-    env(safe-area-inset-bottom)
-    max(0px, env(safe-area-inset-left));
-}
-
-.app-shell-auth {
-  padding:
-    0
-    max(0px, env(safe-area-inset-right))
-    env(safe-area-inset-bottom)
-    max(0px, env(safe-area-inset-left));
-}
-
-.public-home-screen {
-  min-height: 100dvh;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--surface-soft) 84%, var(--surface)),
-      color-mix(in srgb, var(--surface) 86%, var(--background-end))
-    );
-  color: var(--foreground);
-}
-
-.public-home-banner {
-  background:
-    linear-gradient(
-      135deg,
-      color-mix(in srgb, var(--surface) 74%, var(--action)),
-      color-mix(in srgb, var(--surface) 68%, var(--accent))
-    );
-}
-
-.public-home-search-shell {
-  background:
-    linear-gradient(
-      135deg,
-      color-mix(in srgb, var(--surface) 72%, var(--action)),
-      color-mix(in srgb, var(--surface) 68%, var(--action))
-    );
-}
-
-.public-home-chip {
-  border-color: color-mix(in srgb, var(--foreground) 10%, transparent);
-  background: color-mix(in srgb, var(--surface) 82%, var(--background-start));
-}
-
-.public-home-chip[data-active="true"] {
-  border-color: transparent;
-  background: color-mix(in srgb, var(--action) 16%, var(--surface));
-}
-
-.public-home-select {
-  border-color: transparent;
-  background: color-mix(in srgb, var(--surface-quiet) 82%, var(--surface));
-}
-
-.public-home-product-card {
-  background: color-mix(in srgb, #08111a 82%, var(--action));
-  --public-home-product-foreground: color-mix(in srgb, var(--action-foreground) 94%, white);
-}
-
-.public-home-product-title {
-  color: var(--public-home-product-foreground);
-  text-shadow: 0 1px 14px rgba(0, 0, 0, 0.28);
-}
-
-.public-home-product-muted {
-  color: color-mix(in srgb, var(--public-home-product-foreground) 66%, transparent);
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .app-chip:active,
-  .app-link-button:active,
-  .app-icon-button:active,
-  .app-nav-button:active,
-  .app-theme-trigger:active,
-  .app-theme-menu-item:active {
-    transform: scale(0.97);
-  }
 }
 
 @media (min-width: 640px) {
@@ -450,40 +349,14 @@ img {
     padding-top: 1.25rem;
     padding-inline: clamp(1.25rem, 2.6vw, 2rem);
   }
-
-  .app-shell-public {
-    padding:
-      0
-      max(0px, env(safe-area-inset-right))
-      env(safe-area-inset-bottom)
-      max(0px, env(safe-area-inset-left));
-  }
-
-  .app-shell-auth {
-    padding:
-      0
-      max(0px, env(safe-area-inset-right))
-      env(safe-area-inset-bottom)
-      max(0px, env(safe-area-inset-left));
-  }
-
-  .public-home-screen {
-    min-height: 100dvh;
-  }
-}
-
-@media (min-width: 1024px) {
-  .app-shell-public {
-    padding:
-      0
-      10px
-      env(safe-area-inset-bottom)
-      10px;
-  }
 }
 
 @media (min-width: 1024px) {
   .app-shell {
     padding-inline: clamp(1.75rem, 2.8vw, 3rem);
+  }
+
+  .app-shell-public {
+    padding: 0 10px env(safe-area-inset-bottom) 10px;
   }
 }

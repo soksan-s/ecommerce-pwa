@@ -145,7 +145,7 @@ function DesktopSidebar({ user, selectedTab, collapsed, setCollapsed, openTab, t
       {/* Brand & Store Header */}
       <div className="flex h-16 items-center justify-between px-4 border-b border-[var(--border-soft)]">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-indigo-600 shadow-md shadow-indigo-600/30 text-white">
+          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--action)] shadow-md shadow-[var(--shadow-glow)] text-[var(--action-foreground)]">
             <Zap className="size-5" />
           </div>
           {!collapsed && (
@@ -200,7 +200,7 @@ function DesktopSidebar({ user, selectedTab, collapsed, setCollapsed, openTab, t
       {/* Footer Profile & Logout */}
       <div className="border-t border-[var(--border-soft)] p-3 space-y-2">
         <div className={cn("flex items-center gap-3 rounded-xl p-2 bg-[var(--surface-quiet)]/50 border border-[var(--border-soft)]", collapsed && "justify-center p-1.5")}>
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-indigo-600/15 text-xs font-bold text-indigo-600 dark:text-indigo-400 ring-1 ring-indigo-500/30">
+          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[var(--action-surface)] text-xs font-bold text-[var(--action-on-muted)] ring-1 ring-[color-mix(in_srgb,var(--action)_30%,transparent)]">
             {initials}
           </div>
           {!collapsed && (
@@ -256,7 +256,7 @@ function MobileDrawer({ user, selectedTab, drawerOpen, setDrawerOpen, openTab, t
           >
             <div className="flex h-16 items-center justify-between px-4 border-b border-[var(--border-soft)]">
               <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--action)] text-[var(--action-foreground)]">
                   <Zap className="size-4" />
                 </div>
                 <p className="text-sm font-bold text-[var(--foreground)]">SalesOps Admin</p>
@@ -298,7 +298,7 @@ function MobileDrawer({ user, selectedTab, drawerOpen, setDrawerOpen, openTab, t
 
             <div className="border-t border-[var(--border-soft)] p-3">
               <div className="flex items-center gap-3 rounded-xl p-2.5 bg-[var(--surface-quiet)]/50">
-                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-indigo-600/15 text-xs font-bold text-indigo-600 dark:text-indigo-400 ring-1 ring-indigo-500/30">
+                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[var(--action-surface)] text-xs font-bold text-[var(--action-on-muted)] ring-1 ring-[color-mix(in_srgb,var(--action)_30%,transparent)]">
                   {initials}
                 </div>
                 <div className="min-w-0 flex-1">
