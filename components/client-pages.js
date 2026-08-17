@@ -593,12 +593,29 @@ function ClientProductGrid({ products, store, requireAuth = null }) {
   );
 }
 
-export function ClientProductListPageView({ productsOverride = null, requireAuth = null, query = "", onQueryChange = null }) {
+export function ClientProductListPageView({
+  productsOverride = null,
+  requireAuth = null,
+  query = "",
+  onQueryChange = null,
+  selectedCategory = "All",
+  onCategoryChange = null,
+}) {
   const store = useAppStore();
   const { t } = useTranslation(store.language);
   const isCustomCollection = Boolean(productsOverride);
   const setQuery = onQueryChange || (() => {});
-  const [selectedCategories, setSelectedCategories] = useState([]);
+  const [selectedCategories, setSelectedCategories] = useState(() =>
+    selectedCategory && selectedCategory !== "All" ? [selectedCategory] : []
+  );
+
+  useEffect(() => {
+    if (!selectedCategory || selectedCategory === "All") {
+      setSelectedCategories([]);
+    } else {
+      setSelectedCategories([selectedCategory]);
+    }
+  }, [selectedCategory]);
   const [categorySearch, setCategorySearch] = useState("");
   const [sort, setSort] = useState("Featured");
   const [priceFilter, setPriceFilter] = useState("all");
@@ -752,9 +769,11 @@ export function ClientProductListPageView({ productsOverride = null, requireAuth
   function chooseQuickCategory(category) {
     if (category === "All") {
       setSelectedCategories([]);
+      onCategoryChange?.("All");
       return;
     }
     setSelectedCategories([category]);
+    onCategoryChange?.(category);
   }
 
   function toggleSidebarCategory(category) {
@@ -776,6 +795,7 @@ export function ClientProductListPageView({ productsOverride = null, requireAuth
     setQuery("");
     setCategorySearch("");
     setSelectedCategories([]);
+    onCategoryChange?.("All");
     setSort("Featured");
     setPriceFilter("all");
     setQuickFilters(INITIAL_CLIENT_QUICK_FILTERS);
