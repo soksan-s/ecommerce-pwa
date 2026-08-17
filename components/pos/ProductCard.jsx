@@ -7,14 +7,12 @@ import { formatPrimaryMoney } from "@/components/pos/format";
 
 function stockBadgeClass(stock) {
   if (stock <= 0) {
-    return "bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300";
+    return "bg-red-500/10 text-red-400";
   }
-
   if (stock <= 5) {
-    return "bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300";
+    return "bg-amber-500/10 text-amber-400";
   }
-
-  return "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300";
+  return "bg-emerald-500/10 text-emerald-400";
 }
 
 export function ProductCard({ product, settings, onAdd }) {
@@ -38,10 +36,7 @@ export function ProductCard({ product, settings, onAdd }) {
     : formatPrimaryMoney(product.price, settings);
 
   function handleClick() {
-    if (disabled) {
-      return;
-    }
-
+    if (disabled) return;
     onAdd(product);
     setPulse(true);
     window.setTimeout(() => setPulse(false), 180);
@@ -53,14 +48,15 @@ export function ProductCard({ product, settings, onAdd }) {
       onClick={handleClick}
       disabled={disabled}
       className={[
-        "group relative overflow-hidden rounded-xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-3 text-left shadow-xs transition-all duration-150",
+        "group relative overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-3 text-left shadow-sm transition-all duration-150",
         disabled
           ? "cursor-not-allowed opacity-50"
-          : "hover:-translate-y-0.5 hover:shadow-md hover:border-[var(--pos-action)]/40",
-        pulse ? "scale-[0.97] ring-2 ring-[var(--pos-action)]" : "",
+          : "hover:-translate-y-1 hover:border-[rgba(16,185,129,0.35)] hover:shadow-[var(--shadow-glow)]",
+        pulse ? "scale-[0.97] ring-2 ring-[var(--action)]" : "",
       ].join(" ")}
     >
-      <div className="relative aspect-square overflow-hidden rounded-lg bg-[var(--surface-soft)]">
+      {/* Image area */}
+      <div className="relative aspect-square overflow-hidden rounded-xl bg-[var(--surface-quiet)]">
         {product.image ? (
           <img
             src={product.image}
@@ -68,32 +64,42 @@ export function ProductCard({ product, settings, onAdd }) {
             className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-[var(--surface-quiet)] text-2xl font-extrabold text-[var(--muted-foreground)]">
-            {initial}
+          <div className="flex h-full w-full items-center justify-center bg-[var(--surface-soft)]">
+            <span className="text-2xl font-extrabold text-[var(--muted-foreground)]">
+              {initial}
+            </span>
           </div>
         )}
 
         {hasVariants ? (
-          <div className="absolute top-2 left-2 flex items-center gap-1 rounded-md bg-[var(--surface-strong)]/90 px-2 py-0.5 text-[10px] font-extrabold text-[var(--pos-action)] shadow-xs backdrop-blur-xs">
+          <div className="absolute top-2 left-2 flex items-center gap-1 rounded-lg bg-[var(--surface-strong)]/90 px-2 py-0.5 text-[10px] font-bold text-[var(--action)] backdrop-blur-sm">
             <Layers className="size-3" />
             {variants.length} options
           </div>
         ) : null}
 
         {disabled ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-[var(--surface-strong)]/80 backdrop-blur-xs text-xs font-bold text-red-600 dark:text-red-400">
+          <div className="absolute inset-0 flex items-center justify-center bg-[var(--surface-strong)]/80 backdrop-blur-sm text-xs font-bold text-[var(--error)]">
             Out of Stock
           </div>
         ) : null}
       </div>
 
-      <div className="mt-2.5 flex flex-col justify-between min-h-20">
-        <div>
-          <p className="line-clamp-2 text-xs font-bold leading-snug text-[var(--foreground)]">{product.name}</p>
-        </div>
+      {/* Info */}
+      <div className="mt-2.5 flex flex-col justify-between min-h-[4.5rem]">
+        <p className="line-clamp-2 text-[13px] font-semibold leading-snug text-[var(--foreground)]">
+          {product.name}
+        </p>
         <div className="mt-2 flex items-center justify-between gap-1">
-          <p className="text-xs font-extrabold text-[var(--foreground)] truncate">{displayPrice}</p>
-          <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold shrink-0 ${stockBadgeClass(totalStock)}`}>
+          <p className="text-[13px] font-bold text-[var(--action)] tabular-nums truncate">
+            {displayPrice}
+          </p>
+          <span
+            className={[
+              "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold shrink-0",
+              stockBadgeClass(totalStock),
+            ].join(" ")}
+          >
             {totalStock <= 0 ? "Out" : `${totalStock} left`}
           </span>
         </div>

@@ -143,11 +143,22 @@ function DesktopSidebar({ user, selectedTab, collapsed, setCollapsed, openTab, t
       style={{ width: collapsed ? "4.5rem" : "16rem" }}
     >
       {/* Brand & Store Header */}
-      <div className="flex h-16 items-center justify-between px-4 border-b border-[var(--border-soft)]">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--action)] shadow-md shadow-[var(--shadow-glow)] text-[var(--action-foreground)]">
+      <div
+        className={cn(
+          "flex h-16 items-center border-b border-[var(--border-soft)]",
+          collapsed ? "justify-center px-2" : "justify-between px-4"
+        )}
+      >
+        <div className={cn("flex items-center min-w-0", collapsed ? "justify-center" : "gap-3")}>
+          <button
+            type="button"
+            onClick={() => setCollapsed(!collapsed)}
+            className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--action)] shadow-md shadow-[var(--shadow-glow)] text-[var(--action-foreground)] hover:scale-105 active:scale-95 transition-all cursor-pointer"
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
             <Zap className="size-5" />
-          </div>
+          </button>
           {!collapsed && (
             <div className="min-w-0">
               <p className="truncate text-sm font-bold text-[var(--foreground)] tracking-tight">SalesOps Admin</p>
@@ -156,17 +167,17 @@ function DesktopSidebar({ user, selectedTab, collapsed, setCollapsed, openTab, t
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={() => setCollapsed(!collapsed)}
-          className={cn(
-            "flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--border-soft)] text-[var(--muted-foreground)] hover:bg-[var(--surface-quiet)] hover:text-[var(--foreground)] transition-colors",
-            collapsed && "mx-auto"
-          )}
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {collapsed ? <ChevronRight className="size-4" /> : <ChevronLeft className="size-4" />}
-        </button>
+        {!collapsed && (
+          <button
+            type="button"
+            onClick={() => setCollapsed(true)}
+            className="flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--border-soft)] text-[var(--muted-foreground)] hover:bg-[var(--surface-quiet)] hover:text-[var(--foreground)] transition-colors"
+            aria-label="Collapse sidebar"
+            title="Collapse sidebar"
+          >
+            <ChevronLeft className="size-4" />
+          </button>
+        )}
       </div>
 
       {/* Navigation Groups */}
