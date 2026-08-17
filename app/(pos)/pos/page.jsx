@@ -101,7 +101,7 @@ export default function PosDashboardPage() {
     <div className="space-y-6 transition-colors">
       <div>
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--pos-action)]">Dashboard</p>
-        <h1 className="mt-1 text-2xl font-black tracking-tight text-[var(--foreground)]">POS Overview</h1>
+        <h1 className="mt-1 text-2xl font-bold tracking-tight text-[var(--foreground)] font-display">POS Overview</h1>
       </div>
 
       {pendingSyncCount > 0 ? (
@@ -131,7 +131,7 @@ export default function PosDashboardPage() {
                 {loading ? (
                   <div className="h-8 w-28 animate-pulse rounded-md bg-[var(--surface-soft)]" />
                 ) : (
-                  <p className="text-2xl font-black tracking-tight text-[var(--foreground)]">{card.value}</p>
+                  <p className="font-display text-2xl font-bold tabular-nums tracking-tight text-[var(--foreground)]">{card.value}</p>
                 )}
               </div>
             </section>

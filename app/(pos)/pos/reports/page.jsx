@@ -11,7 +11,7 @@ function MetricCard({ label, value, detail, comparison }) {
     <section className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-4 shadow-xs text-[var(--foreground)] transition-colors">
       <p className="text-xs font-bold text-[var(--muted-foreground)]">{label}</p>
       <div className="flex items-baseline gap-2 mt-2">
-        <p className="text-2xl font-black tracking-tight text-[var(--foreground)]">{value}</p>
+        <p className="font-display text-2xl font-bold tabular-nums tracking-tight text-[var(--foreground)]">{value}</p>
         {comparison !== undefined && (
           <span className={`text-xs font-bold ${comparison >= 0 ? "text-[var(--pos-action)]" : "text-red-600 dark:text-red-400"}`}>
             {comparison > 0 ? "+" : ""}{comparison.toFixed(1)}% vs prev

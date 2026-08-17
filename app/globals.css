@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
 @import "tailwindcss";
 
 @import "./design-tokens.css";
@@ -7,6 +7,7 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
+  --font-display: "Space Grotesk", "Plus Jakarta Sans", system-ui, sans-serif;
   --font-mono: "Consolas", "Courier New", monospace;
 }
 
@@ -31,6 +32,14 @@ body {
 a {
   color: inherit;
   text-decoration: none;
+}
+
+/* Display typeface on page-level headings — instant consistency across
+   storefront, POS and admin. Body/UI text keeps Plus Jakarta Sans. */
+h1,
+h2 {
+  font-family: var(--font-display);
+  letter-spacing: -0.015em;
 }
 
 img {
@@ -359,4 +368,93 @@ input[type="number"] {
   .app-shell-public {
     padding: 0 10px env(safe-area-inset-bottom) 10px;
   }
+}
+
+/* ── Scrollbars ────────────────────────────────────────────────────────── */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--foreground) 22%, transparent) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--foreground) 22%, transparent);
+  border: 2px solid var(--background);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--action);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ── Native controls follow the theme ──────────────────────────────────── */
+
+/* color-scheme makes native <select> popups, date pickers, and scrollbars
+   render dark/light automatically. Driven by data-mode so it works even
+   before hydration — no blue dropdowns in dark mode. */
+:root {
+  color-scheme: light;
+}
+
+[data-mode="dark"] {
+  color-scheme: dark;
+}
+
+select {
+  background-color: var(--input-fill);
+  color: var(--foreground);
+}
+
+select option,
+select optgroup {
+  background-color: var(--surface-strong);
+  color: var(--foreground);
+}
+
+input[type="checkbox"],
+input[type="radio"],
+input[type="range"] {
+  accent-color: var(--action);
+}
+
+/* In-app steppers replace the native number spinners, which never match
+   the theme — hide them everywhere. */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* Chrome autofill would flash a white box — keep it themed instead. */
+input:-webkit-autofill,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px var(--input-fill) inset;
+  -webkit-text-fill-color: var(--foreground);
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+/* ── Sharp edges: no rounded corners anywhere (90° design) ─────────────── */
+
+*,
+*::before,
+*::after {
+  border-radius: 0 !important;
 }

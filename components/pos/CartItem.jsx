@@ -30,23 +30,26 @@ export function CartItem({ item, settings, displayCurrency, onUpdateQty, onRemov
       </div>
 
       <div className="mt-2.5 flex items-center justify-between gap-3">
-        <div className="flex items-center rounded-lg border border-[var(--border-soft)] bg-[var(--surface-strong)] p-0.5">
-          <button 
-            type="button" 
-            onClick={() => onUpdateQty(Math.max(0, item.qty - 1))} 
-            className="grid size-6 place-items-center rounded-md bg-[var(--surface-soft)] text-xs font-bold text-[var(--foreground)] hover:bg-[var(--surface-quiet)] transition-colors"
+        <div className="flex items-center border border-[var(--border-soft)] bg-[var(--surface-strong)] p-0.5">
+          <button
+            type="button"
+            onClick={() => onUpdateQty(Math.max(0, item.qty - 1))}
+            aria-label="Decrease quantity"
+            className="grid size-7 place-items-center bg-[var(--surface-soft)] text-sm font-bold text-[var(--foreground)] transition-colors hover:bg-[var(--pos-action-surface)] hover:text-[var(--pos-action-on-muted)]"
           >
             -
           </button>
           <input
             value={item.qty}
             onChange={(event) => onUpdateQty(event.target.value)}
-            className="w-9 bg-transparent text-center text-xs font-extrabold text-[var(--foreground)] outline-none"
+            aria-label="Quantity"
+            className="w-10 bg-transparent text-center text-xs font-extrabold tabular-nums text-[var(--foreground)] outline-none"
           />
-          <button 
-            type="button" 
-            onClick={() => onUpdateQty(item.qty + 1)} 
-            className="grid size-6 place-items-center rounded-md bg-[var(--surface-soft)] text-xs font-bold text-[var(--foreground)] hover:bg-[var(--surface-quiet)] transition-colors"
+          <button
+            type="button"
+            onClick={() => onUpdateQty(item.qty + 1)}
+            aria-label="Increase quantity"
+            className="grid size-7 place-items-center bg-[var(--surface-soft)] text-sm font-bold text-[var(--foreground)] transition-colors hover:bg-[var(--pos-action-surface)] hover:text-[var(--pos-action-on-muted)]"
           >
             +
           </button>

@@ -9,6 +9,7 @@ import {
   LogIn,
   Menu,
   ReceiptText,
+  Search,
   ShoppingCart,
   Store,
   User,
@@ -66,6 +67,7 @@ export function ClientShell({ user, initialTab = "shop", orderDetailId = "" }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const [selectedTab, setSelectedTab] = useState(() => resolveClientTab(searchParams.get("tab") || initialTab));
   const [authModal, setAuthModal] = useState({ isOpen: false, hint: "" });
 
@@ -141,7 +143,7 @@ export function ClientShell({ user, initialTab = "shop", orderDetailId = "" }) {
       case "profile":
         return <ClientProfilePageView user={user} />;
       default:
-        return <ClientProductListPageView requireAuth={requireAuth} />;
+        return <ClientProductListPageView requireAuth={requireAuth} query={query} onQueryChange={setQuery} />;
     }
   }
 
@@ -158,7 +160,7 @@ export function ClientShell({ user, initialTab = "shop", orderDetailId = "" }) {
             >
               <Menu className="size-5" />
             </button>
-            <h1 className="text-2xl font-semibold text-[var(--foreground)]">{title}</h1>
+            <h1 className="font-display text-2xl font-bold tracking-tight text-[var(--foreground)]">{title}</h1>
           </div>
 
           <div className="flex items-center gap-2">
@@ -202,6 +204,31 @@ export function ClientShell({ user, initialTab = "shop", orderDetailId = "" }) {
             ) : null}
           </div>
         </div>
+
+        {activeTab === "shop" || activeTab === "favorites" ? (
+          <div className="public-home-search-shell mt-3 p-1.5 md:mx-auto md:max-w-lg">
+            <label className="flex items-center gap-3 px-4 py-2.5">
+              <Search className="size-4 shrink-0 text-[var(--action)]" />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={t("search_products_deals")}
+                aria-label={t("search_products_deals")}
+                className="w-full bg-transparent text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] outline-none"
+              />
+              {query ? (
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  aria-label="Clear search"
+                  className="shrink-0 text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
+                >
+                  <X className="size-4" />
+                </button>
+              ) : null}
+            </label>
+          </div>
+        ) : null}
       </header>
 
       <AnimatePresence>

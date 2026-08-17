@@ -43,6 +43,7 @@ import { DeliveryLocationPicker } from "@/components/delivery-location-picker";
 import { LogoutButton } from "@/components/logout-button";
 import { easeInOutCubic } from "@/components/motion/motion-utils";
 import { Button } from "@/components/ui/button";
+import { AppSelect } from "@/components/ui/app-select";
 import { cn, formatCurrency } from "@/lib/utils";
 import { useTranslation } from "@/lib/translations";
 
@@ -147,7 +148,7 @@ function MetricCard({ icon: Icon, label, value, detail }) {
           <Icon className="size-4" />
         </div>
       </div>
-      <p className="mt-3 text-4xl font-semibold tracking-tight text-[var(--foreground)]">{value}</p>
+      <p className="font-display mt-3 text-4xl font-semibold tabular-nums tracking-tight text-[var(--foreground)]">{value}</p>
       <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">{detail}</p>
     </div>
   );
@@ -326,7 +327,7 @@ function ProductCard({ product, store, requireAuth = null }) {
     <div className="public-home-product-card flex h-full flex-col overflow-hidden rounded-[1.45rem] shadow-[0_16px_38px_rgba(3,10,18,0.22)] transition hover:-translate-y-1 hover:shadow-[var(--shadow-strong)]">
       <Link href={`/client/product-detail/${product.id}`} className="block" tabIndex={-1}>
         <div
-          className="relative aspect-[1/0.92] overflow-hidden bg-[#d7dadd]"
+          className="relative aspect-[1/0.92] overflow-hidden bg-[var(--surface-quiet)]"
           style={{
             backgroundImage: product.image ? `url(${product.image})` : undefined,
             backgroundSize: "cover",
@@ -367,25 +368,25 @@ function ProductCard({ product, store, requireAuth = null }) {
           {product.name}
         </Link>
 
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
           {priceRange ? (
-            <span className="font-semibold text-[var(--public-home-product-foreground)]">
+            <span className="font-display text-[0.95rem] font-semibold tabular-nums text-[var(--action-on-muted)]">
               {priceRange}
             </span>
           ) : (
             <>
               {hasDiscount ? (
-                <span className="public-home-product-muted text-[0.88rem] line-through">
+                <span className="public-home-product-muted text-[0.85rem] tabular-nums line-through">
                   {formatCurrency(product.price)}
                 </span>
               ) : null}
-              <span className="font-semibold text-[var(--public-home-product-foreground)]">
+              <span className="font-display text-[0.95rem] font-semibold tabular-nums text-[var(--action-on-muted)]">
                 {formatCurrency(effectivePrice)}
               </span>
-              {hasDiscount ? <span className="text-emerald-400">{product.discountPercent}% off</span> : null}
+              {hasDiscount ? <span className="text-[0.78rem] font-bold text-emerald-400">{product.discountPercent}% off</span> : null}
             </>
           )}
-          <span className="inline-flex items-center gap-1 text-[var(--public-home-product-foreground)]/80">
+          <span className="inline-flex items-center gap-1 text-[var(--public-home-product-foreground)]/70">
             <Star className="size-3.5 text-amber-400" />
             {product.rating.toFixed(1)}
           </span>
@@ -443,7 +444,7 @@ function ClientHeroCard({ product, language = "en" }) {
           <div className="absolute inset-x-0 bottom-0 p-4.5 sm:p-5">
             <div>
               <p className="text-xs text-white/72">{product.category}</p>
-              <h3 className="mt-2 max-w-[11rem] text-[1.68rem] font-bold leading-[1.03] text-white sm:max-w-[12rem] sm:text-[1.8rem]">
+              <h3 className="font-display mt-2 max-w-[11rem] text-[1.68rem] font-bold leading-[1.03] text-white sm:max-w-[12rem] sm:text-[1.8rem]">
                 {product.name}
               </h3>
               <p className="mt-2 line-clamp-2 max-w-[13rem] text-[0.76rem] leading-5 text-white/72">
@@ -592,11 +593,11 @@ function ClientProductGrid({ products, store, requireAuth = null }) {
   );
 }
 
-export function ClientProductListPageView({ productsOverride = null, requireAuth = null }) {
+export function ClientProductListPageView({ productsOverride = null, requireAuth = null, query = "", onQueryChange = null }) {
   const store = useAppStore();
   const { t } = useTranslation(store.language);
   const isCustomCollection = Boolean(productsOverride);
-  const [query, setQuery] = useState("");
+  const setQuery = onQueryChange || (() => {});
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [categorySearch, setCategorySearch] = useState("");
   const [sort, setSort] = useState("Featured");
@@ -604,6 +605,7 @@ export function ClientProductListPageView({ productsOverride = null, requireAuth
   const [quickFilters, setQuickFilters] = useState(INITIAL_CLIENT_QUICK_FILTERS);
   const [visibleGridCounts, setVisibleGridCounts] = useState({});
   const [revealState, setRevealState] = useState(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const sourceProducts = productsOverride || store.activeProducts;
   const sourceCategories = useMemo(() => [...new Set(sourceProducts.map((product) => product.category))], [sourceProducts]);
   const categoryChips = useMemo(() => ["All", ...sourceCategories], [sourceCategories]);
@@ -793,184 +795,122 @@ export function ClientProductListPageView({ productsOverride = null, requireAuth
 
   return (
     <div className="mx-auto max-w-[72rem] space-y-6">
-      <div className="public-home-banner relative overflow-hidden rounded-[1.45rem] px-4 py-4 shadow-[0_12px_28px_rgba(2,10,18,0.16)] sm:px-5 sm:py-5">
-        <div className="pointer-events-none absolute -right-10 -top-10 h-24 w-32 rounded-full bg-[color-mix(in_srgb,var(--action)_18%,transparent)]" />
-        <div className="relative">
-          <h2 className="text-[1.55rem] font-semibold tracking-[-0.03em] text-[var(--foreground)]">
-            {isCustomCollection ? t("favorites") : t("shop")}
-          </h2>
-          <p className="mt-2 max-w-2xl text-sm leading-7 text-[var(--foreground)]/82">
-            {isCustomCollection
-              ? t("no_favorites_hint")
-              : t("filter_hint")}
-          </p>
+      {/* Category row — like the reference: chips inline, filters at the end */}
+      <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+          {categoryChips.map((category) => {
+            const isActive =
+              category === "All" ? selectedCategories.length === 0 : selectedCategories.includes(category);
+
+            return (
+              <button
+                key={category}
+                type="button"
+                onClick={() => chooseQuickCategory(category)}
+                className="public-home-chip inline-flex shrink-0 items-center border px-4 py-2 text-sm transition text-[var(--foreground)]"
+                data-active={isActive}
+              >
+                {category}
+              </button>
+            );
+          })}
         </div>
+        {activeFilterCount ? (
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="shrink-0 text-xs font-bold text-[var(--action)] hover:underline"
+          >
+            {t("clear_filters")}
+          </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((state) => !state)}
+          aria-label="Filters"
+          aria-expanded={filtersOpen}
+          className={
+            "app-icon-button relative shrink-0 " +
+            (filtersOpen
+              ? "border-[color-mix(in_srgb,var(--action)_45%,transparent)] text-[var(--action-on-muted)]"
+              : "")
+          }
+        >
+          <SlidersHorizontal className="size-4" />
+          {activeFilterCount ? (
+            <span className="absolute -right-1.5 -top-1.5 grid min-w-4 place-items-center bg-[var(--action)] px-1 text-[10px] font-black text-[var(--action-foreground)]">
+              {activeFilterCount}
+            </span>
+          ) : null}
+        </button>
       </div>
 
-      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_17.75rem] lg:items-start lg:gap-6 xl:grid-cols-[minmax(0,1fr)_18.5rem]">
-        <aside className="hidden lg:order-2 lg:block">
-          <div className="sticky top-6 rounded-[1.6rem] border border-[var(--border-soft)] bg-[color-mix(in_srgb,var(--surface)_92%,var(--background-start))] p-5 shadow-[var(--shadow-soft)]">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-[1.4rem] font-semibold text-[var(--foreground)]">{t("filters")}</h2>
-                <p className="mt-1 text-sm text-[var(--muted-foreground)]">{t("grocery_items").replace("{count}", products.length)}</p>
-              </div>
-              <button type="button" onClick={resetFilters} className="text-sm font-medium text-[var(--action)]">
-                {t("reset")}
-              </button>
-            </div>
-
-            <div className="mt-6 space-y-6">
-              <section className="space-y-3">
-                <h3 className="text-sm font-semibold text-[var(--foreground)]">{t("sort_by")}</h3>
-                <div className="space-y-2">
-                  {CLIENT_SORT_OPTIONS.map((option) => (
-                    <label key={option} className="flex cursor-pointer items-center gap-3 text-sm text-[var(--foreground)]">
-                      <input
-                        type="radio"
-                        name="client-sort"
-                        checked={sort === option}
-                        onChange={() => setSort(option)}
-                        className="size-4 accent-[var(--action)]"
-                      />
-                      <span>{option}</span>
-                    </label>
-                  ))}
-                </div>
-              </section>
-
-              <section className="space-y-3">
-                <h3 className="text-sm font-semibold text-[var(--foreground)]">{t("quick_filters")}</h3>
-                <div className="flex flex-wrap gap-2">
-                  {CLIENT_QUICK_FILTER_OPTIONS.map((filter) => (
-                    <button
-                      key={filter.id}
-                      type="button"
-                      onClick={() => toggleQuickFilter(filter.id)}
-                      className={cn(
-                        "rounded-full border px-3.5 py-2 text-sm transition",
-                        quickFilters[filter.id]
-                          ? "border-transparent bg-[color-mix(in_srgb,var(--action)_16%,var(--surface))] text-[var(--foreground)]"
-                          : "border-[var(--border-soft)] bg-[var(--surface)] text-[var(--foreground)]",
-                      )}
-                    >
-                      {filter.label}
-                    </button>
-                  ))}
-                </div>
-              </section>
-
-              <section className="space-y-3">
-                <h3 className="text-sm font-semibold text-[var(--foreground)]">{t("price")}</h3>
-                <div className="grid grid-cols-2 gap-2">
-                  {CLIENT_PRICE_OPTIONS.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => setPriceFilter(option.value)}
-                      className={cn(
-                        "rounded-full border px-3 py-2 text-sm transition",
-                        priceFilter === option.value
-                          ? "border-transparent bg-[color-mix(in_srgb,var(--action)_16%,var(--surface))] text-[var(--foreground)]"
-                          : "border-[var(--border-soft)] bg-[var(--surface)] text-[var(--foreground)]",
-                      )}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </section>
-
-              <section className="space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-sm font-semibold text-[var(--foreground)]">{t("categories")}</h3>
-                  <span className="text-xs text-[var(--muted-foreground)]">{selectedCategories.length || sourceCategories.length}</span>
-                </div>
-
-                <div className="rounded-[1rem] border border-[var(--border-soft)] bg-[var(--surface)] px-3 py-2.5">
-                  <label className="flex items-center gap-2 text-sm text-[var(--muted-foreground)]">
-                    <Search className="size-4" />
-                    <input
-                      value={categorySearch}
-                      onChange={(event) => setCategorySearch(event.target.value)}
-                      placeholder={t("search_categories")}
-                      className="w-full bg-transparent outline-none placeholder:text-[var(--muted-foreground)]"
-                    />
-                  </label>
-                </div>
-
-                <div className="max-h-[18rem] space-y-2 overflow-y-auto pr-1">
-                  {visibleCategoryOptions.map((category) => (
-                    <label key={category} className="flex cursor-pointer items-center gap-3 text-sm text-[var(--foreground)]">
-                      <input
-                        type="checkbox"
-                        checked={selectedCategories.includes(category)}
-                        onChange={() => toggleSidebarCategory(category)}
-                        className="size-4 rounded accent-[var(--action)]"
-                      />
-                      <span>{category}</span>
-                    </label>
-                  ))}
-                </div>
-              </section>
-            </div>
-          </div>
-        </aside>
-
-        <div className="min-w-0 space-y-4 lg:order-1">
-          <div className="public-home-search-shell rounded-[1.1rem] p-1.5 shadow-[0_8px_22px_rgba(3,10,18,0.12)]">
-            <label className="flex items-center gap-3 rounded-[1.05rem] px-4 py-3">
-              <Search className="size-5 text-[var(--action)]" />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder={t("search_products_deals")}
-                className="w-full bg-transparent text-[1rem] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] outline-none"
-              />
-            </label>
-          </div>
-
-          <div className="space-y-3 lg:hidden">
-            <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-              {categoryChips.map((category) => {
-                const isActive = category === "All" ? selectedCategories.length === 0 : selectedCategories.includes(category);
-
-                return (
-                  <button
-                    key={category}
-                    type="button"
-                    onClick={() => chooseQuickCategory(category)}
-                    className="public-home-chip inline-flex shrink-0 items-center gap-2 rounded-full border px-4 py-2 text-sm transition text-[var(--foreground)]"
-                    data-active={isActive}
-                  >
-                    {category}
-                  </button>
-                );
-              })}
-            </div>
-
-            <select
+      {/* Collapsible filters */}
+      {filtersOpen ? (
+        <div className="space-y-5 border border-[var(--border-soft)] bg-[var(--surface-strong)] p-4 shadow-[var(--shadow-card)] sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
+              {t("filters")}
+            </p>
+            <AppSelect
               value={sort}
-              onChange={(event) => setSort(event.target.value)}
-              className="public-home-select w-full rounded-[1rem] border px-4 py-3 text-[1rem] text-[var(--foreground)] outline-none"
-            >
-              {CLIENT_SORT_OPTIONS.map((option) => (
-                <option key={option}>{option}</option>
-              ))}
-            </select>
+              onChange={setSort}
+              options={CLIENT_SORT_OPTIONS}
+              aria-label="Sort products"
+              className="w-52"
+            />
           </div>
 
-          <div className="hidden items-center justify-between rounded-[1.2rem] border border-[var(--border-soft)] bg-[color-mix(in_srgb,var(--surface)_88%,var(--background-start))] px-4 py-3 lg:flex">
-            <div>
-              <p className="text-sm font-semibold text-[var(--foreground)]">{t("products_ready").replace("{count}", products.length)}</p>
-              <p className="mt-1 text-xs text-[var(--muted-foreground)]">{t("filter_hint")}</p>
-            </div>
-            {activeFilterCount ? (
-              <button type="button" onClick={resetFilters} className="text-sm font-medium text-[var(--action)]">
-                {t("clear_filters")}
-              </button>
-            ) : null}
+          <div className="flex flex-wrap gap-2">
+            {categoryChips.map((category) => {
+              const isActive =
+                category === "All" ? selectedCategories.length === 0 : selectedCategories.includes(category);
+
+              return (
+                <button
+                  key={category}
+                  type="button"
+                  onClick={() => chooseQuickCategory(category)}
+                  className="public-home-chip inline-flex shrink-0 items-center border px-4 py-2 text-sm transition text-[var(--foreground)]"
+                  data-active={isActive}
+                >
+                  {category}
+                </button>
+              );
+            })}
           </div>
+
+          <div className="flex flex-wrap gap-2">
+            {CLIENT_QUICK_FILTER_OPTIONS.map((filter) => (
+              <button
+                key={filter.id}
+                type="button"
+                onClick={() => toggleQuickFilter(filter.id)}
+                className="public-home-chip inline-flex items-center border px-4 py-2 text-sm transition text-[var(--foreground)]"
+                data-active={quickFilters[filter.id]}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {CLIENT_PRICE_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setPriceFilter(option.value)}
+                className="public-home-chip inline-flex items-center justify-center border px-4 py-2 text-sm transition text-[var(--foreground)]"
+                data-active={priceFilter === option.value}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="min-w-0 space-y-4">
 
           {products.length ? (
             isCustomCollection ? (
@@ -981,7 +921,7 @@ export function ClientProductListPageView({ productsOverride = null, requireAuth
 
                 {groupedProducts.map((group) => (
                   <section key={group.category} className="space-y-4">
-                    <h2 className="px-1 text-[1.18rem] font-medium text-[var(--foreground)]">{group.category}</h2>
+                    <h2 className="font-display px-1 text-xl font-semibold tracking-tight text-[var(--foreground)]">{group.category}</h2>
 
                     <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
                       {group.products
@@ -1030,7 +970,6 @@ export function ClientProductListPageView({ productsOverride = null, requireAuth
             </div>
           )}
         </div>
-      </div>
     </div>
   );
 }
@@ -1084,12 +1023,22 @@ export function ClientCartPageView() {
                       <p className="mt-1 text-sm font-semibold text-[var(--foreground)]">{t("subtotal")}: {formatCurrency(item.subtotal)}</p>
                     </div>
                     <div className="flex flex-col items-start gap-2 sm:items-center">
-                      <div className="flex items-center">
-                        <button type="button" onClick={() => store.decreaseCart(item.productId, item.variantId)} className="app-icon-button p-2">
+                      <div className="flex items-center border border-[var(--border-strong)] bg-[var(--surface-strong)]">
+                        <button
+                          type="button"
+                          onClick={() => store.decreaseCart(item.productId, item.variantId)}
+                          aria-label="Decrease quantity"
+                          className="grid size-8 place-items-center text-sm font-bold text-[var(--foreground)] transition-colors hover:bg-[var(--action-surface)] hover:text-[var(--action-on-muted)]"
+                        >
                           -
                         </button>
-                        <span className="min-w-8 text-center font-semibold">{item.quantity}</span>
-                        <button type="button" onClick={() => store.addToCart(item.productId, 1, item.variantId)} className="app-icon-button p-2">
+                        <span className="min-w-9 text-center text-sm font-extrabold tabular-nums text-[var(--foreground)]">{item.quantity}</span>
+                        <button
+                          type="button"
+                          onClick={() => store.addToCart(item.productId, 1, item.variantId)}
+                          aria-label="Increase quantity"
+                          className="grid size-8 place-items-center text-sm font-bold text-[var(--foreground)] transition-colors hover:bg-[var(--action-surface)] hover:text-[var(--action-on-muted)]"
+                        >
                           +
                         </button>
                       </div>
@@ -1185,7 +1134,7 @@ export function ClientCheckoutPageView() {
               </div>
             ))}
           </div>
-          <div className="mt-5 border-t border-white/50 pt-4">
+          <div className="mt-5 border-t border-[var(--border-soft)] pt-4">
             <p className="text-sm text-[var(--muted-foreground)]">{t("total")}</p>
             <p className="mt-2 text-3xl font-semibold text-[var(--foreground)]">{formatCurrency(store.cartTotal)}</p>
           </div>
@@ -1339,7 +1288,7 @@ export function ClientOrderHistoryPageView() {
             <ChevronRight className="size-3 rotate-180" />
             Back to shop
           </Link>
-          <h1 className="mt-2 text-3xl font-semibold text-[var(--foreground)] sm:text-4xl">Order History</h1>
+          <h1 className="font-display mt-2 text-3xl font-bold tracking-tight text-[var(--foreground)] sm:text-4xl">Order History</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
             Review previous orders, delivery progress, payment method, and applied discounts.
           </p>
@@ -1974,7 +1923,7 @@ export function ClientProfilePageView({ user }) {
             userCoupons.slice(0, 3).map((coupon) => (
               <div
                 key={coupon.id}
-                className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/12 px-3 py-2 text-sm font-semibold"
+                className="inline-flex items-center gap-2 rounded-full border border-[var(--border-strong)] bg-[var(--surface-soft)] px-3 py-2 text-sm font-semibold"
               >
                 <span>
                   {coupon.code} {coupon.type === "percent" ? `${coupon.value}% OFF` : `${formatCurrency(coupon.value)} OFF`}
@@ -2103,7 +2052,7 @@ export function ClientProfilePageView({ user }) {
           <p className="mt-1 text-sm text-[var(--muted-foreground)]">Track replies and ticket status from the support team.</p>
           <div className="mt-4 space-y-3">
             {userTickets.map((ticket) => (
-              <div key={ticket.id} className="rounded-[1.4rem] border border-white/45 bg-white/55 p-4 backdrop-blur-xl">
+              <div key={ticket.id} className="rounded-[1.4rem] border border-[var(--border-soft)] bg-[var(--surface-strong)] p-4">
                 <div className="flex flex-wrap items-center gap-3">
                   <h3 className="text-lg font-semibold text-[var(--foreground)]">{ticket.subject}</h3>
                   <span className={cn("rounded-full px-3 py-1 text-xs font-semibold uppercase", statusClasses(ticket.status))}>
@@ -2262,7 +2211,7 @@ export function ClientProductDetailPageView({ productId, user }) {
           Back to shop
         </Link>
       </div>
-      <div className="overflow-hidden rounded-[1.75rem] border border-white/45 bg-white/60 shadow-[0_20px_45px_rgba(10,24,35,0.08)] backdrop-blur-xl">
+      <div className="overflow-hidden rounded-[1.75rem] border border-[var(--border-soft)] bg-[var(--surface-strong)] shadow-[var(--shadow-card)]">
         <div className="min-h-80 bg-cover bg-center" style={{ backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.06), rgba(0,0,0,0.48)), url(${product.image})` }} />
       </div>
 

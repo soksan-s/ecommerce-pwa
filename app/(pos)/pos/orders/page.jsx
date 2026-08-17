@@ -152,7 +152,7 @@ export default function PosOrdersPage() {
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--pos-action)]">Orders</p>
-          <h1 className="mt-1 text-2xl font-black tracking-tight text-[var(--foreground)]">Online Queue &amp; Today&apos;s Transactions</h1>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-[var(--foreground)] font-display">Online Queue &amp; Today&apos;s Transactions</h1>
         </div>
 
         <div className="grid grid-cols-3 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] p-1 shadow-xs">

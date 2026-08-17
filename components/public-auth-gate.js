@@ -80,7 +80,7 @@ export function PublicAuthGate({ initialAuthView = "" }) {
               <Store className="size-6" />
             </div>
             <div>
-              <h1 className="text-lg font-bold tracking-tight text-[var(--foreground)]">SOKSAN</h1>
+              <h1 className="font-display text-lg font-bold uppercase tracking-[0.32em] text-[var(--foreground)]">SOKSAN</h1>
               <p className="text-xs font-semibold uppercase tracking-widest text-[var(--muted-foreground)]">
                 Wholesale & Retail POS
               </p>
@@ -101,7 +101,7 @@ export function PublicAuthGate({ initialAuthView = "" }) {
               <span>Next-Gen Cambodian Beverage Platform</span>
             </div>
 
-            <h2 className="mt-4 text-4xl font-extrabold tracking-tight text-[var(--foreground)] sm:text-5xl">
+            <h2 className="font-display mt-4 text-4xl font-bold leading-[1.05] tracking-tight text-[var(--foreground)] sm:text-5xl">
               Power your retail & wholesale store.
             </h2>
             <p className="mt-4 text-base leading-relaxed text-[var(--muted-foreground)]">

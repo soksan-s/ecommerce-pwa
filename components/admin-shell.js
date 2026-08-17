@@ -345,7 +345,7 @@ function TopHeader({
 
       {/* Page Title & Subtitle */}
       <div className="flex-1 min-w-0">
-        <h1 className="truncate text-lg font-bold text-[var(--foreground)] tracking-tight">
+        <h1 className="font-display truncate text-xl font-bold tracking-tight text-[var(--foreground)]">
           {title}
         </h1>
         <p className="hidden sm:block text-xs text-[var(--muted-foreground)] truncate">
@@ -677,10 +677,10 @@ export function AdminShell({ user, initialTab = "dashboard" }) {
 
       {/* Main Content Area (Dynamic padding for collapsible desktop sidebar) */}
       <div
-        className="flex flex-col min-h-screen transition-all duration-300 ease-in-out"
-        style={{
-          paddingLeft: typeof window !== "undefined" && window.innerWidth >= 1024 ? (collapsed ? "4.5rem" : "16rem") : "0rem",
-        }}
+        className={
+          "flex min-h-screen flex-col transition-all duration-300 ease-in-out " +
+          (collapsed ? "lg:pl-[4.5rem]" : "lg:pl-64")
+        }
       >
         {/* Top Header Bar */}
         <TopHeader

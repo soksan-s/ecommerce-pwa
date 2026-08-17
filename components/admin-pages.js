@@ -178,7 +178,7 @@ function MetricCard({ icon: Icon, label, value, detail, tone = "neutral", classN
     <div className={cn("h-full rounded-2xl border border-[var(--border-soft)] p-5 shadow-[var(--shadow-soft)]", toneClasses[tone], className)}>
       <div className="flex items-center justify-between gap-3">
         <p className="app-top-label text-current/70">{label}</p>
-        <div className="rounded-2xl bg-white/70 p-2">
+        <div className="rounded-2xl bg-[var(--surface-soft)] p-2">
           <Icon className="size-4" />
         </div>
       </div>
@@ -458,9 +458,9 @@ export function AdminDashboardPageView() {
               {alerts.map((alert, index) => (
                 <EntranceMotion key={alert.title} delay={0.48 + index * 0.06}>
                   <HoverLift hoverOffset={4} hoverScale={1.004} hoverElevation={18} normalElevation={6}>
-                    <div className={cn("rounded-[1.6rem] border border-white/45 p-5 backdrop-blur-xl", alert.tone === "danger" ? "bg-rose-100/80 text-rose-950" : "bg-amber-100/90 text-amber-950")}>
+                    <div className={cn("rounded-[1.6rem] border border-[var(--border-soft)] p-5", alert.tone === "danger" ? "bg-rose-500/15 text-rose-600 dark:text-rose-400" : "bg-amber-500/15 text-amber-600 dark:text-amber-400")}>
                       <div className="flex items-start gap-3">
-                        <div className="rounded-full bg-white/70 p-2">
+                        <div className="rounded-full bg-[var(--surface-soft)] p-2">
                           <AlertTriangle className="size-4" />
                         </div>
                         <div>
@@ -1505,9 +1505,9 @@ export function AdminProductManagementPageView() {
           const isRange = priceDisplay.isRange;
           const totalStock = getProductTotalStock(product);
           return (
-          <div key={product.id} className="rounded-[1.6rem] border border-white/45 bg-white/55 p-5 backdrop-blur-xl">
+          <div key={product.id} className="rounded-[1.6rem] border border-[var(--border-soft)] bg-[var(--surface-strong)] p-5">
             <div className="grid gap-4 xl:grid-cols-[1fr_1.2fr_0.7fr_0.7fr_1fr] xl:items-center">
-              <div className="overflow-hidden rounded-[1rem] border border-white/50">
+              <div className="overflow-hidden rounded-[1rem] border border-[var(--border-soft)]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={product.image} alt={product.name} className="h-24 w-full object-cover" />
               </div>
@@ -1689,7 +1689,7 @@ export function AdminInventoryPageView() {
       </Card>
       <div className="grid gap-5 md:grid-cols-2">
         {lowStock.map((product) => (
-          <div key={product.id} className="rounded-[1.6rem] border border-white/45 bg-white/55 p-5 backdrop-blur-xl">
+          <div key={product.id} className="rounded-[1.6rem] border border-[var(--border-soft)] bg-[var(--surface-strong)] p-5">
             <h2 className="text-xl font-semibold text-[var(--foreground)]">{product.name}</h2>
             <p className="mt-2 text-sm text-[var(--muted-foreground)]">Current stock {product.stock}</p>
             <div className="mt-4 flex gap-2">
@@ -1717,7 +1717,7 @@ export function AdminOrderManagementPageView() {
       </Card>
       <div className="space-y-4">
         {store.orders.map((order) => (
-          <div key={order.id} className="rounded-[1.6rem] border border-white/45 bg-white/55 p-5 backdrop-blur-xl">
+          <div key={order.id} className="rounded-[1.6rem] border border-[var(--border-soft)] bg-[var(--surface-strong)] p-5">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
               <div>
                 <h2 className="text-xl font-semibold text-[var(--foreground)]">{order.id}</h2>
@@ -2029,7 +2029,7 @@ export function AdminCouponsPageView() {
       </Card>
       <div className="space-y-4">
         {store.coupons.map((coupon) => (
-          <div key={coupon.id} className="rounded-[1.6rem] border border-white/45 bg-white/55 p-5 backdrop-blur-xl">
+          <div key={coupon.id} className="rounded-[1.6rem] border border-[var(--border-soft)] bg-[var(--surface-strong)] p-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <h2 className="text-xl font-semibold text-[var(--foreground)]">{coupon.code}</h2>
@@ -2063,7 +2063,7 @@ export function AdminSupportInboxPageView({ user }) {
       </Card>
       <div className="space-y-4">
         {store.supportTickets.map((ticket) => (
-          <div key={ticket.id} className="rounded-[1.6rem] border border-white/45 bg-white/55 p-5 backdrop-blur-xl">
+          <div key={ticket.id} className="rounded-[1.6rem] border border-[var(--border-soft)] bg-[var(--surface-strong)] p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-xl font-semibold text-[var(--foreground)]">{ticket.subject}</h2>

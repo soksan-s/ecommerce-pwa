@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 
 import { useAppStore } from "@/components/app-store-provider";
+import { AppSelect } from "@/components/ui/app-select";
 import { cn, formatCurrency } from "@/lib/utils";
 
 const PRODUCT_CATEGORY_OPTIONS = [
@@ -57,12 +58,12 @@ const PRODUCT_UNIT_OPTIONS = [
 function ProductSectionHeader({ icon: Icon, title, subtitle }) {
   return (
     <div className="mb-6 flex items-center gap-3">
-      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#91f0ec]/30 text-[#006b68]">
+      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--action)]/30 text-[var(--action)]">
         <Icon className="size-5" />
       </div>
       <div>
-        <h2 className="text-lg font-bold text-[#2c3434]">{title}</h2>
-        {subtitle ? <p className="text-xs text-[#586160]">{subtitle}</p> : null}
+        <h2 className="text-lg font-bold text-[var(--foreground)]">{title}</h2>
+        {subtitle ? <p className="text-xs text-[var(--muted-foreground)]">{subtitle}</p> : null}
       </div>
     </div>
   );
@@ -77,7 +78,7 @@ function ToggleSwitch({ checked, onChange, label }) {
       onClick={() => onChange(!checked)}
       className={cn(
         "flex h-8 w-14 items-center rounded-full p-1 transition-colors",
-        checked ? "bg-[#006b68]" : "bg-[#abb4b3]"
+        checked ? "bg-[var(--action)]" : "bg-[var(--surface-quiet)]"
       )}
     >
       <span
@@ -158,21 +159,21 @@ function ProductImageEditor({ image, onImageChange, store }) {
 
   return (
     <div>
-      <div className="group relative flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-[#abb4b3]/30 bg-[#f0f5f4] p-6 transition-all hover:border-[#006b68]/50 hover:bg-[#91f0ec]/5">
+      <div className="group relative flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-[var(--border-strong)] bg-[var(--surface-soft)] p-6 transition-all hover:border-[var(--action)]/50 hover:bg-[var(--action)]/5">
         {image ? (
-          <div className="relative w-full overflow-hidden rounded-lg bg-[#e9efee]">
+          <div className="relative w-full overflow-hidden rounded-lg bg-[var(--surface-quiet)]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={image} alt="Product preview" className="h-44 w-full object-cover" />
           </div>
         ) : (
           <div className="flex flex-col items-center gap-3">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#dbe4e3] text-[#586160]">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--surface-quiet)] text-[var(--muted-foreground)]">
               <Upload className="size-7" />
             </div>
-            <p className="text-sm font-bold text-[#2c3434]">
+            <p className="text-sm font-bold text-[var(--foreground)]">
               {uploading ? "Uploading..." : "Click to upload an image"}
             </p>
-            <p className="text-xs text-[#586160]">JPG, PNG, WEBP up to 10MB</p>
+            <p className="text-xs text-[var(--muted-foreground)]">JPG, PNG, WEBP up to 10MB</p>
           </div>
         )}
         <input
@@ -186,7 +187,7 @@ function ProductImageEditor({ image, onImageChange, store }) {
 
       <div className="mt-3 space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <label className="ml-1 text-xs font-bold text-[#586160]">Image URL</label>
+          <label className="ml-1 text-xs font-bold text-[var(--muted-foreground)]">Image URL</label>
           {image ? (
             <button
               type="button"
@@ -202,11 +203,11 @@ function ProductImageEditor({ image, onImageChange, store }) {
           value={image}
           onChange={(event) => onImageChange(event.target.value)}
           placeholder="https://..."
-          className="w-full rounded-full border-none bg-[#f0f5f4] px-5 py-2.5 text-sm outline-none transition-all focus:ring-2 focus:ring-[#91f0ec]"
+          className="w-full rounded-full border-none bg-[var(--surface-soft)] px-5 py-2.5 text-sm outline-none transition-all focus:ring-2 focus:ring-[var(--action)]"
         />
       </div>
 
-      {uploadMessage ? <p className="mt-2 text-xs text-[#586160]">{uploadMessage}</p> : null}
+      {uploadMessage ? <p className="mt-2 text-xs text-[var(--muted-foreground)]">{uploadMessage}</p> : null}
     </div>
   );
 }
@@ -379,17 +380,17 @@ export function AdminAddProductPageView() {
   return (
     <form onSubmit={handleSaveProduct} className="pb-32">
       {/* Breadcrumbs */}
-      <nav className="mb-6 flex items-center gap-2 text-sm font-medium text-[#586160]">
+      <nav className="mb-6 flex items-center gap-2 text-sm font-medium text-[var(--muted-foreground)]">
         <span>Admin</span>
         <ChevronRight className="size-4" />
         <span>Product Management</span>
         <ChevronRight className="size-4" />
-        <span className="text-[#006b68]">Add New Product</span>
+        <span className="text-[var(--action)]">Add New Product</span>
       </nav>
 
       <div className="mb-10 flex flex-col gap-1">
-        <h1 className="text-3xl font-bold tracking-tight text-[#2c3434]">Add New Product</h1>
-        <p className="text-[#586160]">Create a new premium entry for your inventory catalog.</p>
+        <h1 className="text-3xl font-bold tracking-tight text-[var(--foreground)]">Add New Product</h1>
+        <p className="text-[var(--muted-foreground)]">Create a new premium entry for your inventory catalog.</p>
       </div>
 
       {saveMessage ? (
@@ -397,7 +398,7 @@ export function AdminAddProductPageView() {
           className={cn(
             "mb-8 rounded-xl px-5 py-4 text-sm",
             saveMessage.includes("successfully")
-              ? "bg-[#d0e7e3] text-[#2f4341]"
+              ? "bg-[var(--action-surface)] text-[var(--action-on-muted)]"
               : "bg-[#fa746f]/20 text-[#6e0a12]"
           )}
         >
@@ -410,26 +411,26 @@ export function AdminAddProductPageView() {
         {/* Left Column (Core Info) */}
         <div className="space-y-8 lg:col-span-2">
           {/* Basic Information */}
-          <section className="rounded-lg border border-[#abb4b3]/10 bg-white p-8 shadow-sm">
+          <section className="rounded-lg border border-[var(--border-soft)] bg-[var(--surface-strong)] p-6 shadow-[var(--shadow-card)]">
             <ProductSectionHeader icon={Info} title="Basic Information" />
             <div className="space-y-6">
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="ml-1 text-xs font-bold text-[#586160]">Product Name</label>
+                  <label className="ml-1 text-xs font-bold text-[var(--muted-foreground)]">Product Name</label>
                   <input
                     required
                     value={form.name}
                     onChange={(event) => update("name", event.target.value)}
                     placeholder="e.g. Organic Heirloom Tomatoes"
-                    className="w-full rounded-full border-none bg-[#f0f5f4] px-6 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-[#91f0ec]"
+                    className="w-full rounded-full border-none bg-[var(--surface-soft)] px-6 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-[var(--action)]"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="ml-1 text-xs font-bold text-[#586160]">Category</label>
+                  <label className="ml-1 text-xs font-bold text-[var(--muted-foreground)]">Category</label>
                   <select
                     value={form.category}
                     onChange={(event) => update("category", event.target.value)}
-                    className="w-full appearance-none rounded-full border-none bg-[#f0f5f4] px-6 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-[#91f0ec]"
+                    className="w-full appearance-none rounded-full border-none bg-[var(--surface-soft)] px-6 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-[var(--action)]"
                   >
                     {PRODUCT_CATEGORY_OPTIONS.map((option) => (
                       <option key={option}>{option}</option>
@@ -438,29 +439,29 @@ export function AdminAddProductPageView() {
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="ml-1 text-xs font-bold text-[#586160]">SKU</label>
+                <label className="ml-1 text-xs font-bold text-[var(--muted-foreground)]">SKU</label>
                 <input
                   value={form.sku}
                   onChange={(event) => update("sku", event.target.value)}
                   placeholder="ATR-VEG-001"
-                  className="w-full rounded-full border-none bg-[#f0f5f4] px-6 py-3 text-sm uppercase tracking-wider outline-none transition-all focus:ring-2 focus:ring-[#91f0ec]"
+                  className="w-full rounded-full border-none bg-[var(--surface-soft)] px-6 py-3 text-sm uppercase tracking-wider outline-none transition-all focus:ring-2 focus:ring-[var(--action)]"
                 />
               </div>
               <div className="space-y-2">
-                <label className="ml-1 text-xs font-bold text-[#586160]">Description</label>
-                <div className="flex min-h-[160px] flex-col rounded-lg bg-[#f0f5f4] p-2 transition-all focus-within:ring-2 focus-within:ring-[#91f0ec]">
-                  <div className="mb-2 flex items-center gap-2 border-b border-[#abb4b3]/15 p-2">
-                    <button type="button" className="rounded-md p-1.5 text-[#586160] transition-colors hover:bg-[#e2eae9]">
+                <label className="ml-1 text-xs font-bold text-[var(--muted-foreground)]">Description</label>
+                <div className="flex min-h-[160px] flex-col rounded-lg bg-[var(--surface-soft)] p-2 transition-all focus-within:ring-2 focus-within:ring-[var(--action)]">
+                  <div className="mb-2 flex items-center gap-2 border-b border-[var(--border-soft)] p-2">
+                    <button type="button" className="rounded-md p-1.5 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface-quiet)]">
                       <Bold className="size-4" />
                     </button>
-                    <button type="button" className="rounded-md p-1.5 text-[#586160] transition-colors hover:bg-[#e2eae9]">
+                    <button type="button" className="rounded-md p-1.5 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface-quiet)]">
                       <Italic className="size-4" />
                     </button>
-                    <button type="button" className="rounded-md p-1.5 text-[#586160] transition-colors hover:bg-[#e2eae9]">
+                    <button type="button" className="rounded-md p-1.5 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface-quiet)]">
                       <List className="size-4" />
                     </button>
-                    <div className="mx-1 h-4 w-px bg-[#abb4b3]/30" />
-                    <button type="button" className="rounded-md p-1.5 text-[#586160] transition-colors hover:bg-[#e2eae9]">
+                    <div className="mx-1 h-4 w-px bg-[var(--surface-quiet)]/30" />
+                    <button type="button" className="rounded-md p-1.5 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface-quiet)]">
                       <Link2 className="size-4" />
                     </button>
                   </div>
@@ -468,7 +469,7 @@ export function AdminAddProductPageView() {
                     value={form.description}
                     onChange={(event) => update("description", event.target.value)}
                     placeholder="Describe the origin, flavor profile, and health benefits..."
-                    className="flex-1 resize-none bg-transparent px-4 py-2 text-sm text-[#2c3434] outline-none"
+                    className="flex-1 resize-none bg-transparent px-4 py-2 text-sm text-[var(--foreground)] outline-none"
                   />
                 </div>
               </div>
@@ -476,13 +477,13 @@ export function AdminAddProductPageView() {
           </section>
 
           {/* Pricing & Inventory */}
-          <section className="rounded-lg border border-[#abb4b3]/10 bg-white p-8 shadow-sm">
+          <section className="rounded-lg border border-[var(--border-soft)] bg-[var(--surface-strong)] p-6 shadow-[var(--shadow-card)]">
             <ProductSectionHeader icon={CircleDollarSign} title="Pricing & Inventory" />
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               <div className="space-y-2">
-                <label className="ml-1 text-xs font-bold text-[#586160]">Base Price (USD)</label>
+                <label className="ml-1 text-xs font-bold text-[var(--muted-foreground)]">Base Price (USD)</label>
                 <div className="relative">
-                  <span className="absolute left-6 top-1/2 -translate-y-1/2 font-bold text-[#586160]">$</span>
+                  <span className="absolute left-6 top-1/2 -translate-y-1/2 font-bold text-[var(--muted-foreground)]">$</span>
                   <input
                     required
                     type="number"
@@ -491,14 +492,14 @@ export function AdminAddProductPageView() {
                     value={form.price}
                     onChange={(event) => update("price", event.target.value)}
                     placeholder="0.00"
-                    className="w-full rounded-full border-none bg-[#f0f5f4] py-3 pl-10 pr-6 text-sm outline-none transition-all focus:ring-2 focus:ring-[#91f0ec]"
+                    className="w-full rounded-full border-none bg-[var(--surface-soft)] py-3 pl-10 pr-6 text-sm outline-none transition-all focus:ring-2 focus:ring-[var(--action)]"
                   />
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="ml-1 text-xs font-bold text-[#586160]">Discount Price (Optional)</label>
+                <label className="ml-1 text-xs font-bold text-[var(--muted-foreground)]">Discount Price (Optional)</label>
                 <div className="relative">
-                  <span className="absolute left-6 top-1/2 -translate-y-1/2 font-bold text-[#586160]">$</span>
+                  <span className="absolute left-6 top-1/2 -translate-y-1/2 font-bold text-[var(--muted-foreground)]">$</span>
                   <input
                     type="number"
                     min="0"
@@ -506,12 +507,12 @@ export function AdminAddProductPageView() {
                     value={form.discountPrice}
                     onChange={(event) => update("discountPrice", event.target.value)}
                     placeholder="0.00"
-                    className="w-full rounded-full border-none bg-[#f0f5f4] py-3 pl-10 pr-6 text-sm outline-none transition-all focus:ring-2 focus:ring-[#91f0ec]"
+                    className="w-full rounded-full border-none bg-[var(--surface-soft)] py-3 pl-10 pr-6 text-sm outline-none transition-all focus:ring-2 focus:ring-[var(--action)]"
                   />
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="ml-1 text-xs font-bold text-[#586160]">Stock Quantity</label>
+                <label className="ml-1 text-xs font-bold text-[var(--muted-foreground)]">Stock Quantity</label>
                 <input
                   required
                   type="number"
@@ -519,15 +520,15 @@ export function AdminAddProductPageView() {
                   value={form.stock}
                   onChange={(event) => update("stock", event.target.value)}
                   placeholder="0"
-                  className="w-full rounded-full border-none bg-[#f0f5f4] px-6 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-[#91f0ec]"
+                  className="w-full rounded-full border-none bg-[var(--surface-soft)] px-6 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-[var(--action)]"
                 />
               </div>
               <div className="space-y-2">
-                <label className="ml-1 text-xs font-bold text-[#586160]">Measurement Unit</label>
+                <label className="ml-1 text-xs font-bold text-[var(--muted-foreground)]">Measurement Unit</label>
                 <select
                   value={form.unit}
                   onChange={(event) => update("unit", event.target.value)}
-                  className="w-full appearance-none rounded-full border-none bg-[#f0f5f4] px-6 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-[#91f0ec]"
+                  className="w-full appearance-none rounded-full border-none bg-[var(--surface-soft)] px-6 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-[var(--action)]"
                 >
                   {PRODUCT_UNIT_OPTIONS.map((option) => (
                     <option key={option}>{option}</option>
@@ -535,33 +536,33 @@ export function AdminAddProductPageView() {
                 </select>
               </div>
               <div className="space-y-2 md:col-span-2">
-                <label className="ml-1 text-xs font-bold text-[#586160]">Low Stock Alert</label>
+                <label className="ml-1 text-xs font-bold text-[var(--muted-foreground)]">Low Stock Alert</label>
                 <input
                   type="number"
                   min="0"
                   value={form.minStockAlert}
                   onChange={(event) => update("minStockAlert", event.target.value)}
                   placeholder="5"
-                  className="w-full rounded-full border-none bg-[#f0f5f4] px-6 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-[#91f0ec]"
+                  className="w-full rounded-full border-none bg-[var(--surface-soft)] px-6 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-[var(--action)]"
                 />
               </div>
             </div>
           </section>
 
           {/* Product Variants */}
-          <section className="rounded-lg border border-[#abb4b3]/10 bg-white p-8 shadow-sm">
+          <section className="rounded-lg border border-[var(--border-soft)] bg-[var(--surface-strong)] p-6 shadow-[var(--shadow-card)]">
             <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#b7e3ff]/30 text-[#38647c]">
                   <Layers className="size-5" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-[#2c3434]">Product Variants</h2>
-                  <p className="text-xs text-[#586160]">Manage different versions of this product (e.g., size, color).</p>
+                  <h2 className="text-lg font-bold text-[var(--foreground)]">Product Variants</h2>
+                  <p className="text-xs text-[var(--muted-foreground)]">Manage different versions of this product (e.g., size, color).</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-xs font-bold text-[#586160]">Enable Variants</span>
+                <span className="text-xs font-bold text-[var(--muted-foreground)]">Enable Variants</span>
                 <ToggleSwitch checked={variantsEnabled} onChange={setVariantsEnabled} label="Toggle variants" />
               </div>
             </div>
@@ -570,14 +571,14 @@ export function AdminAddProductPageView() {
               <div className="space-y-6">
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-bold text-[#2c3434]">Variant Options</h3>
+                    <h3 className="text-sm font-bold text-[var(--foreground)]">Variant Options</h3>
                     <button
                       type="button"
                       onClick={() => {
                         const next = [...variantOptions, { name: "", values: "" }];
                         setVariantOptions(next);
                       }}
-                      className="flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold text-[#006b68] transition-colors hover:bg-[#91f0ec]/5"
+                      className="flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold text-[var(--action)] transition-colors hover:bg-[var(--action)]/5"
                     >
                       <Plus className="size-4" />
                       Add Option
@@ -588,10 +589,10 @@ export function AdminAddProductPageView() {
                     {variantOptions.map((option, index) => (
                       <div
                         key={`option-${index}`}
-                        className="grid grid-cols-1 gap-4 rounded-lg border border-[#abb4b3]/10 bg-[#f0f5f4] p-4 md:grid-cols-2"
+                        className="grid grid-cols-1 gap-4 rounded-lg border border-[var(--border-soft)] bg-[var(--surface-soft)] p-4 md:grid-cols-2"
                       >
                         <div className="space-y-1.5">
-                          <label className="ml-1 text-xs font-bold text-[#586160]">Option Name</label>
+                          <label className="ml-1 text-xs font-bold text-[var(--muted-foreground)]">Option Name</label>
                           <input
                             value={option.name}
                             onChange={(event) => {
@@ -600,11 +601,11 @@ export function AdminAddProductPageView() {
                               setVariantOptions(next);
                             }}
                             placeholder="e.g. Size"
-                            className="w-full rounded-full border-none bg-white px-5 py-2 text-sm outline-none transition-all focus:ring-2 focus:ring-[#91f0ec]"
+                            className="w-full rounded-full border-none bg-[var(--input-fill)] px-5 py-2 text-sm outline-none transition-all focus:ring-2 focus:ring-[var(--action)]"
                           />
                         </div>
                         <div className="space-y-1.5">
-                          <label className="ml-1 text-xs font-bold text-[#586160]">Values</label>
+                          <label className="ml-1 text-xs font-bold text-[var(--muted-foreground)]">Values</label>
                           <div className="flex gap-2">
                             <input
                               value={option.values}
@@ -614,13 +615,13 @@ export function AdminAddProductPageView() {
                                 setVariantOptions(next);
                               }}
                               placeholder="e.g. Small, Medium, Large"
-                              className="w-full rounded-full border-none bg-white px-5 py-2 text-sm outline-none transition-all focus:ring-2 focus:ring-[#91f0ec]"
+                              className="w-full rounded-full border-none bg-[var(--input-fill)] px-5 py-2 text-sm outline-none transition-all focus:ring-2 focus:ring-[var(--action)]"
                             />
                             {variantOptions.length > 1 ? (
                               <button
                                 type="button"
                                 onClick={() => setVariantOptions(variantOptions.filter((_, i) => i !== index))}
-                                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#abb4b3]/30 text-[#586160] transition hover:text-[#a83836]"
+                                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[var(--border-strong)] text-[var(--muted-foreground)] transition hover:text-[#a83836]"
                                 aria-label="Remove option"
                               >
                                 <Trash2 className="size-4" />
@@ -632,7 +633,7 @@ export function AdminAddProductPageView() {
                           <button
                             type="button"
                             onClick={rebuildVariantRowsFromOptions}
-                            className="inline-flex items-center gap-2 justify-self-start rounded-full bg-[#91f0ec]/30 px-4 py-2 text-xs font-bold text-[#006b68] transition hover:brightness-95 md:col-span-2"
+                            className="inline-flex items-center gap-2 justify-self-start rounded-full bg-[var(--action)]/30 px-4 py-2 text-xs font-bold text-[var(--action)] transition hover:brightness-95 md:col-span-2"
                           >
                             <RefreshCw className="size-3.5" />
                             Rebuild combinations
@@ -644,10 +645,10 @@ export function AdminAddProductPageView() {
                 </div>
 
                 <div className="space-y-4">
-                  <h3 className="text-sm font-bold text-[#2c3434]">Variant Combinations</h3>
-                  <div className="overflow-hidden rounded-lg border border-[#abb4b3]/10">
+                  <h3 className="text-sm font-bold text-[var(--foreground)]">Variant Combinations</h3>
+                  <div className="overflow-hidden rounded-lg border border-[var(--border-soft)]">
                     <table className="w-full text-left text-sm">
-                      <thead className="bg-[#f0f5f4] font-bold text-[#586160]">
+                      <thead className="bg-[var(--surface-soft)] font-bold text-[var(--muted-foreground)]">
                         <tr>
                           <th className="px-4 py-3">Variant</th>
                           <th className="px-4 py-3">SKU</th>
@@ -655,10 +656,10 @@ export function AdminAddProductPageView() {
                           <th className="px-4 py-3">Stock</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-[#abb4b3]/10">
+                      <tbody className="divide-y divide-[var(--border-soft)]">
                         {variantRows.map((row, index) => (
-                          <tr key={`row-${index}`} className="transition-colors hover:bg-[#f0f5f4]/50">
-                            <td className="px-4 py-3 font-medium text-[#2c3434]">{row.name}</td>
+                          <tr key={`row-${index}`} className="transition-colors hover:bg-[var(--surface-soft)]/50">
+                            <td className="px-4 py-3 font-medium text-[var(--foreground)]">{row.name}</td>
                             <td className="px-4 py-3">
                               <input
                                 value={row.sku}
@@ -668,7 +669,7 @@ export function AdminAddProductPageView() {
                                   setVariantRows(next);
                                 }}
                                 placeholder="SKU"
-                                className="w-full bg-transparent p-0 text-xs text-[#2c3434] outline-none"
+                                className="w-full bg-transparent p-0 text-xs text-[var(--foreground)] outline-none"
                               />
                             </td>
                             <td className="px-4 py-3">
@@ -681,7 +682,7 @@ export function AdminAddProductPageView() {
                                   setVariantRows(next);
                                 }}
                                 placeholder="+0.00"
-                                className="w-full bg-transparent p-0 text-xs text-[#2c3434] outline-none"
+                                className="w-full bg-transparent p-0 text-xs text-[var(--foreground)] outline-none"
                               />
                             </td>
                             <td className="px-4 py-3">
@@ -694,14 +695,14 @@ export function AdminAddProductPageView() {
                                   setVariantRows(next);
                                 }}
                                 placeholder="0"
-                                className="w-full bg-transparent p-0 text-xs text-[#2c3434] outline-none"
+                                className="w-full bg-transparent p-0 text-xs text-[var(--foreground)] outline-none"
                               />
                             </td>
                           </tr>
                         ))}
                         {variantRows.length === 0 ? (
                           <tr>
-                            <td colSpan={4} className="px-4 py-6 text-center text-xs text-[#586160]">
+                            <td colSpan={4} className="px-4 py-6 text-center text-xs text-[var(--muted-foreground)]">
                               Add values to your first option to generate combinations.
                             </td>
                           </tr>
@@ -712,7 +713,7 @@ export function AdminAddProductPageView() {
                 </div>
               </div>
             ) : (
-              <div className="rounded-lg border border-dashed border-[#abb4b3]/30 p-8 text-center text-sm text-[#586160]">
+              <div className="rounded-lg border border-dashed border-[var(--border-strong)] p-8 text-center text-sm text-[var(--muted-foreground)]">
                 Variants are disabled. Toggle the switch above to add size, color, or format options.
               </div>
             )}
@@ -722,17 +723,17 @@ export function AdminAddProductPageView() {
         {/* Right Column (Media & Meta) */}
         <div className="space-y-8">
           {/* Product Images */}
-          <section className="rounded-lg border border-[#abb4b3]/10 bg-white p-8 shadow-sm">
+          <section className="rounded-lg border border-[var(--border-soft)] bg-[var(--surface-strong)] p-6 shadow-[var(--shadow-card)]">
             <ProductSectionHeader icon={Image} title="Product Images" />
-            <div className="group relative flex cursor-pointer flex-col items-center justify-center gap-4 rounded-lg border-2 border-dashed border-[#abb4b3]/30 bg-[#f0f5f4] p-10 transition-all hover:border-[#006b68]/50 hover:bg-[#91f0ec]/5">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#dbe4e3] text-[#586160] transition-transform group-hover:scale-110">
+            <div className="group relative flex cursor-pointer flex-col items-center justify-center gap-4 rounded-lg border-2 border-dashed border-[var(--border-strong)] bg-[var(--surface-soft)] p-10 transition-all hover:border-[var(--action)]/50 hover:bg-[var(--action)]/5">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[var(--surface-quiet)] text-[var(--muted-foreground)] transition-transform group-hover:scale-110">
                 <Upload className="size-8" />
               </div>
               <div className="text-center">
-                <p className="text-sm font-bold text-[#2c3434]">
+                <p className="text-sm font-bold text-[var(--foreground)]">
                   {uploading ? "Uploading..." : "Drop files here or click to upload"}
                 </p>
-                <p className="mt-1 text-xs text-[#586160]">Supports JPG, PNG, WEBP up to 10MB</p>
+                <p className="mt-1 text-xs text-[var(--muted-foreground)]">Supports JPG, PNG, WEBP up to 10MB</p>
               </div>
               <input
                 type="file"
@@ -742,10 +743,10 @@ export function AdminAddProductPageView() {
                 disabled={uploading}
               />
             </div>
-            {uploadMessage ? <p className="mt-3 text-xs text-[#586160]">{uploadMessage}</p> : null}
+            {uploadMessage ? <p className="mt-3 text-xs text-[var(--muted-foreground)]">{uploadMessage}</p> : null}
 
             <div className="mt-6 grid grid-cols-3 gap-3">
-              <div className="group relative aspect-square overflow-hidden rounded-md bg-[#e9efee]">
+              <div className="group relative aspect-square overflow-hidden rounded-md bg-[var(--surface-quiet)]">
                 {form.image ? (
                   <>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -760,49 +761,49 @@ export function AdminAddProductPageView() {
                     </button>
                   </>
                 ) : (
-                  <div className="flex h-full w-full items-center justify-center text-[#abb4b3]">
+                  <div className="flex h-full w-full items-center justify-center text-[var(--muted-foreground)]">
                     <ImagePlus className="size-6" />
                   </div>
                 )}
               </div>
-              <div className="flex aspect-square items-center justify-center rounded-md bg-[#e9efee] text-[#abb4b3]">
+              <div className="flex aspect-square items-center justify-center rounded-md bg-[var(--surface-quiet)] text-[var(--muted-foreground)]">
                 <Plus className="size-6" />
               </div>
-              <div className="flex aspect-square items-center justify-center rounded-md bg-[#e9efee] text-[#abb4b3]">
+              <div className="flex aspect-square items-center justify-center rounded-md bg-[var(--surface-quiet)] text-[var(--muted-foreground)]">
                 <Plus className="size-6" />
               </div>
             </div>
 
             <div className="mt-5 space-y-2">
-              <label className="ml-1 text-xs font-bold text-[#586160]">Image URL</label>
+              <label className="ml-1 text-xs font-bold text-[var(--muted-foreground)]">Image URL</label>
               <input
                 value={form.image}
                 onChange={(event) => update("image", event.target.value)}
                 placeholder="https://..."
-                className="w-full rounded-full border-none bg-[#f0f5f4] px-5 py-2.5 text-sm outline-none transition-all focus:ring-2 focus:ring-[#91f0ec]"
+                className="w-full rounded-full border-none bg-[var(--surface-soft)] px-5 py-2.5 text-sm outline-none transition-all focus:ring-2 focus:ring-[var(--action)]"
               />
             </div>
           </section>
 
           {/* Attributes & Tags */}
-          <section className="rounded-lg border border-[#abb4b3]/10 bg-white p-8 shadow-sm">
+          <section className="rounded-lg border border-[var(--border-soft)] bg-[var(--surface-strong)] p-6 shadow-[var(--shadow-card)]">
             <ProductSectionHeader icon={Tag} title="Attributes & Tags" />
             <div className="space-y-6">
-              <div className="flex items-center justify-between rounded-lg bg-[#f0f5f4] p-4">
+              <div className="flex items-center justify-between rounded-lg bg-[var(--surface-soft)] p-4">
                 <div>
-                  <p className="font-bold text-[#2c3434]">Publish Status</p>
-                  <p className="text-xs text-[#586160]">Visible to customers immediately</p>
+                  <p className="font-bold text-[var(--foreground)]">Publish Status</p>
+                  <p className="text-xs text-[var(--muted-foreground)]">Visible to customers immediately</p>
                 </div>
                 <ToggleSwitch checked={publishActive} onChange={setPublishActive} label="Publish" />
               </div>
 
               <div className="space-y-3">
-                <label className="ml-1 text-xs font-bold text-[#586160]">Product Tags</label>
+                <label className="ml-1 text-xs font-bold text-[var(--muted-foreground)]">Product Tags</label>
                 <div className="flex flex-wrap gap-2">
                   {tags.map((tag) => (
                     <span
                       key={tag}
-                      className="inline-flex items-center gap-2 rounded-full bg-[#d0e7e3] px-4 py-1.5 text-xs font-bold text-[#415653]"
+                      className="inline-flex items-center gap-2 rounded-full bg-[var(--action-surface)] px-4 py-1.5 text-xs font-bold text-[var(--action-on-muted)]"
                     >
                       {tag}
                       <button
@@ -827,7 +828,7 @@ export function AdminAddProductPageView() {
                       }
                     }}
                     placeholder="Type and press enter to add..."
-                    className="w-full rounded-full border-none bg-[#f0f5f4] px-5 py-2 text-sm outline-none transition-all focus:ring-2 focus:ring-[#91f0ec]"
+                    className="w-full rounded-full border-none bg-[var(--surface-soft)] px-5 py-2 text-sm outline-none transition-all focus:ring-2 focus:ring-[var(--action)]"
                   />
                 </div>
               </div>
@@ -837,18 +838,18 @@ export function AdminAddProductPageView() {
       </div>
 
       {/* Sticky Footer Actions */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-[#abb4b3]/15 bg-[#f7faf9]/80 px-10 py-6 backdrop-blur-xl lg:left-16 xl:left-[16rem]">
+      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-[var(--border-soft)] bg-[var(--surface-soft)]/80 px-10 py-6 backdrop-blur-xl lg:left-16 xl:left-[16rem]">
         <div className="mx-auto flex max-w-[1600px] items-center justify-end gap-4">
           <Link
             href="/admin?tab=products"
-            className="rounded-full px-8 py-3 text-sm font-bold text-[#586160] transition-colors hover:bg-[#e2eae9]"
+            className="rounded-full px-8 py-3 text-sm font-bold text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface-quiet)]"
           >
             Cancel
           </Link>
           <button
             type="submit"
             disabled={saving}
-            className="inline-flex items-center gap-2 rounded-full bg-[#006b68] px-10 py-3 text-sm font-bold text-[#e1fffd] shadow-lg shadow-[#006b68]/20 transition-all hover:scale-[1.02] hover:opacity-90 active:scale-95 disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-full bg-[var(--action)] px-10 py-3 text-sm font-bold text-[var(--action-foreground)] shadow-lg shadow-[var(--action)]/20 transition-all hover:scale-[1.02] hover:opacity-90 active:scale-95 disabled:opacity-50"
           >
             {saving ? (
               <RefreshCw className="size-4 animate-spin" />
@@ -874,13 +875,13 @@ function AdminProductCard({ product, store, onQuickEdit, onFullEdit, onDelete, o
   const variantProduct = isVariantProduct(product);
   const lowStock = totalStock <= (product.minStockAlert || 8);
   const badge = !product.isActive
-    ? { label: "Draft", className: "bg-[#737c7c] text-white" }
+    ? { label: "Draft", className: "bg-[var(--surface-container-highest)] text-white" }
     : lowStock
       ? { label: "Low Stock", className: "bg-[#a83836] text-[#fff7f6]" }
-      : { label: "Active", className: "bg-[#006b68]/90 text-[#e1fffd]" };
+      : { label: "Active", className: "bg-[var(--action)]/90 text-[var(--action-foreground)]" };
 
   return (
-    <div className="group relative flex flex-col overflow-hidden rounded-lg border border-[#abb4b3]/10 bg-[#f0f5f4] transition-all hover:border-[#006b68]/20 hover:shadow-xl hover:shadow-[#006b68]/5">
+    <div className="group relative flex flex-col overflow-hidden rounded-lg border border-[var(--border-soft)] bg-[var(--surface-soft)] transition-all hover:border-[var(--action)]/20 hover:shadow-xl hover:shadow-[var(--action)]/5">
       <div className="relative aspect-[4/3] w-full overflow-hidden">
         {product.image ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -890,7 +891,7 @@ function AdminProductCard({ product, store, onQuickEdit, onFullEdit, onDelete, o
             className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-[#e9efee] text-[#abb4b3]">
+          <div className="flex h-full w-full items-center justify-center bg-[var(--surface-quiet)] text-[var(--muted-foreground)]">
             <PackageSearch className="size-10" />
           </div>
         )}
@@ -910,7 +911,7 @@ function AdminProductCard({ product, store, onQuickEdit, onFullEdit, onDelete, o
           <button
             type="button"
             onClick={() => onQuickEdit(product)}
-            className="flex-1 rounded-full bg-white py-2 text-sm font-bold text-[#2c3434] transition-colors hover:bg-[#006b68] hover:text-white"
+            className="flex-1 rounded-full bg-[var(--surface-strong)] py-2 text-sm font-bold text-[var(--foreground)] transition-colors hover:bg-[var(--action)] hover:text-[var(--action-foreground)]"
           >
             Quick Edit
           </button>
@@ -927,27 +928,27 @@ function AdminProductCard({ product, store, onQuickEdit, onFullEdit, onDelete, o
 
       <div className="flex flex-1 flex-col p-6">
         <div className="mb-2 flex items-start justify-between gap-3">
-          <h3 className="text-xl font-bold text-[#2c3434]">{product.name}</h3>
+          <h3 className="text-xl font-bold text-[var(--foreground)]">{product.name}</h3>
           {isRange ? (
-            <span className="text-right text-sm font-bold leading-5 text-[#006b68]">
+            <span className="text-right text-sm font-bold leading-5 text-[var(--action)]">
               {formatCurrency(priceDisplay.min)}
               <br />- {formatCurrency(priceDisplay.max)}
             </span>
           ) : (
-            <span className="text-lg font-bold text-[#006b68]">{formatCurrency(priceDisplay.price)}</span>
+            <span className="text-lg font-bold text-[var(--action)]">{formatCurrency(priceDisplay.price)}</span>
           )}
         </div>
 
         <div className="mb-6 flex flex-wrap gap-2">
-          <span className="rounded-full bg-[#d0e7e3] px-3 py-1 text-[11px] font-bold text-[#415653]">{product.category}</span>
-          <span className="rounded-full bg-[#e2eae9] px-3 py-1 text-[11px] font-bold text-[#586160]">{totalStock} in stock</span>
+          <span className="rounded-full bg-[var(--action-surface)] px-3 py-1 text-[11px] font-bold text-[var(--action-on-muted)]">{product.category}</span>
+          <span className="rounded-full bg-[var(--surface-quiet)] px-3 py-1 text-[11px] font-bold text-[var(--muted-foreground)]">{totalStock} in stock</span>
         </div>
 
         <div className="mt-auto grid grid-cols-2 gap-3">
           <button
             type="button"
             onClick={() => onFullEdit(product)}
-            className="flex items-center justify-center gap-2 rounded-xl bg-[#e2eae9] py-3 text-sm font-semibold text-[#2c3434] transition-all hover:bg-[#dbe4e3]"
+            className="flex items-center justify-center gap-2 rounded-xl bg-[var(--surface-quiet)] py-3 text-sm font-semibold text-[var(--foreground)] transition-all hover:bg-[var(--surface-quiet)]"
           >
             <Edit3 className="size-4" />
             Full Edit
@@ -956,7 +957,7 @@ function AdminProductCard({ product, store, onQuickEdit, onFullEdit, onDelete, o
             <button
               type="button"
               onClick={() => store.toggleProductStatus(product.id)}
-              className="flex items-center justify-center gap-2 rounded-xl bg-[#006b68] py-3 text-sm font-semibold text-[#e1fffd] transition-all hover:opacity-90"
+              className="flex items-center justify-center gap-2 rounded-xl bg-[var(--action)] py-3 text-sm font-semibold text-[var(--action-foreground)] transition-all hover:opacity-90"
             >
               <Upload className="size-4" />
               Publish
@@ -965,7 +966,7 @@ function AdminProductCard({ product, store, onQuickEdit, onFullEdit, onDelete, o
             <button
               type="button"
               onClick={() => onRestock(product)}
-              className="flex items-center justify-center gap-2 rounded-xl bg-[#e2eae9] py-3 text-sm font-semibold text-[#2c3434] transition-all hover:bg-[#dbe4e3]"
+              className="flex items-center justify-center gap-2 rounded-xl bg-[var(--surface-quiet)] py-3 text-sm font-semibold text-[var(--foreground)] transition-all hover:bg-[var(--surface-quiet)]"
             >
               <PackageOpen className="size-4" />
               Restock
@@ -974,7 +975,7 @@ function AdminProductCard({ product, store, onQuickEdit, onFullEdit, onDelete, o
             <button
               type="button"
               onClick={() => store.toggleProductStatus(product.id)}
-              className="flex items-center justify-center gap-2 rounded-xl bg-[#e2eae9] py-3 text-sm font-semibold text-[#2c3434] transition-all hover:bg-[#dbe4e3]"
+              className="flex items-center justify-center gap-2 rounded-xl bg-[var(--surface-quiet)] py-3 text-sm font-semibold text-[var(--foreground)] transition-all hover:bg-[var(--surface-quiet)]"
             >
               <EyeOff className="size-4" />
               Deactivate
@@ -985,7 +986,7 @@ function AdminProductCard({ product, store, onQuickEdit, onFullEdit, onDelete, o
         {variantProduct ? (
           <Link
             href={`/admin/product-management/${product.id}/variants`}
-            className="mt-3 flex items-center justify-center gap-2 rounded-xl border border-[#006b68]/20 py-2 text-xs font-semibold text-[#006b68] transition hover:bg-[#006b68]/5"
+            className="mt-3 flex items-center justify-center gap-2 rounded-xl border border-[var(--action)]/20 py-2 text-xs font-semibold text-[var(--action)] transition hover:bg-[var(--action)]/5"
           >
             <Layers className="size-3.5" />
             Manage Variants
@@ -1201,12 +1202,12 @@ export function AdminProductManagementPageView() {
       {/* Page Header */}
       <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
         <div>
-          <h1 className="text-4xl font-extrabold tracking-tight text-[#2c3434]">Product Management</h1>
-          <p className="mt-2 text-lg text-[#586160]">Manage your premium organic inventory and catalog.</p>
+          <h1 className="text-4xl font-extrabold tracking-tight text-[var(--foreground)]">Product Management</h1>
+          <p className="mt-2 text-lg text-[var(--muted-foreground)]">Manage your premium organic inventory and catalog.</p>
         </div>
         <Link
           href="/admin/add-product"
-          className="inline-flex items-center gap-3 rounded-full bg-[#006b68] px-8 py-4 font-bold text-[#e1fffd] shadow-lg shadow-[#006b68]/20 transition-all hover:-translate-y-0.5 hover:shadow-xl active:scale-95"
+          className="inline-flex items-center gap-3 rounded-full bg-[var(--action)] px-8 py-4 font-bold text-[var(--action-foreground)] shadow-lg shadow-[var(--action)]/20 transition-all hover:-translate-y-0.5 hover:shadow-xl active:scale-95"
         >
           <Plus className="size-5" />
           Add New Product
@@ -1224,18 +1225,18 @@ export function AdminProductManagementPageView() {
               className={cn(
                 "whitespace-nowrap rounded-full px-5 py-2 text-sm font-semibold transition-colors",
                 statusFilter === chip.key
-                  ? "bg-[#006b68] text-[#e1fffd]"
-                  : "bg-[#e2eae9] text-[#586160] hover:bg-[#dbe4e3]"
+                  ? "bg-[var(--action)] text-[var(--action-foreground)]"
+                  : "bg-[var(--surface-quiet)] text-[var(--muted-foreground)] hover:bg-[var(--surface-quiet)]"
               )}
             >
               {chip.label}
             </button>
           ))}
-          <div className="mx-2 h-6 w-px bg-[#abb4b3]/30" />
+          <div className="mx-2 h-6 w-px bg-[var(--surface-quiet)]/30" />
           <button
             type="button"
             onClick={() => setShowCsvPanel((value) => !value)}
-            className="flex items-center gap-1 text-sm font-bold text-[#006b68]"
+            className="flex items-center gap-1 text-sm font-bold text-[var(--action)]"
           >
             <SlidersHorizontal className="size-4" />
             Import / Export
@@ -1244,19 +1245,19 @@ export function AdminProductManagementPageView() {
 
         <div className="flex items-center gap-3">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#586160]" />
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search products..."
-              className="w-52 rounded-full border-none bg-[#f0f5f4] py-2 pl-10 pr-4 text-sm outline-none transition-all focus:ring-2 focus:ring-[#006b68]"
+              className="w-52 rounded-full border-none bg-[var(--surface-soft)] py-2 pl-10 pr-4 text-sm outline-none transition-all focus:ring-2 focus:ring-[var(--action)]"
             />
           </div>
-          <span className="text-sm font-medium text-[#586160]">Sort by:</span>
+          <span className="text-sm font-medium text-[var(--muted-foreground)]">Sort by:</span>
           <select
             value={sortBy}
             onChange={(event) => setSortBy(event.target.value)}
-            className="cursor-pointer rounded-full border-none bg-[#f0f5f4] px-4 py-2 text-sm font-semibold outline-none transition-all focus:ring-2 focus:ring-[#006b68]"
+            className="cursor-pointer rounded-full border-none bg-[var(--surface-soft)] px-4 py-2 text-sm font-semibold outline-none transition-all focus:ring-2 focus:ring-[var(--action)]"
           >
             <option value="newest">Newest first</option>
             <option value="az">Alphabetical (A-Z)</option>
@@ -1268,22 +1269,22 @@ export function AdminProductManagementPageView() {
 
       {/* CSV Import / Export Panel (collapsible) */}
       {showCsvPanel ? (
-        <div className="rounded-lg border border-[#abb4b3]/20 bg-white p-6 shadow-sm">
+        <div className="rounded-lg border border-[var(--border-strong)] bg-[var(--surface-strong)] p-6 shadow-[var(--shadow-card)]">
           <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-semibold text-[#2c3434]">CSV import / export</h2>
-                <p className="mt-1 text-sm text-[#586160]">Import products in bulk or export the current catalog.</p>
+                <h2 className="text-lg font-semibold text-[var(--foreground)]">CSV import / export</h2>
+                <p className="mt-1 text-sm text-[var(--muted-foreground)]">Import products in bulk or export the current catalog.</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <label className="inline-flex cursor-pointer items-center justify-center rounded-full border border-[#abb4b3]/30 bg-white px-4 py-2 text-sm font-semibold text-[#2c3434]">
+                <label className="inline-flex cursor-pointer items-center justify-center rounded-full border border-[var(--border-strong)] bg-[var(--surface-strong)] px-4 py-2 text-sm font-semibold text-[var(--foreground)]">
                   Load CSV
                   <input type="file" accept=".csv,text/csv" onChange={handleCsvFile} className="hidden" />
                 </label>
                 <button
                   type="button"
                   onClick={handleExport}
-                  className="rounded-full border border-[#abb4b3]/30 bg-white px-4 py-2 text-sm font-semibold text-[#2c3434]"
+                  className="rounded-full border border-[var(--border-strong)] bg-[var(--surface-strong)] px-4 py-2 text-sm font-semibold text-[var(--foreground)]"
                 >
                   Export CSV
                 </button>
@@ -1293,17 +1294,17 @@ export function AdminProductManagementPageView() {
               value={csvText}
               onChange={(event) => setCsvText(event.target.value)}
               placeholder="Paste product CSV here"
-              className="min-h-24 w-full rounded-xl border border-[#abb4b3]/30 bg-[#f0f5f4] px-4 py-3 text-sm outline-none transition focus:border-[#006b68]"
+              className="min-h-24 w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--action)]"
             />
             <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
                 onClick={handleImport}
-                className="rounded-full bg-[#006b68] px-6 py-2.5 text-sm font-bold text-[#e1fffd] transition hover:opacity-90"
+                className="rounded-full bg-[var(--action)] px-6 py-2.5 text-sm font-bold text-[var(--action-foreground)] transition hover:opacity-90"
               >
                 Import Products
               </button>
-              {csvMessage ? <p className="text-sm text-[#586160]">{csvMessage}</p> : null}
+              {csvMessage ? <p className="text-sm text-[var(--muted-foreground)]">{csvMessage}</p> : null}
             </div>
           </div>
         </div>
@@ -1326,21 +1327,21 @@ export function AdminProductManagementPageView() {
         {/* Add New Product Empty State Card */}
         <Link
           href="/admin/add-product"
-          className="group flex min-h-[400px] flex-col items-center justify-center rounded-lg border-2 border-dashed border-[#abb4b3]/30 p-8 transition-all hover:border-[#006b68]/40 hover:bg-[#f0f5f4]"
+          className="group flex min-h-[400px] flex-col items-center justify-center rounded-lg border-2 border-dashed border-[var(--border-strong)] p-8 transition-all hover:border-[var(--action)]/40 hover:bg-[var(--surface-soft)]"
         >
-          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#d0e7e3] text-[#415653] transition-transform group-hover:scale-110">
+          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--action-surface)] text-[var(--action-on-muted)] transition-transform group-hover:scale-110">
             <Plus className="size-8" />
           </div>
-          <span className="text-xl font-bold text-[#2c3434]">Add New Product</span>
-          <p className="mt-2 max-w-[200px] text-center text-sm text-[#586160]">
+          <span className="text-xl font-bold text-[var(--foreground)]">Add New Product</span>
+          <p className="mt-2 max-w-[200px] text-center text-sm text-[var(--muted-foreground)]">
             Click to create a new entry in your organic catalog.
           </p>
         </Link>
       </div>
 
       {/* Pagination */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-[#abb4b3]/15 pt-8">
-        <span className="text-sm text-[#586160]">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-[var(--border-soft)] pt-8">
+        <span className="text-sm text-[var(--muted-foreground)]">
           Showing {startIndex} to {endIndex} of {products.length} products
         </span>
         <div className="flex items-center gap-2">
@@ -1348,14 +1349,14 @@ export function AdminProductManagementPageView() {
             type="button"
             onClick={() => setPage(Math.max(safePage - 1, 1))}
             disabled={safePage <= 1}
-            className="rounded-full p-2 text-[#586160] transition-colors hover:bg-[#e2eae9] disabled:opacity-30"
+            className="rounded-full p-2 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface-quiet)] disabled:opacity-30"
             aria-label="Previous page"
           >
             <ChevronLeft className="size-4" />
           </button>
           {pageNumbers.map((number, index) =>
             number === "..." ? (
-              <span key={`ellipsis-${index}`} className="text-[#586160]">
+              <span key={`ellipsis-${index}`} className="text-[var(--muted-foreground)]">
                 ...
               </span>
             ) : (
@@ -1366,8 +1367,8 @@ export function AdminProductManagementPageView() {
                 className={cn(
                   "h-8 w-8 rounded-full text-sm font-bold transition-colors",
                   safePage === number
-                    ? "bg-[#006b68] text-[#e1fffd]"
-                    : "text-[#586160] hover:bg-[#e2eae9]"
+                    ? "bg-[var(--action)] text-[var(--action-foreground)]"
+                    : "text-[var(--muted-foreground)] hover:bg-[var(--surface-quiet)]"
                 )}
               >
                 {number}
@@ -1378,7 +1379,7 @@ export function AdminProductManagementPageView() {
             type="button"
             onClick={() => setPage(Math.min(safePage + 1, totalPages))}
             disabled={safePage >= totalPages}
-            className="rounded-full p-2 text-[#586160] transition-colors hover:bg-[#e2eae9] disabled:opacity-30"
+            className="rounded-full p-2 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface-quiet)] disabled:opacity-30"
             aria-label="Next page"
           >
             <ChevronRight className="size-4" />
@@ -1390,53 +1391,51 @@ export function AdminProductManagementPageView() {
       {quickEdit ? (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setQuickEdit(null)} />
-          <div className="relative w-full max-w-md rounded-lg border border-white/20 bg-[#f7faf9]/80 p-8 shadow-2xl backdrop-blur-xl">
-            <h2 className="mb-6 text-2xl font-bold text-[#2c3434]">Quick Edit</h2>
+          <div className="relative w-full max-w-md rounded-lg border border-[var(--border-soft)] bg-[var(--surface-strong)] p-6 shadow-[var(--shadow-strong)]">
+            <h2 className="mb-6 text-2xl font-bold text-[var(--foreground)]">Quick Edit</h2>
             <div className="space-y-4">
               <ProductImageEditor image={quickImage} onImageChange={setQuickImage} store={store} />
               <div>
-                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#586160]">Price (USD)</label>
+                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Price (USD)</label>
                 <input
                   value={quickPrice}
                   onChange={(event) => setQuickPrice(event.target.value)}
                   type="number"
-                  className="w-full rounded-xl border border-[#abb4b3]/30 bg-[#f7faf9] px-4 py-3 focus:border-[#006b68] focus:ring-2 focus:ring-[#006b68]"
+                  className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
                 />
               </div>
               <div>
-                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#586160]">Stock Level</label>
+                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Stock Level</label>
                 <input
                   value={quickStock}
                   onChange={(event) => setQuickStock(event.target.value)}
                   type="number"
-                  className="w-full rounded-xl border border-[#abb4b3]/30 bg-[#f7faf9] px-4 py-3 focus:border-[#006b68] focus:ring-2 focus:ring-[#006b68]"
+                  className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
                 />
               </div>
               <div>
-                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#586160]">Status</label>
-                <select
+                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Status</label>
+                <AppSelect
                   value={quickStatus}
-                  onChange={(event) => setQuickStatus(event.target.value)}
-                  className="w-full rounded-xl border border-[#abb4b3]/30 bg-[#f7faf9] px-4 py-3 focus:border-[#006b68] focus:ring-2 focus:ring-[#006b68]"
-                >
-                  <option>Active</option>
-                  <option>Draft</option>
-                  <option>Archived</option>
-                </select>
+                  onChange={setQuickStatus}
+                  options={["Active", "Draft", "Archived"]}
+                  aria-label="Product status"
+                  className="w-full"
+                />
               </div>
             </div>
             <div className="mt-8 flex gap-3">
               <button
                 type="button"
                 onClick={() => setQuickEdit(null)}
-                className="flex-1 rounded-xl bg-[#e2eae9] py-3 font-bold text-[#2c3434] transition-colors hover:bg-[#dbe4e3]"
+                className="flex-1 rounded-xl bg-[var(--surface-quiet)] py-3 font-bold text-[var(--foreground)] transition-colors hover:bg-[var(--surface-quiet)]"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={saveQuickEdit}
-                className="flex-1 rounded-xl bg-[#006b68] py-3 font-bold text-[#e1fffd] shadow-lg shadow-[#006b68]/20 transition-colors hover:opacity-90"
+                className="flex-1 rounded-xl bg-[var(--action)] py-3 font-bold text-[var(--action-foreground)] shadow-lg shadow-[var(--action)]/20 transition-colors hover:opacity-90"
               >
                 Save Changes
               </button>
@@ -1449,8 +1448,8 @@ export function AdminProductManagementPageView() {
       {fullEdit ? (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setFullEdit(null)} />
-          <div className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-white/20 bg-[#f7faf9]/90 p-8 shadow-2xl backdrop-blur-xl">
-            <h2 className="mb-6 text-2xl font-bold text-[#2c3434]">Full Edit</h2>
+          <div className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-[var(--border-soft)] bg-[var(--surface-strong)] p-6 shadow-[var(--shadow-strong)]">
+            <h2 className="mb-6 text-2xl font-bold text-[var(--foreground)]">Full Edit</h2>
             <div className="space-y-4">
               <ProductImageEditor
                 image={fullEdit.image}
@@ -1459,58 +1458,56 @@ export function AdminProductManagementPageView() {
               />
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#586160]">Product Name</label>
+                  <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Product Name</label>
                   <input
                     value={fullEdit.name}
                     onChange={(event) => setFullEdit((current) => ({ ...current, name: event.target.value }))}
-                    className="w-full rounded-xl border border-[#abb4b3]/30 bg-[#f7faf9] px-4 py-3 focus:border-[#006b68] focus:ring-2 focus:ring-[#006b68]"
+                    className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
                   />
                 </div>
                 <div>
-                  <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#586160]">Category</label>
-                  <select
+                  <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Category</label>
+                  <AppSelect
                     value={fullEdit.category}
-                    onChange={(event) => setFullEdit((current) => ({ ...current, category: event.target.value }))}
-                    className="w-full rounded-xl border border-[#abb4b3]/30 bg-[#f7faf9] px-4 py-3 focus:border-[#006b68] focus:ring-2 focus:ring-[#006b68]"
-                  >
-                    {PRODUCT_CATEGORY_OPTIONS.map((option) => (
-                      <option key={option}>{option}</option>
-                    ))}
-                  </select>
+                    onChange={(value) => setFullEdit((current) => ({ ...current, category: value }))}
+                    options={PRODUCT_CATEGORY_OPTIONS}
+                    aria-label="Product category"
+                    className="w-full"
+                  />
                 </div>
               </div>
               <div>
-                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#586160]">SKU</label>
+                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">SKU</label>
                 <input
                   value={fullEdit.sku}
                   onChange={(event) => setFullEdit((current) => ({ ...current, sku: event.target.value }))}
                   placeholder="ATR-VEG-001"
-                  className="w-full rounded-xl border border-[#abb4b3]/30 bg-[#f7faf9] px-4 py-3 focus:border-[#006b68] focus:ring-2 focus:ring-[#006b68]"
+                  className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
                 />
               </div>
               <div>
-                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#586160]">Description</label>
+                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Description</label>
                 <textarea
                   value={fullEdit.description}
                   onChange={(event) => setFullEdit((current) => ({ ...current, description: event.target.value }))}
                   rows={3}
-                  className="w-full rounded-xl border border-[#abb4b3]/30 bg-[#f7faf9] px-4 py-3 focus:border-[#006b68] focus:ring-2 focus:ring-[#006b68]"
+                  className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
                 />
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div>
-                  <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#586160]">Price (USD)</label>
+                  <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Price (USD)</label>
                   <input
                     value={fullEdit.price}
                     onChange={(event) => setFullEdit((current) => ({ ...current, price: event.target.value }))}
                     type="number"
                     min="0"
                     step="0.01"
-                    className="w-full rounded-xl border border-[#abb4b3]/30 bg-[#f7faf9] px-4 py-3 focus:border-[#006b68] focus:ring-2 focus:ring-[#006b68]"
+                    className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
                   />
                 </div>
                 <div>
-                  <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#586160]">Discount %</label>
+                  <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Discount %</label>
                   <input
                     value={fullEdit.discountPercent}
                     onChange={(event) => setFullEdit((current) => ({ ...current, discountPercent: event.target.value }))}
@@ -1518,41 +1515,40 @@ export function AdminProductManagementPageView() {
                     min="0"
                     max="100"
                     step="1"
-                    className="w-full rounded-xl border border-[#abb4b3]/30 bg-[#f7faf9] px-4 py-3 focus:border-[#006b68] focus:ring-2 focus:ring-[#006b68]"
+                    className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
                   />
                 </div>
                 <div>
-                  <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#586160]">Stock</label>
+                  <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Stock</label>
                   <input
                     value={fullEdit.stock}
                     onChange={(event) => setFullEdit((current) => ({ ...current, stock: event.target.value }))}
                     type="number"
                     min="0"
-                    className="w-full rounded-xl border border-[#abb4b3]/30 bg-[#f7faf9] px-4 py-3 focus:border-[#006b68] focus:ring-2 focus:ring-[#006b68]"
+                    className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
                   />
                 </div>
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#586160]">Low Stock Alert</label>
+                  <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Low Stock Alert</label>
                   <input
                     value={fullEdit.minStockAlert}
                     onChange={(event) => setFullEdit((current) => ({ ...current, minStockAlert: event.target.value }))}
                     type="number"
                     min="0"
-                    className="w-full rounded-xl border border-[#abb4b3]/30 bg-[#f7faf9] px-4 py-3 focus:border-[#006b68] focus:ring-2 focus:ring-[#006b68]"
+                    className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
                   />
                 </div>
                 <div>
-                  <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#586160]">Status</label>
-                  <select
+                  <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Status</label>
+                  <AppSelect
                     value={fullEdit.isActive ? "Active" : "Draft"}
-                    onChange={(event) => setFullEdit((current) => ({ ...current, isActive: event.target.value === "Active" }))}
-                    className="w-full rounded-xl border border-[#abb4b3]/30 bg-[#f7faf9] px-4 py-3 focus:border-[#006b68] focus:ring-2 focus:ring-[#006b68]"
-                  >
-                    <option>Active</option>
-                    <option>Draft</option>
-                  </select>
+                    onChange={(value) => setFullEdit((current) => ({ ...current, isActive: value === "Active" }))}
+                    options={["Active", "Draft"]}
+                    aria-label="Product status"
+                    className="w-full"
+                  />
                 </div>
               </div>
             </div>
@@ -1560,7 +1556,7 @@ export function AdminProductManagementPageView() {
               <button
                 type="button"
                 onClick={() => setFullEdit(null)}
-                className="flex-1 rounded-xl bg-[#e2eae9] py-3 font-bold text-[#2c3434] transition-colors hover:bg-[#dbe4e3]"
+                className="flex-1 rounded-xl bg-[var(--surface-quiet)] py-3 font-bold text-[var(--foreground)] transition-colors hover:bg-[var(--surface-quiet)]"
               >
                 Cancel
               </button>
@@ -1568,7 +1564,7 @@ export function AdminProductManagementPageView() {
                 type="button"
                 onClick={saveFullEdit}
                 disabled={fullSaving}
-                className="flex-1 rounded-xl bg-[#006b68] py-3 font-bold text-[#e1fffd] shadow-lg shadow-[#006b68]/20 transition-colors hover:opacity-90 disabled:opacity-50"
+                className="flex-1 rounded-xl bg-[var(--action)] py-3 font-bold text-[var(--action-foreground)] shadow-lg shadow-[var(--action)]/20 transition-colors hover:opacity-90 disabled:opacity-50"
               >
                 {fullSaving ? "Saving..." : "Save Changes"}
               </button>
@@ -1581,18 +1577,18 @@ export function AdminProductManagementPageView() {
       {restock ? (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setRestock(null)} />
-          <div className="relative w-full max-w-md rounded-lg border border-white/20 bg-[#f7faf9]/80 p-8 shadow-2xl backdrop-blur-xl">
-            <h2 className="mb-2 text-2xl font-bold text-[#2c3434]">Restock</h2>
-            <p className="text-sm text-[#586160]">Add stock to {restock.name}</p>
+          <div className="relative w-full max-w-md rounded-lg border border-[var(--border-soft)] bg-[var(--surface-strong)] p-6 shadow-[var(--shadow-strong)]">
+            <h2 className="mb-2 text-2xl font-bold text-[var(--foreground)]">Restock</h2>
+            <p className="text-sm text-[var(--muted-foreground)]">Add stock to {restock.name}</p>
             <div className="mt-6 space-y-4">
               <div>
-                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#586160]">Quantity to add</label>
+                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Quantity to add</label>
                 <input
                   value={restockAmount}
                   onChange={(event) => setRestockAmount(event.target.value)}
                   type="number"
                   min="1"
-                  className="w-full rounded-xl border border-[#abb4b3]/30 bg-[#f7faf9] px-4 py-3 focus:border-[#006b68] focus:ring-2 focus:ring-[#006b68]"
+                  className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
                 />
               </div>
               <div className="flex gap-2">
@@ -1601,7 +1597,7 @@ export function AdminProductManagementPageView() {
                     key={amount}
                     type="button"
                     onClick={() => setRestockAmount(String(amount))}
-                    className="rounded-full bg-[#e2eae9] px-4 py-2 text-sm font-semibold text-[#2c3434] transition-colors hover:bg-[#dbe4e3]"
+                    className="rounded-full bg-[var(--surface-quiet)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] transition-colors hover:bg-[var(--surface-quiet)]"
                   >
                     +{amount}
                   </button>
@@ -1612,14 +1608,14 @@ export function AdminProductManagementPageView() {
               <button
                 type="button"
                 onClick={() => setRestock(null)}
-                className="flex-1 rounded-xl bg-[#e2eae9] py-3 font-bold text-[#2c3434] transition-colors hover:bg-[#dbe4e3]"
+                className="flex-1 rounded-xl bg-[var(--surface-quiet)] py-3 font-bold text-[var(--foreground)] transition-colors hover:bg-[var(--surface-quiet)]"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={confirmRestock}
-                className="flex-1 rounded-xl bg-[#006b68] py-3 font-bold text-[#e1fffd] shadow-lg shadow-[#006b68]/20 transition-colors hover:opacity-90"
+                className="flex-1 rounded-xl bg-[var(--action)] py-3 font-bold text-[var(--action-foreground)] shadow-lg shadow-[var(--action)]/20 transition-colors hover:opacity-90"
               >
                 Restock
               </button>
@@ -1632,14 +1628,14 @@ export function AdminProductManagementPageView() {
       {deleteConfirm ? (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setDeleteConfirm(null)} />
-          <div className="relative w-full max-w-md rounded-lg border border-white/20 bg-[#f7faf9]/80 p-8 shadow-2xl backdrop-blur-xl">
-            <h2 className="mb-2 text-2xl font-bold text-[#2c3434]">Delete product?</h2>
-            <p className="text-sm text-[#586160]">This will remove "{deleteConfirm.name}" from the catalog.</p>
+          <div className="relative w-full max-w-md rounded-lg border border-[var(--border-soft)] bg-[var(--surface-strong)] p-6 shadow-[var(--shadow-strong)]">
+            <h2 className="mb-2 text-2xl font-bold text-[var(--foreground)]">Delete product?</h2>
+            <p className="text-sm text-[var(--muted-foreground)]">This will remove "{deleteConfirm.name}" from the catalog.</p>
             <div className="mt-8 flex gap-3">
               <button
                 type="button"
                 onClick={() => setDeleteConfirm(null)}
-                className="flex-1 rounded-xl bg-[#e2eae9] py-3 font-bold text-[#2c3434] transition-colors hover:bg-[#dbe4e3]"
+                className="flex-1 rounded-xl bg-[var(--surface-quiet)] py-3 font-bold text-[var(--foreground)] transition-colors hover:bg-[var(--surface-quiet)]"
               >
                 Cancel
               </button>

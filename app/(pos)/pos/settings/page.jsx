@@ -198,7 +198,7 @@ export default function PosSettingsPage() {
       <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--pos-action)]">Settings</p>
-          <h1 className="mt-1 text-2xl font-black tracking-tight text-[var(--foreground)]">POS Settings</h1>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-[var(--foreground)] font-display">POS Settings</h1>
           <p className="mt-0.5 text-xs font-semibold text-[var(--muted-foreground)]">
             Saved locally and synced when online.{" "}
             <span className={`font-extrabold ${isOnline ? "text-[var(--pos-action)]" : "text-amber-500"}`}>

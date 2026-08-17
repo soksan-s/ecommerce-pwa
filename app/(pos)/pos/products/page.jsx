@@ -303,7 +303,7 @@ export default function PosProductsPage() {
       <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--pos-action)]">Products</p>
-          <h1 className="mt-1 text-2xl font-black tracking-tight text-[var(--foreground)]">Product Catalog</h1>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-[var(--foreground)] font-display">Product Catalog</h1>
           <p className="mt-0.5 text-xs font-semibold text-[var(--muted-foreground)]">Last synced {lastSynced}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
