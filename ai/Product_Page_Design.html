@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Product Management | The Atrium Admin</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "inverse-on-surface": "#9a9e9d",
+                    "on-error": "#fff7f6",
+                    "inverse-surface": "#0b0f0f",
+                    "on-secondary-fixed": "#2f4341",
+                    "outline-variant": "#abb4b3",
+                    "on-secondary-fixed-variant": "#4b605d",
+                    "tertiary-dim": "#2b586f",
+                    "secondary-dim": "#425754",
+                    "on-tertiary-fixed-variant": "#305d74",
+                    "background": "#f7faf9",
+                    "on-background": "#2c3434",
+                    "inverse-primary": "#91f0ec",
+                    "surface-tint": "#006b68",
+                    "on-error-container": "#6e0a12",
+                    "surface-container": "#e9efee",
+                    "secondary-fixed": "#d0e7e3",
+                    "secondary-container": "#d0e7e3",
+                    "on-primary-container": "#005a58",
+                    "error-container": "#fa746f",
+                    "surface-dim": "#d3dcdb",
+                    "primary": "#006b68",
+                    "secondary-fixed-dim": "#c2d9d5",
+                    "on-tertiary-fixed": "#0d4056",
+                    "surface": "#f7faf9",
+                    "error-dim": "#67040d",
+                    "tertiary-container": "#b7e3ff",
+                    "error": "#a83836",
+                    "primary-fixed": "#91f0ec",
+                    "surface-container-high": "#e2eae9",
+                    "on-secondary-container": "#415653",
+                    "on-primary-fixed": "#004544",
+                    "on-surface-variant": "#586160",
+                    "on-surface": "#2c3434",
+                    "on-primary-fixed-variant": "#006563",
+                    "secondary": "#4e6360",
+                    "on-tertiary-container": "#26536a",
+                    "on-primary": "#e1fffd",
+                    "outline": "#737c7c",
+                    "primary-fixed-dim": "#83e1de",
+                    "primary-dim": "#005d5b",
+                    "surface-container-lowest": "#ffffff",
+                    "primary-container": "#91f0ec",
+                    "surface-variant": "#dbe4e3",
+                    "tertiary-fixed": "#b7e3ff",
+                    "tertiary-fixed-dim": "#a9d5f0",
+                    "on-tertiary": "#f4faff",
+                    "tertiary": "#38647c",
+                    "surface-container-low": "#f0f5f4",
+                    "on-secondary": "#e7fefa",
+                    "surface-bright": "#f7faf9",
+                    "surface-container-highest": "#dbe4e3"
+            },
+            "borderRadius": {
+                    "DEFAULT": "1rem",
+                    "lg": "2rem",
+                    "xl": "3rem",
+                    "full": "9999px"
+            },
+            "fontFamily": {
+                    "headline": ["Plus Jakarta Sans"],
+                    "display": ["Plus Jakarta Sans"],
+                    "body": ["Plus Jakarta Sans"],
+                    "label": ["Plus Jakarta Sans"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #abb4b3; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-background text-on-background antialiased overflow-x-hidden">
+<!-- Side Navigation Bar -->
+<aside class="h-screen w-64 fixed left-0 top-0 bg-surface dark:bg-inverse-surface flex flex-col border-r border-outline-variant/15 z-50">
+<div class="text-headline-sm font-display font-bold text-primary dark:text-inverse-primary px-4 py-6">
+            The Atrium
+        </div>
+<nav class="flex-grow py-4 space-y-1 overflow-y-auto">
+<a class="flex items-center gap-3 text-on-surface-variant dark:text-surface-variant mx-2 px-4 py-3 hover:bg-surface-container-highest dark:hover:bg-surface-dim rounded-full transition-colors" href="#">
+<span class="material-symbols-outlined">home</span>
+<span class="font-body text-label-sm font-medium">Home</span>
+</a>
+<!-- BROWSE ACTIVE: Product Management sits under browse/inventory logic -->
+<a class="flex items-center gap-3 bg-secondary-container dark:bg-secondary text-on-secondary-container dark:text-on-secondary rounded-full mx-2 px-4 py-3 font-bold" href="#">
+<span class="material-symbols-outlined">search</span>
+<span class="font-body text-label-sm font-medium">Browse</span>
+</a>
+<a class="flex items-center gap-3 text-on-surface-variant dark:text-surface-variant mx-2 px-4 py-3 hover:bg-surface-container-highest dark:hover:bg-surface-dim rounded-full transition-colors" href="#">
+<span class="material-symbols-outlined">favorite</span>
+<span class="font-body text-label-sm font-medium">Favorites</span>
+</a>
+<a class="flex items-center gap-3 text-on-surface-variant dark:text-surface-variant mx-2 px-4 py-3 hover:bg-surface-container-highest dark:hover:bg-surface-dim rounded-full transition-colors" href="#">
+<span class="material-symbols-outlined">receipt_long</span>
+<span class="font-body text-label-sm font-medium">Orders</span>
+</a>
+<a class="flex items-center gap-3 text-on-surface-variant dark:text-surface-variant mx-2 px-4 py-3 hover:bg-surface-container-highest dark:hover:bg-surface-dim rounded-full transition-colors" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="font-body text-label-sm font-medium">Profile</span>
+</a>
+</nav>
+<div class="px-4 py-6 mt-auto">
+<button class="w-full bg-primary text-on-primary rounded-full py-3 px-6 flex items-center justify-center gap-2 hover:opacity-90 transition-all font-bold active:scale-95">
+<span class="material-symbols-outlined">add</span>
+                New Order
+            </button>
+</div>
+<div class="border-t border-outline-variant/15 p-2 space-y-1">
+<a class="flex items-center gap-3 text-on-surface-variant dark:text-surface-variant mx-2 px-4 py-3 hover:bg-surface-container-highest dark:hover:bg-surface-dim rounded-full transition-colors" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-body text-label-sm font-medium">Settings</span>
+</a>
+<a class="flex items-center gap-3 text-on-surface-variant dark:text-surface-variant mx-2 px-4 py-3 hover:bg-surface-container-highest dark:hover:bg-surface-dim rounded-full transition-colors" href="#">
+<span class="material-symbols-outlined">logout</span>
+<span class="font-body text-label-sm font-medium">Logout</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-64 min-h-screen">
+<!-- Top App Bar -->
+<header class="flex justify-between items-center w-full px-8 h-16 sticky top-0 z-40 bg-surface/80 dark:bg-inverse-surface/80 backdrop-blur-xl border-b border-outline-variant/15">
+<nav class="flex items-center gap-2 text-label-sm text-on-surface-variant">
+<span>Admin</span>
+<span class="material-symbols-outlined text-[16px]">chevron_right</span>
+<span class="text-primary font-bold">Product Management</span>
+</nav>
+<div class="flex items-center gap-6">
+<div class="relative hidden lg:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+<input class="bg-surface-container-low border-none rounded-full pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-primary w-64 transition-all" placeholder="Search products..." type="text"/>
+</div>
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-on-surface-variant hover:text-primary transition-colors">notifications</button>
+<button class="material-symbols-outlined text-on-surface-variant hover:text-primary transition-colors">help_outline</button>
+<div class="h-8 w-8 rounded-full overflow-hidden bg-surface-container-highest">
+<img class="w-full h-full object-cover" data-alt="A professional studio headshot of a friendly female administrator with a warm smile, wearing a modern business-casual outfit against a clean, soft-lit botanical background that reflects the premium organic branding of The Atrium." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBJ_F5NZD--4dobWRHzpdlpBxizk_bVZoDu8IyLodtFwGpEAhS9jSST0Kx8aNllzadlyCmX8szXSAkDHoS2G_55br3dDcfxGzA8LKdyMpcVv5hiD38J-45jUNIgQXxbvUoBnJoDMstOaTqnkaZJ0_fecDpROJ3JvkyZW3_Wbxe3GYnkSNSgWr7UTPiixaK0J-Q8n-tng5ZN1KqK2a8x4HZrmrD19R0cywsu0CxOHduybjJzZlsXSKmt"/>
+</div>
+</div>
+</div>
+</header>
+<section class="p-8 max-w-7xl mx-auto">
+<!-- Page Header -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
+<div>
+<h1 class="font-display text-4xl font-extrabold tracking-tight text-on-surface">Product Management</h1>
+<p class="text-on-surface-variant mt-2 text-lg">Manage your premium organic inventory and catalog.</p>
+</div>
+<button class="bg-primary text-on-primary rounded-full px-8 py-4 font-bold flex items-center gap-3 hover:shadow-lg hover:-translate-y-0.5 transition-all active:scale-95 shadow-primary/20">
+<span class="material-symbols-outlined">add_circle</span>
+                    Add New Product
+                </button>
+</div>
+<!-- Filter & Sort Bar -->
+<div class="flex flex-wrap items-center justify-between gap-4 mb-8">
+<div class="flex items-center gap-3 overflow-x-auto pb-2 no-scrollbar">
+<button class="bg-primary text-on-primary rounded-full px-5 py-2 text-sm font-semibold whitespace-nowrap">All Products (124)</button>
+<button class="bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest rounded-full px-5 py-2 text-sm font-semibold whitespace-nowrap transition-colors">Active</button>
+<button class="bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest rounded-full px-5 py-2 text-sm font-semibold whitespace-nowrap transition-colors">Drafts</button>
+<button class="bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest rounded-full px-5 py-2 text-sm font-semibold whitespace-nowrap transition-colors">Low Stock</button>
+<div class="h-6 w-[1px] bg-outline-variant/30 mx-2"></div>
+<button class="flex items-center gap-1 text-primary text-sm font-bold">
+<span class="material-symbols-outlined text-[18px]">filter_list</span>
+                        More Filters
+                    </button>
+</div>
+<div class="flex items-center gap-3">
+<span class="text-sm text-on-surface-variant font-medium">Sort by:</span>
+<select class="bg-surface-container-low border-none rounded-full text-sm font-semibold px-4 py-2 focus:ring-primary cursor-pointer transition-all">
+<option>Newest first</option>
+<option>Alphabetical (A-Z)</option>
+<option>Price (Low to High)</option>
+<option>Price (High to Low)</option>
+</select>
+</div>
+</div>
+<!-- Product Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+<!-- Product Card 1 -->
+<div class="group relative bg-surface-container-low rounded-lg overflow-hidden flex flex-col border border-outline-variant/10 hover:border-primary/20 transition-all hover:shadow-xl hover:shadow-primary/5">
+<div class="aspect-[4/3] w-full overflow-hidden relative">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" data-alt="Close-up macro photography of vibrant organic heirloom tomatoes in shades of ruby red, deep purple, and golden yellow, glistening with fresh morning dew drops. The shot is taken in natural sunlight, emphasizing high-end organic quality and fresh textures for a premium marketplace feel." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCuLlhSe3QQMnmHoWN185XTxgYwI4w_-hTpamd3ITFG61PNC_KtHGTs5wjJ8xOXLbXDhgx-WhqW_TvIhRcoCKRy4tAvuwhCexmhLKopq17r8D1FezLBXuWRmaOxXqusz0qJmGwHo35W-PRq08TH_zidALR0OP0EGM20GZ570qT2ybo2fdCmr-EBNLeoBdge10cIQTR2bMYL0Ue1w1iJlGRm_tTdkXtsgBH1HFwtOMHlHRc3woLCtRnC"/>
+<div class="absolute top-4 left-4 flex gap-2">
+<span class="bg-primary/90 text-on-primary text-[10px] font-black tracking-widest uppercase py-1 px-3 rounded-full backdrop-blur-md">Active</span>
+</div>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-6 gap-3">
+<button class="flex-1 bg-white text-on-surface font-bold py-2 rounded-full text-sm hover:bg-primary hover:text-white transition-colors">Quick Edit</button>
+<button class="bg-white/20 backdrop-blur-md text-white p-2 rounded-full hover:bg-red-500 transition-colors">
+<span class="material-symbols-outlined text-[20px]">delete</span>
+</button>
+</div>
+</div>
+<div class="p-6 flex flex-col flex-grow">
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-display font-bold text-xl text-on-surface">Heirloom Heritage Tomatoes</h3>
+<span class="font-bold text-lg text-primary">$12.50</span>
+</div>
+<div class="flex flex-wrap gap-2 mb-6">
+<span class="bg-secondary-container text-on-secondary-container text-[11px] font-bold px-3 py-1 rounded-full">Organic</span>
+<span class="bg-tertiary-container text-on-tertiary-container text-[11px] font-bold px-3 py-1 rounded-full">Local Farm</span>
+</div>
+<div class="mt-auto grid grid-cols-2 gap-3">
+<button class="bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-semibold py-3 rounded-xl text-sm transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]">edit</span>
+                                Full Edit
+                            </button>
+<button class="bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-semibold py-3 rounded-xl text-sm transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]">visibility_off</span>
+                                Deactivate
+                            </button>
+</div>
+</div>
+</div>
+<!-- Product Card 2 -->
+<div class="group relative bg-surface-container-low rounded-lg overflow-hidden flex flex-col border border-outline-variant/10 hover:border-primary/20 transition-all hover:shadow-xl hover:shadow-primary/5">
+<div class="aspect-[4/3] w-full overflow-hidden relative">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" data-alt="A minimalist overhead shot of artisanal sourdough bread with intricate crust patterns, resting on a clean marble surface with a light dusting of flour. Soft diffused lighting captures the airy texture and golden crust, reflecting a high-end bakery aesthetic consistent with a premium organic grocery store." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCXB2SdrZzIBmg7EWqMK4HPhbdkC52tanXF6EcymCdYIOiW8I1iwJ-jX5gqYT7YVO9-cGRqCGScvmvCzMAzomVDLdrqSRwk0gnc9YGNLh5nLVcW3sXM2jAWCSTyOiDoUundXscYqhNFWcX1TBlBo8QlTdnfwDIQW2FclATBdBLewxLEfTTs0AsiNSCwauY4G-pJ_c-BMjdMbw8ubM4FhwLnCXnwSWrlq6eru5GgsNQ_4Icc-WNtZtCA"/>
+<div class="absolute top-4 left-4 flex gap-2">
+<span class="bg-outline text-white text-[10px] font-black tracking-widest uppercase py-1 px-3 rounded-full backdrop-blur-md">Draft</span>
+</div>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-6 gap-3">
+<button class="flex-1 bg-white text-on-surface font-bold py-2 rounded-full text-sm hover:bg-primary hover:text-white transition-colors">Quick Edit</button>
+<button class="bg-white/20 backdrop-blur-md text-white p-2 rounded-full hover:bg-red-500 transition-colors">
+<span class="material-symbols-outlined text-[20px]">delete</span>
+</button>
+</div>
+</div>
+<div class="p-6 flex flex-col flex-grow">
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-display font-bold text-xl text-on-surface">Artisanal Sourdough Loaf</h3>
+<span class="font-bold text-lg text-primary">$8.00</span>
+</div>
+<div class="flex flex-wrap gap-2 mb-6">
+<span class="bg-secondary-container text-on-secondary-container text-[11px] font-bold px-3 py-1 rounded-full">Gluten-Free Option</span>
+<span class="bg-tertiary-container text-on-tertiary-container text-[11px] font-bold px-3 py-1 rounded-full">Bakery</span>
+</div>
+<div class="mt-auto grid grid-cols-2 gap-3">
+<button class="bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-semibold py-3 rounded-xl text-sm transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]">edit</span>
+                                Full Edit
+                            </button>
+<button class="bg-primary text-on-primary font-semibold py-3 rounded-xl text-sm transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]">publish</span>
+                                Publish
+                            </button>
+</div>
+</div>
+</div>
+<!-- Product Card 3 -->
+<div class="group relative bg-surface-container-low rounded-lg overflow-hidden flex flex-col border border-outline-variant/10 hover:border-primary/20 transition-all hover:shadow-xl hover:shadow-primary/5">
+<div class="aspect-[4/3] w-full overflow-hidden relative">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" data-alt="Beautifully arranged glass bottles of cold-pressed green juice containing kale, cucumber, and apple. The bottles are set in an airy, sun-drenched atrium with blurred lush greenery in the background. The lighting is crisp and refreshing, conveying health, vitality, and sophisticated organic branding." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA0bDGigreCPhkhuaGblxq_j9Qp3j8Cr3QCxa_36iYipMpFai6zoSXayHqvkYGXOPk8r5t_b_NKmoZAJe0znRJtjs0jkjI6xOWDFQ4cLbLPFB97CloUcVm3aS7z1St-DGpEDx1t5sNwUvcETz1rh99OaHdogOJDMqnGP-ZnCV4Z8bI3MN-CS879BEY4wULR5LkWan8ijZ8DMOQhQ8cy6eolATmo_8rXe7kH8sGe-hBku9ETz5ZBNvPM"/>
+<div class="absolute top-4 left-4 flex gap-2">
+<span class="bg-primary/90 text-on-primary text-[10px] font-black tracking-widest uppercase py-1 px-3 rounded-full backdrop-blur-md">Active</span>
+<span class="bg-error text-on-error text-[10px] font-black tracking-widest uppercase py-1 px-3 rounded-full backdrop-blur-md">Low Stock</span>
+</div>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-6 gap-3">
+<button class="flex-1 bg-white text-on-surface font-bold py-2 rounded-full text-sm hover:bg-primary hover:text-white transition-colors">Quick Edit</button>
+<button class="bg-white/20 backdrop-blur-md text-white p-2 rounded-full hover:bg-red-500 transition-colors">
+<span class="material-symbols-outlined text-[20px]">delete</span>
+</button>
+</div>
+</div>
+<div class="p-6 flex flex-col flex-grow">
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-display font-bold text-xl text-on-surface">Emerald Cold-Press Juice</h3>
+<span class="font-bold text-lg text-primary">$9.50</span>
+</div>
+<div class="flex flex-wrap gap-2 mb-6">
+<span class="bg-secondary-container text-on-secondary-container text-[11px] font-bold px-3 py-1 rounded-full">Vegan</span>
+<span class="bg-tertiary-container text-on-tertiary-container text-[11px] font-bold px-3 py-1 rounded-full">Pressery</span>
+</div>
+<div class="mt-auto grid grid-cols-2 gap-3">
+<button class="bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-semibold py-3 rounded-xl text-sm transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]">inventory_2</span>
+                                Restock
+                            </button>
+<button class="bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-semibold py-3 rounded-xl text-sm transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]">edit</span>
+                                Full Edit
+                            </button>
+</div>
+</div>
+</div>
+<!-- Product Card 4 -->
+<div class="group relative bg-surface-container-low rounded-lg overflow-hidden flex flex-col border border-outline-variant/10 hover:border-primary/20 transition-all hover:shadow-xl hover:shadow-primary/5">
+<div class="aspect-[4/3] w-full overflow-hidden relative">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" data-alt="A premium close-up of ethically sourced dark chocolate truffles dusted with high-quality cocoa powder, presented on an organic slate platter. The background is softly out of focus, showing dark wood and a sprig of mint, creating a luxurious and artisanal mood for gourmet treats." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAOwfcG1JVENI9e2FvQK6c-4ZEAB78333jXbukc1SJ0oa8RpS8qbDE5fexcUybm5L2hzKCfpMD5YYYLUnHD0_50cHQnNnemWBx8L9DP2NAeEl3BZbjTmsrI6xmJqasWb6DrtOzt_wX_n0ne-MqzdgpbXzeGPCIhY4LYkJNM3O35POV6N4ZL9_ycjsDXR-7CIlKH7iqryQGFmBNJ3Czqjx4YdpIrLcmUKpe1QN0wVVMy1GkZqEf7ASP0"/>
+<div class="absolute top-4 left-4 flex gap-2">
+<span class="bg-primary/90 text-on-primary text-[10px] font-black tracking-widest uppercase py-1 px-3 rounded-full backdrop-blur-md">Active</span>
+</div>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-6 gap-3">
+<button class="flex-1 bg-white text-on-surface font-bold py-2 rounded-full text-sm hover:bg-primary hover:text-white transition-colors">Quick Edit</button>
+<button class="bg-white/20 backdrop-blur-md text-white p-2 rounded-full hover:bg-red-500 transition-colors">
+<span class="material-symbols-outlined text-[20px]">delete</span>
+</button>
+</div>
+</div>
+<div class="p-6 flex flex-col flex-grow">
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-display font-bold text-xl text-on-surface">Dark Cocoa Sea Salt Truffles</h3>
+<span class="font-bold text-lg text-primary">$18.00</span>
+</div>
+<div class="flex flex-wrap gap-2 mb-6">
+<span class="bg-secondary-container text-on-secondary-container text-[11px] font-bold px-3 py-1 rounded-full">Fair Trade</span>
+<span class="bg-tertiary-container text-on-tertiary-container text-[11px] font-bold px-3 py-1 rounded-full">Gourmet</span>
+</div>
+<div class="mt-auto grid grid-cols-2 gap-3">
+<button class="bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-semibold py-3 rounded-xl text-sm transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]">edit</span>
+                                Full Edit
+                            </button>
+<button class="bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-semibold py-3 rounded-xl text-sm transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]">visibility_off</span>
+                                Deactivate
+                            </button>
+</div>
+</div>
+</div>
+<!-- Add New Product Empty State Card -->
+<button class="group relative bg-dashed border-2 border-dashed border-outline-variant/30 rounded-lg overflow-hidden flex flex-col items-center justify-center p-8 hover:border-primary/40 hover:bg-surface-container-low transition-all min-h-[400px]">
+<div class="w-16 h-16 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-[32px]">add</span>
+</div>
+<span class="font-display font-bold text-xl text-on-surface">Add New Product</span>
+<p class="text-sm text-on-surface-variant text-center mt-2 max-w-[200px]">Click to create a new entry in your organic catalog.</p>
+</button>
+</div>
+<!-- Pagination (Mobile/Simple) -->
+<div class="mt-12 flex items-center justify-between border-t border-outline-variant/15 pt-8">
+<span class="text-sm text-on-surface-variant">Showing 1 to 4 of 124 products</span>
+<div class="flex items-center gap-2">
+<button class="p-2 rounded-full hover:bg-surface-container-high text-on-surface-variant disabled:opacity-30" disabled="">
+<span class="material-symbols-outlined">chevron_left</span>
+</button>
+<button class="w-8 h-8 rounded-full bg-primary text-on-primary text-sm font-bold">1</button>
+<button class="w-8 h-8 rounded-full hover:bg-surface-container-high text-on-surface-variant text-sm font-bold">2</button>
+<button class="w-8 h-8 rounded-full hover:bg-surface-container-high text-on-surface-variant text-sm font-bold">3</button>
+<span class="text-on-surface-variant">...</span>
+<button class="w-8 h-8 rounded-full hover:bg-surface-container-high text-on-surface-variant text-sm font-bold">31</button>
+<button class="p-2 rounded-full hover:bg-surface-container-high text-on-surface-variant">
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+</div>
+</div>
+</section>
+</main>
+<!-- FAB for Quick Actions (Mobile) -->
+<div class="md:hidden fixed bottom-6 right-6 z-50">
+<button class="w-14 h-14 bg-primary text-on-primary rounded-full shadow-2xl flex items-center justify-center">
+<span class="material-symbols-outlined">add</span>
+</button>
+</div>
+<!-- Quick Edit Modal Placeholder (Hidden by default) -->
+<div class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4" id="quickEditModal">
+<div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="toggleModal()"></div>
+<div class="glass-panel relative w-full max-w-md rounded-lg p-8 shadow-2xl border border-white/20">
+<h2 class="text-2xl font-display font-bold mb-6">Quick Edit</h2>
+<div class="space-y-4">
+<div>
+<label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Price (USD)</label>
+<input class="w-full bg-surface border-outline-variant/30 rounded-xl px-4 py-3 focus:ring-primary focus:border-primary" type="text" value="12.50"/>
+</div>
+<div>
+<label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Stock Level</label>
+<input class="w-full bg-surface border-outline-variant/30 rounded-xl px-4 py-3 focus:ring-primary focus:border-primary" type="number" value="45"/>
+</div>
+<div>
+<label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Status</label>
+<select class="w-full bg-surface border-outline-variant/30 rounded-xl px-4 py-3 focus:ring-primary focus:border-primary">
+<option>Active</option>
+<option>Draft</option>
+<option>Archived</option>
+</select>
+</div>
+</div>
+<div class="flex gap-3 mt-8">
+<button class="flex-1 bg-surface-container-high text-on-surface font-bold py-3 rounded-xl hover:bg-surface-container-highest transition-colors" onclick="toggleModal()">Cancel</button>
+<button class="flex-1 bg-primary text-on-primary font-bold py-3 rounded-xl hover:opacity-90 transition-colors shadow-lg shadow-primary/20">Save Changes</button>
+</div>
+</div>
+</div>
+<script>
+        function toggleModal() {
+            const modal = document.getElementById('quickEditModal');
+            modal.classList.toggle('hidden');
+        }
+
+        // Simulating some interactivity
+        document.querySelectorAll('button').forEach(btn => {
+            if (btn.innerText.includes('Quick Edit')) {
+                btn.onclick = (e) => {
+                    e.preventDefault();
+                    toggleModal();
+                };
+            }
+        });
+    </script>
+</body></html>

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -86,6 +87,183 @@ function StatusPill({ status }) {
     <span className={cn("inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase", statusClasses(status))}>
       {formatStatusLabel(status)}
     </span>
+  );
+}
+
+function getPaymentMethodLabel(method, t) {
+  switch (method) {
+    case "CASH_ON_DELIVERY":
+      return t("cash_on_delivery");
+    case "KHQR":
+      return "KHQR / Bakong";
+    case "CREDIT_CARD":
+      return t("credit_card");
+    case "BANK_TRANSFER":
+      return t("bank_transfer");
+    default:
+      return method || t("cash_on_delivery");
+  }
+}
+
+function KhqrPaymentPanel({ payment, onCancel, onPaid }) {
+  const [currentPayment, setCurrentPayment] = useState(payment);
+  const [message, setMessage] = useState("Checking payment...");
+  const onPaidRef = useRef(onPaid);
+
+  useEffect(() => {
+    onPaidRef.current = onPaid;
+  }, [onPaid]);
+
+  useEffect(() => {
+    if (!payment?.id) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    let timeoutId;
+    let attempt = 0;
+    let latestPayment = payment;
+    const startedAt = Date.now();
+    const maxPollingMs = 10 * 60 * 1000;
+
+    async function poll() {
+      if (cancelled || Date.now() - startedAt > maxPollingMs) {
+        if (!cancelled) {
+          setMessage("Still waiting for payment. You can check your order again after reconnecting.");
+        }
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/ecommerce/payments/${encodeURIComponent(payment.id)}/status`, {
+          cache: "no-store",
+        });
+        const data = await response.json();
+
+        if (!response.ok || !data.payment) {
+          throw new Error(data.error || "Unable to check payment.");
+        }
+
+        if (cancelled) {
+          return;
+        }
+
+        latestPayment = {
+          ...latestPayment,
+          ...data.payment,
+          qr: data.payment.qr || latestPayment?.qr,
+          qrImage: data.payment.qrImage || latestPayment?.qrImage,
+          deeplink: data.payment.deeplink || latestPayment?.deeplink,
+        };
+        setCurrentPayment(latestPayment);
+
+        if (latestPayment.status === "PAID") {
+          setMessage("Payment verified.");
+          onPaidRef.current?.(latestPayment);
+          return;
+        }
+
+        if (latestPayment.status === "FAILED") {
+          setMessage("We could not verify this payment.");
+          return;
+        }
+
+        if (latestPayment.status === "EXPIRED") {
+          setMessage("This payment request has expired.");
+          return;
+        }
+
+        setMessage("Waiting for payment...");
+      } catch {
+        if (!cancelled) {
+          setMessage("Connection interrupted. Retrying payment check...");
+        }
+      }
+
+      attempt += 1;
+      timeoutId = window.setTimeout(poll, Math.min(attempt * 3000, 15000));
+    }
+
+    poll();
+
+    return () => {
+      cancelled = true;
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [payment]);
+
+  const isPaid = currentPayment?.status === "PAID";
+  const isFailed = currentPayment?.status === "FAILED";
+  const isExpired = currentPayment?.status === "EXPIRED";
+  const orderNumber = currentPayment?.orderNumber || currentPayment?.orderId;
+
+  return (
+    <Card className="mx-auto max-w-2xl">
+      {isPaid ? (
+        <div className="py-6 text-center">
+          <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+            <CheckCircle2 className="size-7" />
+          </div>
+          <h2 className="mt-4 text-2xl font-semibold text-[var(--foreground)]">Payment Successful</h2>
+          <p className="mt-2 text-sm text-[var(--muted-foreground)]">Your payment has been verified.</p>
+          <p className="mt-4 text-sm font-semibold text-[var(--foreground)]">Order #{orderNumber}</p>
+          <Button type="button" className="mt-6" onClick={onCancel}>
+            View Order
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold uppercase text-[var(--muted-foreground)]">Payment</p>
+              <h2 className="mt-1 text-2xl font-semibold text-[var(--foreground)]">Order #{orderNumber}</h2>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-[var(--muted-foreground)]">Amount</p>
+              <p className="text-2xl font-semibold text-[var(--foreground)]">
+                {currentPayment?.currency === "KHR"
+                  ? `${Math.round(currentPayment.amount).toLocaleString()} KHR`
+                  : formatCurrency(currentPayment?.amount || 0)}
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-quiet)] p-4 text-center">
+            {currentPayment?.qrImage ? (
+              <Image
+                src={currentPayment.qrImage}
+                alt={`KHQR payment for order ${orderNumber}`}
+                width={288}
+                height={288}
+                unoptimized
+                className="mx-auto aspect-square w-full max-w-72 rounded-xl bg-white p-3 shadow-sm"
+              />
+            ) : null}
+            <p className="mt-4 text-sm leading-6 text-[var(--muted-foreground)]">Scan this QR using your banking application.</p>
+          </div>
+
+          {currentPayment?.deeplink ? (
+            <a
+              href={currentPayment.deeplink}
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--action)] px-4 text-sm font-semibold text-[var(--action-foreground)] transition hover:opacity-90"
+            >
+              <CreditCard className="size-4" />
+              Open Payment App
+            </a>
+          ) : null}
+
+          <div className={cn("rounded-2xl px-4 py-3 text-sm", isFailed || isExpired ? "bg-rose-500/10 text-rose-600 dark:text-rose-300" : "bg-[var(--surface-quiet)] text-[var(--muted-foreground)]")}>
+            {message}
+          </div>
+
+          <Button type="button" className="w-full" onClick={onCancel}>
+            {isFailed || isExpired ? "Back to Orders" : "Cancel"}
+          </Button>
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -1099,10 +1277,11 @@ export function ClientCheckoutPageView() {
   const { t } = useTranslation(store.language);
   const router = useRouter();
   const [shippingAddress, setShippingAddress] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("Cash on delivery");
+  const [paymentMethod, setPaymentMethod] = useState("CASH_ON_DELIVERY");
   const [couponCode, setCouponCode] = useState("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [khqrPayment, setKhqrPayment] = useState(null);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -1125,15 +1304,52 @@ export function ClientCheckoutPageView() {
       couponCode: couponCode.trim(),
     });
 
-    setSubmitting(false);
-
     if (!result.success || !result.order) {
+      setSubmitting(false);
       setMessage(result.message || "Unable to place order.");
       return;
     }
 
-    setMessage(`Order ${result.order.id} placed successfully.`);
+    if (paymentMethod === "KHQR") {
+      try {
+        const response = await fetch("/api/ecommerce/payments/khqr/create", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ orderId: result.order.id }),
+        });
+        const data = await response.json();
+
+        setSubmitting(false);
+
+        if (!response.ok || !data.payment) {
+          setMessage(data.error || `Order ${result.order.orderNumber || result.order.id} was created, but KHQR payment could not be prepared.`);
+          return;
+        }
+
+        setKhqrPayment(data.payment);
+        return;
+      } catch {
+        setSubmitting(false);
+        setMessage(`Order ${result.order.orderNumber || result.order.id} was created, but payment setup is unavailable right now.`);
+        return;
+      }
+    }
+
+    setSubmitting(false);
+    setMessage(`Order ${result.order.orderNumber || result.order.id} placed successfully.`);
     router.push("/client?tab=orders");
+  }
+
+  if (khqrPayment) {
+    return (
+      <KhqrPaymentPanel
+        payment={khqrPayment}
+        onCancel={() => router.push("/client?tab=orders")}
+        onPaid={() => {}}
+      />
+    );
   }
 
   return (
@@ -1187,13 +1403,14 @@ export function ClientCheckoutPageView() {
             <input value={couponCode} onChange={(event) => setCouponCode(event.target.value)} placeholder={t("enter_coupon")} className="app-input px-4 py-3 text-sm" />
             <p className="text-xs leading-6 text-[var(--muted-foreground)]">{t("coupon_wallet_note")}</p>
             <select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)} className="app-select px-4 py-3 text-sm">
-              <option>{t("cash_on_delivery")}</option>
-              <option>{t("credit_card")}</option>
-              <option>{t("bank_transfer")}</option>
+              <option value="CASH_ON_DELIVERY">{getPaymentMethodLabel("CASH_ON_DELIVERY", t)}</option>
+              <option value="KHQR">KHQR / Bakong</option>
+              <option value="CREDIT_CARD">{getPaymentMethodLabel("CREDIT_CARD", t)}</option>
+              <option value="BANK_TRANSFER">{getPaymentMethodLabel("BANK_TRANSFER", t)}</option>
             </select>
             {message ? <div className="rounded-2xl bg-[var(--surface-quiet)] px-4 py-3 text-sm">{message}</div> : null}
             <Button type="submit" className="w-full" disabled={submitting || !store.cartItems.length}>
-              {submitting ? t("placing_order") : t("place_order")}
+              {submitting ? t("placing_order") : paymentMethod === "KHQR" ? "Create KHQR payment" : t("place_order")}
             </Button>
           </div>
         </Card>
@@ -1426,7 +1643,7 @@ export function ClientOrderHistoryPageView() {
                         </span>
                         <span className="inline-flex items-center gap-1.5">
                           <CreditCard className="size-3.5 text-[var(--action)]" />
-                          {order.paymentMethod}
+                          {getPaymentMethodLabel(order.paymentMethod, t)}
                         </span>
                       </div>
                     </div>
