@@ -45,6 +45,7 @@ next-env.d.ts
 # AI / agent tooling
 .aider*
 .agents
+ai/
 ai-services/
 **/.agents/
 .codex/
@@ -54,6 +55,7 @@ ai-services/
 .continue/
 .copilot/
 .cascade/
+
 
 # AI-generated documentation & planning files
 *.md
