@@ -1,4 +1,5 @@
-import { fail, getCurrentUser } from "@/lib/auth";
+import { fail } from "@/lib/api-response";
+import { canAccessPOS, getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(request) {
@@ -9,10 +10,14 @@ export async function GET(request) {
       return new Response("Unauthorized", { status: 401 });
     }
 
+    if (!canAccessPOS(user.role)) {
+      return fail("POS access required.", 403);
+    }
+
     const { searchParams } = new URL(request.url);
     const startDateParam = searchParams.get("startDate");
     const endDateParam = searchParams.get("endDate");
-    
+
     let start = new Date();
     let end = new Date();
 
@@ -28,6 +33,7 @@ export async function GET(request) {
 
     const baseWhere = {
       channel: "POS",
+      ...(user.branchId ? { branchId: user.branchId } : {}),
       ...(user.role === "CASHIER" ? { cashierUserId: user.id } : {}),
     };
 
@@ -66,7 +72,7 @@ export async function GET(request) {
 
     const csvContent = [
       headers.join(","),
-      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
+      ...rows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")),
     ].join("\n");
 
     return new Response(csvContent, {

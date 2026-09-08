@@ -152,8 +152,8 @@ async function reportProducts(branchFilter, cashierFilter, start, end) {
             select: {
               product: {
                 select: {
-                  category: { select: { name: true } },
-                  brand: { select: { name: true } },
+                  categoryRef: { select: { name: true } },
+                  brandRef: { select: { name: true } },
                 },
               },
             },
@@ -168,8 +168,8 @@ async function reportProducts(branchFilter, cashierFilter, start, end) {
 
   for (const sale of sales) {
     for (const item of sale.items || []) {
-      const catName = item.variant?.product?.category?.name || "Uncategorized";
-      const brandName = item.variant?.product?.brand?.name || "—";
+      const catName = item.variant?.product?.categoryRef?.name || "Uncategorized";
+      const brandName = item.variant?.product?.brandRef?.name || "—";
       const revenue = Number(item.lineTotal || 0);
       const cost = Number(item.costPrice || 0) * Number(item.quantity || 0);
       const qty = Number(item.quantity || 0);
@@ -438,8 +438,8 @@ async function reportProfitability(branchFilter, cashierFilter, start, end) {
             select: {
               product: {
                 select: {
-                  category: { select: { name: true } },
-                  brand: { select: { name: true } },
+                  categoryRef: { select: { name: true } },
+                  brandRef: { select: { name: true } },
                 },
               },
             },
@@ -461,7 +461,7 @@ async function reportProfitability(branchFilter, cashierFilter, start, end) {
       const revenue = Number(item.lineTotal || 0);
       const cost = Number(item.costPrice || 0) * Number(item.quantity || 0);
       const qty = Number(item.quantity || 0);
-      const catName = item.variant?.product?.category?.name || "Uncategorized";
+      const catName = item.variant?.product?.categoryRef?.name || "Uncategorized";
 
       totalCOGS += cost;
 

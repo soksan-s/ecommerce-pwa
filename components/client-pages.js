@@ -1454,6 +1454,7 @@ export function ClientOrderHistoryPageView() {
 
       return (
         order.id.toLowerCase().includes(lower) ||
+        String(order.orderNumber || "").toLowerCase().includes(lower) ||
         String(order.shippingAddress || "").toLowerCase().includes(lower) ||
         String(order.paymentMethod || "").toLowerCase().includes(lower) ||
         (order.lines || []).some((line) => String(line.productName || "").toLowerCase().includes(lower))
@@ -1634,7 +1635,7 @@ export function ClientOrderHistoryPageView() {
                         <StatusPill status={order.status} />
                       </div>
                       <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-                        Order {order.id} · {formatDate(order.createdAt)}
+                        Order {order.orderNumber || order.id} · {formatDate(order.createdAt)}
                       </p>
                       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[var(--muted-foreground)]">
                         <span className="inline-flex items-center gap-1.5">
@@ -1803,9 +1804,9 @@ export function ClientOrderDetailPageView({ orderId }) {
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--muted-foreground)]">
             <span>Order history</span>
             <ChevronRight className="size-3" />
-            <span className="font-semibold text-[var(--foreground)]">Order {order.id}</span>
+            <span className="font-semibold text-[var(--foreground)]">Order {order.orderNumber || order.id}</span>
           </div>
-          <h1 className="mt-2 break-words text-3xl font-semibold text-[var(--foreground)] sm:text-4xl">Order {order.id}</h1>
+          <h1 className="mt-2 break-words text-3xl font-semibold text-[var(--foreground)] sm:text-4xl">Order {order.orderNumber || order.id}</h1>
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-[var(--muted-foreground)]">
             <span className="inline-flex items-center gap-1.5">
               <CalendarRange className="size-4 text-[var(--action)]" />
