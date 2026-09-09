@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { ScanLine } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { CartItem } from "@/components/pos/CartItem";
 import { convertMoney, formatDisplayMoney } from "@/components/pos/format";
@@ -8,6 +9,8 @@ import { PaymentModal } from "@/components/pos/PaymentModal";
 import { ProductCard } from "@/components/pos/ProductCard";
 import { ReceiptView } from "@/components/pos/ReceiptView";
 import { VariantSelectorModal } from "@/components/pos/VariantSelectorModal";
+import { BarcodeScannerModal, useCameraBarcodeScanner } from "@/components/shared/barcode-scanner";
+import { useBarcodeScannerInput } from "@/hooks/useBarcodeScannerInput";
 import { useOffline } from "@/hooks/useOffline";
 import { usePOSSettings } from "@/hooks/usePOSSettings";
 import { addToQueue, getAll, getProductsFromCache, put, saveProductsToCache, updateLocalStock } from "@/lib/db";
@@ -252,16 +255,107 @@ export default function NewSalePage() {
         !lower ||
         product.name.toLowerCase().includes(lower) ||
         product.sku.toLowerCase().includes(lower) ||
+        String(product.barcode || "").toLowerCase().includes(lower) ||
         (product.variants &&
           product.variants.some(
-            (v) => v.name.toLowerCase().includes(lower) || v.sku.toLowerCase().includes(lower)
+            (v) =>
+              v.name.toLowerCase().includes(lower) ||
+              v.sku.toLowerCase().includes(lower) ||
+              String(v.barcode || "").toLowerCase().includes(lower)
           ));
       return matchesCategory && matchesQuery;
     });
   }, [category, products, query]);
 
-  const subtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
-  const taxBase = Math.max(0, subtotal - appliedDiscount.amount);
+  // ── Barcode scanning: local catalog first (works offline), then API lookup ──
+  const [scanState, setScanState] = useState({ status: "idle", message: "" });
+  const scanStateTimer = useRef(null);
+
+  function showScanStatus(status, message) {
+    setScanState({ status, message });
+    if (scanStateTimer.current) {
+      window.clearTimeout(scanStateTimer.current);
+    }
+    scanStateTimer.current = window.setTimeout(() => setScanState({ status: "idle", message: "" }), 4000);
+  }
+
+  function findLocalProductByCode(code) {
+    const needle = code.trim().toLowerCase();
+    for (const product of Array.isArray(products) ? products : []) {
+      if (
+        String(product.barcode || "").toLowerCase() === needle ||
+        String(product.sku || "").toLowerCase() === needle
+      ) {
+        return { product, variantId: null };
+      }
+      for (const variant of product.variants || []) {
+        if (
+          String(variant.barcode || "").toLowerCase() === needle ||
+          String(variant.sku || "").toLowerCase() === needle
+        ) {
+          return { product, variantId: variant.id };
+        }
+      }
+    }
+    return null;
+  }
+
+  function addLookedUpProduct(product, variantId) {
+    const variant = variantId ? (product.variants || []).find((entry) => entry.id === variantId) : null;
+    if (variant) {
+      addToCart(product, variant);
+      showScanStatus("success", `Added ${variant.name && variant.name !== "Default" ? `${product.name} (${variant.name})` : product.name}`);
+    } else if (product.variants && product.variants.length > 1) {
+      setVariantModalProduct(product);
+      showScanStatus("success", `Select a variant for ${product.name}`);
+    } else {
+      addToCart(product);
+      showScanStatus("success", `Added ${product.name}`);
+    }
+  }
+
+  const handleBarcodeScan = useCallback(
+    async (code) => {
+      const clean = String(code || "").trim();
+      if (!clean) {
+        return;
+      }
+
+      const local = findLocalProductByCode(clean);
+      if (local) {
+        addLookedUpProduct(local.product, local.variantId);
+        return;
+      }
+
+      if (!isOnline) {
+        showScanStatus("error", `Product with barcode ${clean} was not found.`);
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/products/lookup?barcode=${encodeURIComponent(clean)}`, {
+          cache: "no-store",
+        });
+        const payload = await response.json();
+        if (response.ok && payload.data?.product) {
+          addLookedUpProduct(payload.data.product, payload.data.variantId);
+          return;
+        }
+        showScanStatus("error", `Product with barcode ${clean} was not found.`);
+      } catch {
+        showScanStatus("error", `Product with barcode ${clean} was not found.`);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [products, isOnline, addToCart]
+  );
+
+  // Physical USB/Bluetooth scanners emulate keyboard input ending in Enter.
+  useBarcodeScannerInput({ enabled: true, onScan: handleBarcodeScan });
+
+  const scanner = useCameraBarcodeScanner({ onDetected: handleBarcodeScan });
+
+  const subtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);  const taxBase = Math.max(0, subtotal - appliedDiscount.amount);
   const tax = settings.tax.enabled
     ? settings.tax.taxType === "inclusive"
       ? Number((taxBase - taxBase / (1 + settings.tax.taxRate / 100)).toFixed(2))
@@ -556,22 +650,44 @@ export default function NewSalePage() {
       <div className="min-h-[calc(100dvh-2rem)] md:grid md:h-full md:min-h-0 md:grid-cols-[minmax(0,1fr)_22rem] md:gap-5 xl:grid-cols-[minmax(0,1fr)_26rem]">
         <section className="min-h-[36rem] overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-4 shadow-xs md:min-h-0 text-[var(--foreground)] transition-colors flex flex-col">
           <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
-            <div className="relative flex-1">
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search product name, SKU, or variant..."
-                className="w-full rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3.5 py-2.5 text-xs font-semibold text-[var(--foreground)] outline-none focus:border-[var(--pos-action)] transition-colors placeholder:text-[var(--muted-foreground)]"
-              />
-              {query ? (
-                <button
-                  type="button"
-                  onClick={() => setQuery("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-xs font-bold text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                >
-                  ✕
-                </button>
-              ) : null}
+            <div className="flex flex-1 items-center gap-2">
+              <div className="relative flex-1">
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    // A scanner typing into the focused search box ends with
+                    // Enter — treat it as an exact barcode/SKU lookup first.
+                    if (event.key === "Enter") {
+                      const value = query.trim();
+                      if (value.length >= 4 && !value.includes(" ")) {
+                        event.preventDefault();
+                        handleBarcodeScan(value);
+                      }
+                    }
+                  }}
+                  placeholder="Search product name, SKU, barcode, or variant…"
+                  className="w-full rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3.5 py-2.5 text-xs font-semibold text-[var(--foreground)] outline-none focus:border-[var(--pos-action)] transition-colors placeholder:text-[var(--muted-foreground)]"
+                />
+                {query ? (
+                  <button
+                    type="button"
+                    onClick={() => setQuery("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-xs font-bold text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                  >
+                    ✕
+                  </button>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                onClick={scanner.openScanner}
+                title="Scan barcode with camera"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[var(--pos-action)] px-3 py-2.5 text-xs font-extrabold text-[var(--pos-action-fg)] shadow-xs transition-all hover:bg-[var(--pos-action-hover)] active:scale-[0.98]"
+              >
+                <ScanLine className="size-4" />
+                Scan
+              </button>
             </div>
             <button
               type="button"
@@ -582,6 +698,19 @@ export default function NewSalePage() {
               Hold Sale
             </button>
           </div>
+
+          {scanState.status !== "idle" ? (
+            <p
+              className={
+                scanState.status === "success"
+                  ? "rounded-lg bg-[var(--pos-action-surface)] px-3 py-2 text-xs font-bold text-[var(--pos-action-on-muted)]"
+                  : "rounded-lg bg-red-50 px-3 py-2 text-xs font-bold text-red-600 dark:bg-red-950/40 dark:text-red-400"
+              }
+              role="status"
+            >
+              {scanState.message}
+            </p>
+          ) : null}
 
           <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
             {categories.map((entry) => (
@@ -669,6 +798,19 @@ export default function NewSalePage() {
         onSelectVariant={(product, variant) => {
           addToCart(product, variant);
         }}
+      />
+
+      <BarcodeScannerModal
+        open={scanner.open}
+        status={scanner.status}
+        errorMessage={scanner.errorMessage}
+        videoRef={scanner.videoRef}
+        onClose={scanner.close}
+        onRetry={scanner.retry}
+        torchSupported={scanner.torchSupported}
+        torchOn={scanner.torchOn}
+        onToggleTorch={scanner.toggleTorch}
+        onToggleCameraFacing={scanner.toggleCameraFacing}
       />
 
       <PaymentModal

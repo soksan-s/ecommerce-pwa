@@ -7,6 +7,24 @@ function toMoney(value) {
   return Number(Number(value || 0).toFixed(2));
 }
 
+// Official human Sale ID (e.g. SALE-20260909-015) — sequential per day and
+// independent from the internal cuid. Order IDs (ORD-...) are a separate system.
+async function generateReceiptNumber(tx) {
+  const now = new Date();
+  const datePart = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+  const prefix = `SALE-${datePart}-`;
+
+  const start = (await tx.sale.count({ where: { receiptNumber: { startsWith: prefix } } })) + 1;
+  for (let i = start; i < start + 100; i += 1) {
+    const candidate = `${prefix}${String(i).padStart(3, "0")}`;
+    const existing = await tx.sale.findUnique({ where: { receiptNumber: candidate } });
+    if (!existing) {
+      return candidate;
+    }
+  }
+  return `${prefix}${Date.now().toString().slice(-6)}`;
+}
+
 export async function POST(request) {
   try {
     const user = await getCurrentUser();
@@ -30,6 +48,7 @@ export async function POST(request) {
         return ok({
           data: {
             id: existing.id,
+            receiptNumber: existing.receiptNumber,
             synced: true,
             message: "Transaction already processed",
           },
@@ -170,6 +189,7 @@ export async function POST(request) {
       const created = await tx.sale.create({
         data: {
           ...(body.id ? { id: String(body.id) } : {}),
+          receiptNumber: await generateReceiptNumber(tx),
           channel: "POS",
           branchId,
           cashierUserId: user.id,
@@ -189,6 +209,7 @@ export async function POST(request) {
               sku: item.variant.sku,
               quantity: item.quantity,
               unitPrice: Number(item.variant.price),
+              lineTotal: Number((Number(item.variant.price) * item.quantity).toFixed(2)),
               note: item.note,
             })),
           },
@@ -198,6 +219,7 @@ export async function POST(request) {
               paymentMethodId: pm?.id || null,
               branchId,
               amount: totalMoney,
+              baseAmount: totalMoney,
               currency: body.currency || "USD",
               reference: body.reference || null,
             },
@@ -302,6 +324,7 @@ export async function POST(request) {
     return ok({
       data: {
         id: sale.id,
+        receiptNumber: sale.receiptNumber,
         synced: true,
       },
     });

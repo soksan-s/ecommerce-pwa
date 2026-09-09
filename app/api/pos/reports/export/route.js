@@ -1,6 +1,8 @@
 import { fail } from "@/lib/api-response";
 import { canAccessPOS, getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { buildCsv, buildPdf, exportFilename } from "@/lib/reports/exporters";
+import { POS_REPORTS, buildPosReportDataset } from "@/lib/reports/pos-datasets";
 
 export async function GET(request) {
   try {
@@ -15,6 +17,45 @@ export async function GET(request) {
     }
 
     const { searchParams } = new URL(request.url);
+
+    // ── Structured report export (pos-sales / pos-sales-detail / …) ─────────
+    const reportId = searchParams.get("report");
+    if (reportId) {
+      const format = (searchParams.get("format") || "csv").toLowerCase();
+      if (!POS_REPORTS.some((report) => report.id === reportId)) {
+        return fail(`Unknown POS report: ${reportId}`, 404);
+      }
+      if (format !== "csv" && format !== "pdf") {
+        return fail("Unsupported export format. Use csv or pdf.", 422);
+      }
+
+      const params = { ...Object.fromEntries(searchParams.entries()), all: "1" };
+      const dataset = await buildPosReportDataset(reportId, user, params);
+      const filename = exportFilename(reportId, format);
+
+      if (format === "pdf") {
+        const pdf = await buildPdf(dataset);
+        return new Response(new Uint8Array(pdf), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/pdf",
+            "Content-Disposition": `attachment; filename="${filename}"`,
+            "Cache-Control": "no-store",
+          },
+        });
+      }
+
+      return new Response(buildCsv(dataset), {
+        status: 200,
+        headers: {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": `attachment; filename="${filename}"`,
+          "Cache-Control": "no-store",
+        },
+      });
+    }
+
+    // ── Legacy flat transactions CSV export ─────────────────────────────────
     const startDateParam = searchParams.get("startDate");
     const endDateParam = searchParams.get("endDate");
 

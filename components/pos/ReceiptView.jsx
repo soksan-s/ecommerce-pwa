@@ -29,7 +29,7 @@ export function ReceiptView({ transaction, settings, onNewSale }) {
         </div>
 
         <div className="border-y border-dashed border-[var(--border-soft)] py-2.5 text-xs font-medium text-[var(--muted-foreground)] space-y-1">
-          <div className="flex justify-between"><span>Transaction</span><span className="font-mono text-[var(--foreground)]">{transaction.id}</span></div>
+          <div className="flex justify-between"><span>Sale ID</span><span className="font-mono text-[var(--foreground)]">{transaction.receiptNumber || transaction.id}</span></div>
           <div className="flex justify-between"><span>Date</span><span className="text-[var(--foreground)]">{new Date(transaction.timestamp).toLocaleString()}</span></div>
           <div className="flex justify-between"><span>Cashier</span><span className="text-[var(--foreground)]">{transaction.cashierName || "POS"}</span></div>
         </div>

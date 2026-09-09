@@ -547,7 +547,7 @@ export function AdminDashboardPageView() {
                       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                         <div>
                           <div className="flex flex-wrap items-center gap-3">
-                            <span className="font-semibold text-[var(--foreground)]">{order.id}</span>
+                            <span className="font-semibold text-[var(--foreground)]">{order.orderNumber || order.id}</span>
                             <StatusPill status={order.status} />
                           </div>
                           <p className="mt-2 text-[var(--muted-foreground)]">{order.shippingAddress}</p>
@@ -1720,7 +1720,7 @@ export function AdminOrderManagementPageView() {
           <div key={order.id} className="rounded-[1.6rem] border border-[var(--border-soft)] bg-[var(--surface-strong)] p-5">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
               <div>
-                <h2 className="text-xl font-semibold text-[var(--foreground)]">{order.id}</h2>
+                <h2 className="text-xl font-semibold text-[var(--foreground)]">{order.orderNumber || order.id}</h2>
                 <p className="mt-2 text-sm text-[var(--muted-foreground)]">{order.shippingAddress}</p>
               </div>
               <div className="grid gap-3 md:grid-cols-3">

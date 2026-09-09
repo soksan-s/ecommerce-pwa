@@ -31,7 +31,16 @@ export default function TestPhoneLoginPage() {
       confirmationResultRef.current = await signInWithPhoneNumber(firebaseAuth, phoneNumber, verifier);
       pushLog("Firebase OTP sent. Enter the Firebase test code.");
     } catch (error) {
-      pushLog(`Firebase send failed: ${error?.message || String(error)}`);
+      if (
+        error?.code === "auth/captcha-check-failed" ||
+        error?.message?.includes("captcha-check-failed") ||
+        error?.message?.includes("Hostname match not found")
+      ) {
+        const host = typeof window !== "undefined" ? window.location.hostname : "your IP/domain";
+        pushLog(`Firebase send failed: Domain "${host}" is not authorized. Add it in Firebase Console > Authentication > Settings > Authorized domains.`);
+      } else {
+        pushLog(`Firebase send failed: ${error?.message || String(error)}`);
+      }
     } finally {
       setBusy(false);
     }

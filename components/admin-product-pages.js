@@ -22,6 +22,7 @@ import {
   Plus,
   RefreshCw,
   Save,
+  ScanLine,
   Search,
   SlidersHorizontal,
   Tag,
@@ -31,6 +32,7 @@ import {
 } from "lucide-react";
 
 import { useAppStore } from "@/components/app-store-provider";
+import { BarcodeScannerModal, useCameraBarcodeScanner } from "@/components/shared/barcode-scanner";
 import { AppSelect } from "@/components/ui/app-select";
 import { cn, formatCurrency } from "@/lib/utils";
 
@@ -225,6 +227,7 @@ export function AdminAddProductPageView() {
     name: "",
     category: PRODUCT_CATEGORY_OPTIONS[0],
     sku: "",
+    barcode: "",
     description: "",
     image: "",
     price: "0",
@@ -246,6 +249,9 @@ export function AdminAddProductPageView() {
   const [publishActive, setPublishActive] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState("");
+  const scanner = useCameraBarcodeScanner({
+    onDetected: (code) => update("barcode", code),
+  });
 
   function update(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -323,6 +329,7 @@ export function AdminAddProductPageView() {
         discountPercent,
         stock: Number(form.stock) || 0,
         sku: form.sku,
+        barcode: form.barcode,
         minStockAlert: Number(form.minStockAlert) || 5,
         isActive: publishActive,
       });
@@ -379,6 +386,18 @@ export function AdminAddProductPageView() {
 
   return (
     <form onSubmit={handleSaveProduct} className="pb-32">
+      <BarcodeScannerModal
+        open={scanner.open}
+        status={scanner.status}
+        errorMessage={scanner.errorMessage}
+        videoRef={scanner.videoRef}
+        onClose={scanner.close}
+        onRetry={scanner.retry}
+        torchSupported={scanner.torchSupported}
+        torchOn={scanner.torchOn}
+        onToggleTorch={scanner.toggleTorch}
+        onToggleCameraFacing={scanner.toggleCameraFacing}
+      />
       {/* Breadcrumbs */}
       <nav className="mb-6 flex items-center gap-2 text-sm font-medium text-[var(--muted-foreground)]">
         <span>Admin</span>
@@ -446,6 +465,27 @@ export function AdminAddProductPageView() {
                   placeholder="ATR-VEG-001"
                   className="w-full rounded-full border-none bg-[var(--surface-soft)] px-6 py-3 text-sm uppercase tracking-wider outline-none transition-all focus:ring-2 focus:ring-[var(--action)]"
                 />
+              </div>
+              <div className="space-y-2">
+                <label className="ml-1 text-xs font-bold text-[var(--muted-foreground)]">Barcode</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    value={form.barcode}
+                    onChange={(event) => update("barcode", event.target.value)}
+                    placeholder="Scan or enter barcode (e.g. 8850001234567)"
+                    inputMode="text"
+                    autoComplete="off"
+                    className="w-full rounded-full border-none bg-[var(--surface-soft)] px-6 py-3 text-sm tracking-wider outline-none transition-all focus:ring-2 focus:ring-[var(--action)]"
+                  />
+                  <button
+                    type="button"
+                    onClick={scanner.openScanner}
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--action)] px-4 py-3 text-xs font-extrabold text-[var(--action-foreground)] transition-all hover:opacity-90 active:scale-[0.98]"
+                  >
+                    <ScanLine className="size-4" />
+                    Scan
+                  </button>
+                </div>
               </div>
               <div className="space-y-2">
                 <label className="ml-1 text-xs font-bold text-[var(--muted-foreground)]">Description</label>
@@ -1012,6 +1052,10 @@ export function AdminProductManagementPageView() {
   const [quickImage, setQuickImage] = useState("");
   const [fullEdit, setFullEdit] = useState(null);
   const [fullSaving, setFullSaving] = useState(false);
+  const [fullEditError, setFullEditError] = useState("");
+  const editScanner = useCameraBarcodeScanner({
+    onDetected: (code) => setFullEdit((current) => (current ? { ...current, barcode: code } : current)),
+  });
   const [restock, setRestock] = useState(null);
   const [restockAmount, setRestockAmount] = useState("10");
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -1022,7 +1066,20 @@ export function AdminProductManagementPageView() {
     const lower = query.trim().toLowerCase();
 
     let list = store.products.filter((product) => {
-      if (lower && ![product.name, product.category, product.description].some((value) => value?.toLowerCase().includes(lower))) {
+      if (
+        lower &&
+        ![
+          product.name,
+          product.category,
+          product.sku,
+          product.barcode,
+          product.description,
+        ].some((value) => value?.toLowerCase().includes(lower)) &&
+        !(product.variants || []).some(
+          (variant) =>
+            variant.sku?.toLowerCase().includes(lower) || variant.barcode?.toLowerCase().includes(lower)
+        )
+      ) {
         return false;
       }
       if (statusFilter === "active" && !product.isActive) {
@@ -1107,6 +1164,7 @@ export function AdminProductManagementPageView() {
       name: product.name || "",
       category: product.category || "",
       sku: product.sku || "",
+      barcode: product.barcode || "",
       description: product.description || "",
       image: product.image || "",
       price: String(product.price ?? 0),
@@ -1115,6 +1173,7 @@ export function AdminProductManagementPageView() {
       minStockAlert: String(product.minStockAlert ?? 5),
       isActive: product.isActive ?? true,
     });
+    setFullEditError("");
   }
 
   async function saveFullEdit() {
@@ -1123,10 +1182,11 @@ export function AdminProductManagementPageView() {
     }
     setFullSaving(true);
     try {
-      await store.updateProduct(fullEdit.id, {
+      const result = await store.updateProduct(fullEdit.id, {
         name: fullEdit.name,
         category: fullEdit.category,
         sku: fullEdit.sku,
+        barcode: fullEdit.barcode,
         description: fullEdit.description,
         image: fullEdit.image,
         price: Number(fullEdit.price) || 0,
@@ -1135,6 +1195,10 @@ export function AdminProductManagementPageView() {
         minStockAlert: Number(fullEdit.minStockAlert) || 5,
         isActive: fullEdit.isActive,
       });
+      if (result && result.ok === false) {
+        setFullEditError(result.error || "Unable to update product.");
+        return;
+      }
       setFullEdit(null);
     } finally {
       setFullSaving(false);
@@ -1450,6 +1514,23 @@ export function AdminProductManagementPageView() {
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setFullEdit(null)} />
           <div className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-[var(--border-soft)] bg-[var(--surface-strong)] p-6 shadow-[var(--shadow-strong)]">
             <h2 className="mb-6 text-2xl font-bold text-[var(--foreground)]">Full Edit</h2>
+            {fullEditError ? (
+              <div className="mb-4 rounded-xl bg-[#fa746f]/20 px-4 py-3 text-sm font-semibold text-[#6e0a12]">
+                {fullEditError}
+              </div>
+            ) : null}
+            <BarcodeScannerModal
+              open={editScanner.open}
+              status={editScanner.status}
+              errorMessage={editScanner.errorMessage}
+              videoRef={editScanner.videoRef}
+              onClose={editScanner.close}
+              onRetry={editScanner.retry}
+              torchSupported={editScanner.torchSupported}
+              torchOn={editScanner.torchOn}
+              onToggleTorch={editScanner.toggleTorch}
+              onToggleCameraFacing={editScanner.toggleCameraFacing}
+            />
             <div className="space-y-4">
               <ProductImageEditor
                 image={fullEdit.image}
@@ -1484,6 +1565,27 @@ export function AdminProductManagementPageView() {
                   placeholder="ATR-VEG-001"
                   className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
                 />
+              </div>
+              <div>
+                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Barcode</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    value={fullEdit.barcode}
+                    onChange={(event) => setFullEdit((current) => ({ ...current, barcode: event.target.value }))}
+                    placeholder="Scan or enter barcode (e.g. 8850001234567)"
+                    inputMode="text"
+                    autoComplete="off"
+                    className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 tracking-wider focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
+                  />
+                  <button
+                    type="button"
+                    onClick={editScanner.openScanner}
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[var(--action)] px-4 py-3 text-xs font-extrabold text-[var(--action-foreground)] transition-all hover:opacity-90 active:scale-[0.98]"
+                  >
+                    <ScanLine className="size-4" />
+                    Scan
+                  </button>
+                </div>
               </div>
               <div>
                 <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Description</label>
@@ -1630,7 +1732,7 @@ export function AdminProductManagementPageView() {
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setDeleteConfirm(null)} />
           <div className="relative w-full max-w-md rounded-lg border border-[var(--border-soft)] bg-[var(--surface-strong)] p-6 shadow-[var(--shadow-strong)]">
             <h2 className="mb-2 text-2xl font-bold text-[var(--foreground)]">Delete product?</h2>
-            <p className="text-sm text-[var(--muted-foreground)]">This will remove "{deleteConfirm.name}" from the catalog.</p>
+            <p className="text-sm text-[var(--muted-foreground)]">This will remove &quot;{deleteConfirm.name}&quot; from the catalog.</p>
             <div className="mt-8 flex gap-3">
               <button
                 type="button"

@@ -194,7 +194,7 @@ export default function PosOrdersPage() {
             <article key={order.id} className="grid gap-4 px-4 py-3.5 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto] xl:items-center">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="truncate text-xs font-extrabold text-[var(--foreground)]">{order.id}</h3>
+                  <h3 className="truncate text-xs font-extrabold text-[var(--foreground)]">{order.orderNumber || order.id}</h3>
                   <span className="rounded-full bg-[var(--pos-action-surface)] px-2.5 py-0.5 text-[10px] font-bold uppercase text-[var(--pos-action-on-muted)]">{order.status}</span>
                 </div>
                 <p className="mt-1 line-clamp-2 text-xs font-medium text-[var(--muted-foreground)]">{order.shippingAddress}</p>
@@ -253,7 +253,7 @@ export default function PosOrdersPage() {
             <tbody className="divide-y divide-[var(--border-soft)]">
               {visibleTransactions.map((transaction) => (
                 <tr key={transaction.id} className="hover:bg-[var(--surface-soft)]/50 transition-colors">
-                  <td className="px-4 py-2.5 font-bold font-mono text-[var(--foreground)]">{transaction.id}</td>
+                  <td className="px-4 py-2.5 font-bold font-mono text-[var(--foreground)]">{transaction.receiptNumber || transaction.id}</td>
                   <td className="px-4 py-2.5 font-medium text-[var(--muted-foreground)]">
                     {hydrated ? formatTime(transaction.timestamp) : "--"}
                   </td>

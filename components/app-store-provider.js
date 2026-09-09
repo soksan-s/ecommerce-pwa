@@ -235,14 +235,15 @@ useEffect(() => {
         });
         const data = await response.json();
         if (!response.ok || !data.data) {
-          return;
+          return { ok: false, error: data.error || "Unable to update product." };
         }
         patch((current) => ({
           ...current,
           products: current.products.map((product) => (product.id === productId ? data.data : product)),
         }));
+        return { ok: true, product: data.data };
       } catch {
-        // ignore update failures in the optimistic UI layer
+        return { ok: false, error: "Unable to update product." };
       }
     }
 

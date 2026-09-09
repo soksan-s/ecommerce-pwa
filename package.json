@@ -16,6 +16,8 @@
     "@better-auth/infra": "^0.3.6",
     "@hookform/resolvers": "^5.2.2",
     "@prisma/client": "^6.19.3",
+    "@zxing/browser": "^0.2.1",
+    "@zxing/library": "^0.23.0",
     "bakong-khqr": "^1.0.20",
     "bcryptjs": "^3.0.2",
     "better-auth": "^1.6.23",

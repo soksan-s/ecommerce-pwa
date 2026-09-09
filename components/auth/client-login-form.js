@@ -1,13 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Eye, EyeOff, Phone, Lock, ArrowRight, Loader2, AlertCircle } from "lucide-react";
+import { Eye, EyeOff, Phone, Lock, ArrowRight, Loader2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
 
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
 import { phoneAuthEmail } from "@/lib/phone";
+import { AuthAlert, normalizeAuthError } from "@/components/auth/auth-alert";
 
 function getRoleRedirect(role) {
   if (role === "ADMIN" || role === "SUPER_ADMIN") return "/admin";
@@ -15,35 +15,17 @@ function getRoleRedirect(role) {
   return "/client";
 }
 
-function AuthNotice({ children, tone = "neutral" }) {
-  const toneClasses =
-    tone === "error"
-      ? "border-red-500/20 bg-red-500/10 text-red-600 dark:text-red-400"
-      : "border-[var(--border-soft)] bg-[var(--surface-quiet)] text-[var(--foreground)]";
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: -4 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={"flex items-center gap-2.5 rounded-2xl border px-4 py-3 text-sm font-medium " + toneClasses}
-    >
-      {tone === "error" ? <AlertCircle className="size-4 shrink-0 text-red-500" /> : null}
-      <span>{children}</span>
-    </motion.div>
-  );
-}
-
 export function ClientLoginForm({ onSwitchToRegister, onSwitchToForgot }) {
   const router = useRouter();
 
   const countries = useMemo(
     () => [
-      { code: "KH", name: "Cambodia", dialCode: "+855" },
-      { code: "TH", name: "Thailand", dialCode: "+66" },
-      { code: "VN", name: "Vietnam", dialCode: "+84" },
-      { code: "SG", name: "Singapore", dialCode: "+65" },
-      { code: "MY", name: "Malaysia", dialCode: "+60" },
-      { code: "CN", name: "China", dialCode: "+86" },
+      { code: "KH", name: "Cambodia", flag: "🇰🇭", dialCode: "+855" },
+      { code: "TH", name: "Thailand", flag: "🇹🇭", dialCode: "+66" },
+      { code: "VN", name: "Vietnam", flag: "🇻🇳", dialCode: "+84" },
+      { code: "SG", name: "Singapore", flag: "🇸🇬", dialCode: "+65" },
+      { code: "MY", name: "Malaysia", flag: "🇲🇾", dialCode: "+60" },
+      { code: "CN", name: "China", flag: "🇨🇳", dialCode: "+86" },
     ],
     [],
   );
@@ -54,8 +36,9 @@ export function ClientLoginForm({ onSwitchToRegister, onSwitchToForgot }) {
   const [nationalNumber, setNationalNumber] = useState("");
   const [password, setPassword] = useState("");
   const [hidePassword, setHidePassword] = useState(true);
-  const [error, setError] = useState("");
+  const [errorObj, setErrorObj] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const phoneNumber = useMemo(() => {
     const digits = nationalNumber.replace(/\D/g, "");
@@ -82,19 +65,46 @@ export function ClientLoginForm({ onSwitchToRegister, onSwitchToForgot }) {
     setNationalNumber(restDigits);
   }
 
+  function clearErrors() {
+    setErrorObj(null);
+    setFieldErrors({});
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
+    clearErrors();
 
-    if (!phoneNumber.trim()) {
-      setError("Enter a valid phone number.");
+    const newFieldErrors = {};
+    const digits = nationalNumber.replace(/\D/g, "");
+    if (!digits || digits.length < 8) {
+      newFieldErrors.phone = true;
+    }
+    if (!password || password.length < 4) {
+      newFieldErrors.password = true;
+    }
+
+    if (Object.keys(newFieldErrors).length > 0) {
+      setFieldErrors(newFieldErrors);
+      setErrorObj(
+        normalizeAuthError({
+          message: newFieldErrors.phone
+            ? "Please enter a valid phone number."
+            : "Password must be at least 4 characters.",
+        }),
+      );
       return;
     }
-    if (password.length < 4) {
-      setError("Password must be at least 4 characters.");
+
+    // Check offline status
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setErrorObj(
+        normalizeAuthError({
+          message: "You appear to be offline. Please check your internet connection.",
+        }),
+      );
       return;
     }
 
-    setError("");
     setLoading(true);
 
     try {
@@ -107,10 +117,14 @@ export function ClientLoginForm({ onSwitchToRegister, onSwitchToForgot }) {
       const loginPayload = await loginRes.json();
 
       if (!loginRes.ok) {
-        setError(
-          loginPayload?.error?.message ||
-            loginPayload?.error ||
-            "Invalid phone number or password.",
+        setFieldErrors({ phone: true, password: true });
+        setErrorObj(
+          normalizeAuthError({
+            message:
+              loginPayload?.error?.message ||
+              loginPayload?.error ||
+              "Invalid phone number or password.",
+          }),
         );
         setLoading(false);
         return;
@@ -125,20 +139,21 @@ export function ClientLoginForm({ onSwitchToRegister, onSwitchToForgot }) {
       });
 
       if (authError) {
-        setError(authError.message || "Invalid phone number or password.");
+        setFieldErrors({ phone: true, password: true });
+        setErrorObj(normalizeAuthError(authError));
         setLoading(false);
         return;
       }
 
       router.push(getRoleRedirect(data?.user?.role || "CLIENT"));
-    } catch {
-      setError("An unexpected error occurred. Please try again.");
+    } catch (err) {
+      setErrorObj(normalizeAuthError(err));
       setLoading(false);
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={handleSubmit} className="space-y-5" noValidate>
       {/* Header Section */}
       <div>
         <h2 className="text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">
@@ -149,22 +164,49 @@ export function ClientLoginForm({ onSwitchToRegister, onSwitchToForgot }) {
         </p>
       </div>
 
+      {/* Enhanced Auth Alert Banner */}
+      {errorObj && (
+        <AuthAlert
+          error={errorObj}
+          onDismiss={() => setErrorObj(null)}
+          onAction={(action) => {
+            if (action === "forgot") onSwitchToForgot?.();
+          }}
+        />
+      )}
+
       {/* Phone Input Field */}
       <div>
-        <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
-          <Phone className="size-3.5" />
-          <span>Phone Number</span>
+        <label className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
+          <span className="flex items-center gap-1.5">
+            <Phone className="size-3.5" />
+            <span>Phone Number</span>
+          </span>
+          {fieldErrors.phone && (
+            <span className="text-[11px] font-bold text-rose-500 lowercase">
+              invalid phone number
+            </span>
+          )}
         </label>
-        <div className="group relative flex items-center overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-quiet)]/80 transition-all focus-within:border-[var(--action)] focus-within:bg-[var(--surface-strong)] focus-within:ring-2 focus-within:ring-[var(--action)]/20">
+        <div
+          className={`group relative flex items-center overflow-hidden rounded-2xl border bg-[var(--surface-quiet)]/80 transition-all focus-within:bg-[var(--surface-strong)] focus-within:ring-2 ${
+            fieldErrors.phone
+              ? "border-rose-500/80 focus-within:border-rose-500 focus-within:ring-rose-500/20"
+              : "border-[var(--border-soft)] focus-within:border-[var(--action)] focus-within:ring-[var(--action)]/20"
+          }`}
+        >
           <select
             value={countryDialCode}
-            onChange={(e) => setCountryDialCode(e.target.value)}
+            onChange={(e) => {
+              setCountryDialCode(e.target.value);
+              clearErrors();
+            }}
             className="h-12 border-r border-[var(--border-soft)] bg-transparent px-3 text-sm font-semibold text-[var(--foreground)] outline-none cursor-pointer"
             aria-label="Select country prefix"
           >
             {countries.map((c) => (
               <option key={c.code} value={c.dialCode} className="bg-[var(--surface-strong)]">
-                {c.code} ({c.dialCode})
+                {c.flag} {c.dialCode}
               </option>
             ))}
           </select>
@@ -173,6 +215,7 @@ export function ClientLoginForm({ onSwitchToRegister, onSwitchToForgot }) {
             type="tel"
             value={nationalNumber}
             onChange={(event) => {
+              clearErrors();
               const raw = event.target.value;
               if (raw.trim().startsWith("+")) {
                 tryDetectCountryFromInput(raw);
@@ -182,9 +225,23 @@ export function ClientLoginForm({ onSwitchToRegister, onSwitchToForgot }) {
             }}
             placeholder="12345678"
             inputMode="tel"
-            className="h-12 w-full bg-transparent px-3.5 text-sm font-medium text-[var(--foreground)] placeholder-[var(--muted-foreground)]/60 outline-none"
+            className="h-12 w-full bg-transparent px-3.5 pr-9 text-sm font-medium text-[var(--foreground)] placeholder-[var(--muted-foreground)]/60 outline-none"
             aria-label="Phone number"
           />
+
+          {nationalNumber && (
+            <button
+              type="button"
+              onClick={() => {
+                setNationalNumber("");
+                clearErrors();
+              }}
+              className="absolute right-3 p-0.5 text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+              aria-label="Clear phone number"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -204,18 +261,28 @@ export function ClientLoginForm({ onSwitchToRegister, onSwitchToForgot }) {
           </button>
         </div>
 
-        <div className="group relative flex items-center overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-quiet)]/80 transition-all focus-within:border-[var(--action)] focus-within:bg-[var(--surface-strong)] focus-within:ring-2 focus-within:ring-[var(--action)]/20">
+        <div
+          className={`group relative flex items-center overflow-hidden rounded-2xl border bg-[var(--surface-quiet)]/80 transition-all focus-within:bg-[var(--surface-strong)] focus-within:ring-2 ${
+            fieldErrors.password
+              ? "border-rose-500/80 focus-within:border-rose-500 focus-within:ring-rose-500/20"
+              : "border-[var(--border-soft)] focus-within:border-[var(--action)] focus-within:ring-[var(--action)]/20"
+          }`}
+        >
           <input
             type={hidePassword ? "password" : "text"}
             value={password}
-            onChange={(event) => setPassword(event.target.value)}
+            onChange={(event) => {
+              clearErrors();
+              setPassword(event.target.value);
+            }}
             placeholder="••••••••"
             className="h-12 w-full bg-transparent px-3.5 pr-11 text-sm font-medium text-[var(--foreground)] placeholder-[var(--muted-foreground)]/60 outline-none"
+            aria-label="Password"
           />
           <button
             type="button"
             onClick={() => setHidePassword((current) => !current)}
-            className="absolute right-3 text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
+            className="absolute right-3 p-1 text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
             aria-label="Toggle password visibility"
           >
             {hidePassword ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
@@ -223,13 +290,10 @@ export function ClientLoginForm({ onSwitchToRegister, onSwitchToForgot }) {
         </div>
       </div>
 
-      {/* Error Banner */}
-      {error ? <AuthNotice tone="error">{error}</AuthNotice> : null}
-
       {/* Primary Submit CTA */}
       <Button
         type="submit"
-        className="relative h-12 w-full rounded-2xl bg-[var(--action)] text-sm font-bold text-[var(--action-foreground)] shadow-lg transition-all hover:-translate-y-0.5 active:scale-[0.98] disabled:opacity-70"
+        className="relative h-12 w-full rounded-2xl bg-[var(--action)] text-sm font-bold text-[var(--action-foreground)] shadow-lg transition-all hover:-translate-y-0.5 active:scale-[0.98] disabled:opacity-70 cursor-pointer"
         disabled={loading}
       >
         {loading ? (
@@ -251,7 +315,7 @@ export function ClientLoginForm({ onSwitchToRegister, onSwitchToForgot }) {
         <button
           type="button"
           onClick={onSwitchToRegister}
-          className="font-bold text-[var(--foreground)] hover:underline"
+          className="font-bold text-[var(--foreground)] hover:underline cursor-pointer"
         >
           Create an account
         </button>

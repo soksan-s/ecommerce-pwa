@@ -5,6 +5,7 @@ import { createAuditLog, createInventoryMovement } from "@/lib/business-events";
 import { requireAdminUser } from "@/lib/auth";
 import { normalizeProduct } from "@/lib/catalog";
 import { prisma } from "@/lib/prisma";
+import { findCodeConflict } from "@/lib/server/services/product-codes";
 
 /**
  * DELETE /api/products/[id]
@@ -99,6 +100,17 @@ export async function PATCH(request, { params }) {
       (ratingCount !== undefined && (!Number.isInteger(ratingCount) || ratingCount < 0))
     ) {
       return fail("Invalid product update payload.", 422);
+    }
+
+    if (body.sku !== undefined || body.barcode !== undefined) {
+      const conflict = await findCodeConflict(prisma, {
+        sku: body.sku,
+        barcode: body.barcode,
+        excludeProductId: id,
+      });
+      if (conflict) {
+        return fail(conflict, 409);
+      }
     }
 
     const updated = await prisma.$transaction(async (tx) => {

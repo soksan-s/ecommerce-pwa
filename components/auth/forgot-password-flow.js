@@ -1,30 +1,12 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { Eye, EyeOff, Phone, Lock, ArrowRight, ArrowLeft, ShieldCheck, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
-import { motion } from "framer-motion";
+import { Eye, EyeOff, Phone, Lock, ArrowRight, ArrowLeft, ShieldCheck, Loader2, CheckCircle2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
 import { phoneAuthEmail } from "@/lib/phone";
-
-function AuthNotice({ children, tone = "neutral" }) {
-  const toneClasses =
-    tone === "error"
-      ? "border-red-500/20 bg-red-500/10 text-red-600 dark:text-red-400"
-      : "border-[var(--border-soft)] bg-[var(--surface-quiet)] text-[var(--foreground)]";
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: -4 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={"mb-4 flex items-center gap-2.5 rounded-2xl border px-4 py-3 text-sm font-medium " + toneClasses}
-    >
-      {tone === "error" ? <AlertCircle className="size-4 shrink-0 text-red-500" /> : null}
-      <span>{children}</span>
-    </motion.div>
-  );
-}
+import { AuthAlert, normalizeAuthError } from "@/components/auth/auth-alert";
 
 function StepIndicator({ currentStep }) {
   const steps = [
@@ -80,12 +62,12 @@ function formatPhoneToE164FromDialCode(dialCode, nationalNumber) {
 export function ForgotPasswordFlow({ onSwitchToLogin }) {
   const countries = useMemo(
     () => [
-      { code: "KH", name: "Cambodia", dialCode: "+855" },
-      { code: "TH", name: "Thailand", dialCode: "+66" },
-      { code: "VN", name: "Vietnam", dialCode: "+84" },
-      { code: "SG", name: "Singapore", dialCode: "+65" },
-      { code: "MY", name: "Malaysia", dialCode: "+60" },
-      { code: "CN", name: "China", dialCode: "+86" },
+      { code: "KH", name: "Cambodia", flag: "🇰🇭", dialCode: "+855" },
+      { code: "TH", name: "Thailand", flag: "🇹🇭", dialCode: "+66" },
+      { code: "VN", name: "Vietnam", flag: "🇻🇳", dialCode: "+84" },
+      { code: "SG", name: "Singapore", flag: "🇸🇬", dialCode: "+65" },
+      { code: "MY", name: "Malaysia", flag: "🇲🇾", dialCode: "+60" },
+      { code: "CN", name: "China", flag: "🇨🇳", dialCode: "+86" },
     ],
     [],
   );
@@ -99,8 +81,9 @@ export function ForgotPasswordFlow({ onSwitchToLogin }) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [hidePassword, setHidePassword] = useState(true);
-  const [error, setError] = useState("");
+  const [errorObj, setErrorObj] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const phoneNumber = useMemo(
     () => formatPhoneToE164FromDialCode(countryDialCode, nationalNumber),
@@ -110,6 +93,11 @@ export function ForgotPasswordFlow({ onSwitchToLogin }) {
   const confirmationResultRef = useRef(null);
   const firebaseIdTokenRef = useRef(null);
   const recaptchaContainerId = "recaptcha-forgot";
+
+  function clearErrors() {
+    setErrorObj(null);
+    setFieldErrors({});
+  }
 
   function tryDetectCountryFromInput(rawValue) {
     const value = rawValue || "";
@@ -132,14 +120,20 @@ export function ForgotPasswordFlow({ onSwitchToLogin }) {
 
   async function handleSendOTP(event) {
     event.preventDefault();
+    clearErrors();
 
-    const trimmed = phoneNumber.trim();
-    if (!trimmed) {
-      setError("Please enter a valid phone number.");
+    const digits = nationalNumber.replace(/\D/g, "");
+    if (!digits || digits.length < 8) {
+      setFieldErrors({ phone: true });
+      setErrorObj(normalizeAuthError({ message: "Please enter a valid phone number." }));
       return;
     }
 
-    setError("");
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setErrorObj(normalizeAuthError({ message: "You appear to be offline. Please check your internet connection." }));
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -155,7 +149,7 @@ export function ForgotPasswordFlow({ onSwitchToLogin }) {
       confirmationResultRef.current = result;
       setStep(2);
     } catch (err) {
-      setError(err?.message || "Failed to send SMS. Check your phone number.");
+      setErrorObj(normalizeAuthError(err));
     } finally {
       setLoading(false);
     }
@@ -163,18 +157,19 @@ export function ForgotPasswordFlow({ onSwitchToLogin }) {
 
   async function handleVerifyOTP(event) {
     event.preventDefault();
+    clearErrors();
 
     if (otp.length !== 6) {
-      setError("Please enter the 6-digit code.");
+      setFieldErrors({ otp: true });
+      setErrorObj(normalizeAuthError({ message: "Please enter the 6-digit code sent to your phone." }));
       return;
     }
 
     if (!confirmationResultRef.current) {
-      setError("Session expired. Please go back and try again.");
+      setErrorObj(normalizeAuthError({ message: "Session expired. Please go back and try again." }));
       return;
     }
 
-    setError("");
     setLoading(true);
 
     try {
@@ -184,66 +179,67 @@ export function ForgotPasswordFlow({ onSwitchToLogin }) {
       firebaseIdTokenRef.current = idToken;
       setStep(3);
     } catch (err) {
-      if (err?.code === "auth/invalid-verification-code") {
-        setError("Incorrect code. Please try again.");
-      } else {
-        setError(err?.message || "Failed to verify code.");
-      }
+      setErrorObj(normalizeAuthError(err));
     } finally {
       setLoading(false);
     }
   }
 
-  async function handleCompleteReset(event) {
+  async function handleResetPassword(event) {
     event.preventDefault();
+    clearErrors();
 
+    const newFieldErrors = {};
     if (password.length < 4) {
-      setError("Password must be at least 4 characters.");
-      return;
+      newFieldErrors.password = true;
+    }
+    if (password !== confirmPassword) {
+      newFieldErrors.confirmPassword = true;
     }
 
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
+    if (Object.keys(newFieldErrors).length > 0) {
+      setFieldErrors(newFieldErrors);
+      setErrorObj(
+        normalizeAuthError({
+          message: newFieldErrors.confirmPassword
+            ? "Passwords do not match."
+            : "Password must be at least 4 characters.",
+        }),
+      );
       return;
     }
 
     if (!firebaseIdTokenRef.current) {
-      setError("Verification expired. Please start over.");
+      setErrorObj(normalizeAuthError({ message: "Phone verification expired. Please start over." }));
       return;
     }
 
-    setError("");
     setLoading(true);
 
     try {
-      const res = await fetch("/api/auth/otp/reset-password", {
+      const res = await fetch("/api/auth/reset-password-with-firebase", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          phoneNumber: phoneNumber.trim(),
+          phoneNumber,
           newPassword: password,
           firebaseIdToken: firebaseIdTokenRef.current,
         }),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error?.message || data?.error || "Failed to reset password.");
+      if (!res.ok) throw new Error(data?.error?.message || data?.error || "Password reset failed.");
 
-      // Automatically sign in with the newly set password
-      const emailToAuth = data?.emailForAuth || phoneAuthEmail(phoneNumber);
       const { error: authError } = await authClient.signIn.email({
-        email: emailToAuth,
+        email: phoneAuthEmail(phoneNumber),
         password,
       });
 
-      if (authError) {
-        onSwitchToLogin();
-        return;
-      }
+      if (authError) throw new Error(authError.message);
 
       window.location.href = "/client";
     } catch (err) {
-      setError(err?.message || "Failed to reset password.");
+      setErrorObj(normalizeAuthError(err));
     } finally {
       setLoading(false);
     }
@@ -254,7 +250,7 @@ export function ForgotPasswordFlow({ onSwitchToLogin }) {
       <StepIndicator currentStep={step} />
 
       {step === 1 ? (
-        <form onSubmit={handleSendOTP} className="space-y-4">
+        <form onSubmit={handleSendOTP} className="space-y-4" noValidate>
           <div id={recaptchaContainerId} />
 
           <div>
@@ -262,25 +258,49 @@ export function ForgotPasswordFlow({ onSwitchToLogin }) {
               Reset Password
             </h2>
             <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-              Enter your phone number to receive a reset code via SMS.
+              Enter your registered phone number to verify and set a new password.
             </p>
           </div>
 
+          {/* Enhanced Error Alert */}
+          {errorObj && (
+            <AuthAlert
+              error={errorObj}
+              onDismiss={() => setErrorObj(null)}
+            />
+          )}
+
           <div>
-            <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
-              <Phone className="size-3.5" />
-              <span>Phone Number</span>
+            <label className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
+              <span className="flex items-center gap-1.5">
+                <Phone className="size-3.5" />
+                <span>Phone Number</span>
+              </span>
+              {fieldErrors.phone && (
+                <span className="text-[11px] font-bold text-rose-500 lowercase">
+                  invalid phone number
+                </span>
+              )}
             </label>
-            <div className="group relative flex items-center overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-quiet)]/80 focus-within:border-[var(--action)] focus-within:ring-2 focus-within:ring-[var(--action)]/20">
+            <div
+              className={`group relative flex items-center overflow-hidden rounded-2xl border bg-[var(--surface-quiet)]/80 transition-all focus-within:bg-[var(--surface-strong)] focus-within:ring-2 ${
+                fieldErrors.phone
+                  ? "border-rose-500/80 focus-within:border-rose-500 focus-within:ring-rose-500/20"
+                  : "border-[var(--border-soft)] focus-within:border-[var(--action)] focus-within:ring-[var(--action)]/20"
+              }`}
+            >
               <select
                 value={countryDialCode}
-                onChange={(e) => setCountryDialCode(e.target.value)}
+                onChange={(e) => {
+                  setCountryDialCode(e.target.value);
+                  clearErrors();
+                }}
                 className="h-12 border-r border-[var(--border-soft)] bg-transparent px-3 text-sm font-semibold text-[var(--foreground)] outline-none cursor-pointer"
                 aria-label="Select country prefix"
               >
                 {countries.map((c) => (
                   <option key={c.code} value={c.dialCode} className="bg-[var(--surface-strong)]">
-                    {c.code} ({c.dialCode})
+                    {c.flag} {c.dialCode}
                   </option>
                 ))}
               </select>
@@ -289,6 +309,7 @@ export function ForgotPasswordFlow({ onSwitchToLogin }) {
                 type="tel"
                 value={nationalNumber}
                 onChange={(e) => {
+                  clearErrors();
                   const raw = e.target.value;
                   if (raw.trim().startsWith("+")) {
                     tryDetectCountryFromInput(raw);
@@ -297,23 +318,35 @@ export function ForgotPasswordFlow({ onSwitchToLogin }) {
                   setNationalNumber(raw.replace(/\D/g, ""));
                 }}
                 placeholder="11831023"
-                className="h-12 w-full bg-transparent px-3.5 text-sm font-medium text-[var(--foreground)] outline-none"
+                className="h-12 w-full bg-transparent px-3.5 pr-9 text-sm font-medium text-[var(--foreground)] outline-none"
                 aria-label="Phone number"
               />
+
+              {nationalNumber && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNationalNumber("");
+                    clearErrors();
+                  }}
+                  className="absolute right-3 p-0.5 text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                  aria-label="Clear phone number"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
             </div>
           </div>
 
-          {error ? <AuthNotice tone="error">{error}</AuthNotice> : null}
-
           <Button
             type="submit"
-            className="relative h-12 w-full rounded-2xl bg-[var(--action)] text-sm font-bold text-[var(--action-foreground)] shadow-lg transition-all hover:-translate-y-0.5 active:scale-[0.98] disabled:opacity-70"
+            className="relative h-12 w-full rounded-2xl bg-[var(--action)] text-sm font-bold text-[var(--action-foreground)] shadow-lg transition-all hover:-translate-y-0.5 active:scale-[0.98] disabled:opacity-70 cursor-pointer"
             disabled={loading}
           >
             {loading ? (
               <span className="flex items-center justify-center gap-2">
                 <Loader2 className="size-4 animate-spin" />
-                <span>Sending SMS...</span>
+                <span>Sending SMS Code...</span>
               </span>
             ) : (
               <span className="flex items-center justify-center gap-2">
@@ -328,16 +361,16 @@ export function ForgotPasswordFlow({ onSwitchToLogin }) {
             <button
               type="button"
               onClick={onSwitchToLogin}
-              className="font-bold text-[var(--foreground)] hover:underline"
+              className="font-bold text-[var(--foreground)] hover:underline cursor-pointer"
             >
-              Back to login
+              Sign In
             </button>
           </div>
         </form>
       ) : null}
 
       {step === 2 ? (
-        <form onSubmit={handleVerifyOTP} className="space-y-5">
+        <form onSubmit={handleVerifyOTP} className="space-y-5" noValidate>
           <div>
             <h2 className="text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">
               Verify Code
@@ -347,28 +380,44 @@ export function ForgotPasswordFlow({ onSwitchToLogin }) {
             </p>
           </div>
 
+          {/* Enhanced Error Alert */}
+          {errorObj && (
+            <AuthAlert
+              error={errorObj}
+              onDismiss={() => setErrorObj(null)}
+            />
+          )}
+
           <div>
             <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
-              Verification Code
+              6-Digit SMS Code
             </label>
-            <div className="overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-quiet)]/80 focus-within:border-[var(--action)] focus-within:ring-2 focus-within:ring-[var(--action)]/20">
+            <div
+              className={`overflow-hidden rounded-2xl border bg-[var(--surface-quiet)]/80 focus-within:bg-[var(--surface-strong)] focus-within:ring-2 ${
+                fieldErrors.otp
+                  ? "border-rose-500/80 focus-within:border-rose-500 focus-within:ring-rose-500/20"
+                  : "border-[var(--border-soft)] focus-within:border-[var(--action)] focus-within:ring-[var(--action)]/20"
+              }`}
+            >
               <input
                 type="text"
                 inputMode="numeric"
                 value={otp}
-                onChange={(event) => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                onChange={(e) => {
+                  clearErrors();
+                  setOtp(e.target.value.replace(/\D/g, "").slice(0, 6));
+                }}
                 placeholder="123456"
                 className="h-14 w-full bg-transparent text-center font-mono text-2xl font-extrabold tracking-[0.35em] text-[var(--foreground)] outline-none"
                 autoComplete="one-time-code"
+                autoFocus
               />
             </div>
           </div>
 
-          {error ? <AuthNotice tone="error">{error}</AuthNotice> : null}
-
           <Button
             type="submit"
-            className="relative h-12 w-full rounded-2xl bg-[var(--action)] text-sm font-bold text-[var(--action-foreground)] shadow-lg transition-all hover:-translate-y-0.5 active:scale-[0.98] disabled:opacity-70"
+            className="relative h-12 w-full rounded-2xl bg-[var(--action)] text-sm font-bold text-[var(--action-foreground)] shadow-lg transition-all hover:-translate-y-0.5 active:scale-[0.98] disabled:opacity-70 cursor-pointer"
             disabled={loading}
           >
             {loading ? (
@@ -387,8 +436,11 @@ export function ForgotPasswordFlow({ onSwitchToLogin }) {
           <div className="flex items-center justify-between text-xs">
             <button
               type="button"
-              onClick={() => setStep(1)}
-              className="flex items-center gap-1 font-semibold text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+              onClick={() => {
+                clearErrors();
+                setStep(1);
+              }}
+              className="flex items-center gap-1 font-semibold text-[var(--muted-foreground)] hover:text-[var(--foreground)] cursor-pointer"
             >
               <ArrowLeft className="size-3.5" />
               <span>Change phone number</span>
@@ -398,33 +450,51 @@ export function ForgotPasswordFlow({ onSwitchToLogin }) {
       ) : null}
 
       {step === 3 ? (
-        <form onSubmit={handleCompleteReset} className="space-y-4">
+        <form onSubmit={handleResetPassword} className="space-y-4" noValidate>
           <div>
             <h2 className="text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">
-              Set New Password
+              New Password
             </h2>
             <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-              Enter your new password below.
+              Create a new password for <strong className="text-[var(--foreground)]">{phoneNumber}</strong>.
             </p>
           </div>
+
+          {/* Enhanced Error Alert */}
+          {errorObj && (
+            <AuthAlert
+              error={errorObj}
+              onDismiss={() => setErrorObj(null)}
+            />
+          )}
 
           <div>
             <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
               <Lock className="size-3.5" />
               <span>New Password</span>
             </label>
-            <div className="relative overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-quiet)]/80 focus-within:border-[var(--action)] focus-within:ring-2 focus-within:ring-[var(--action)]/20">
+            <div
+              className={`relative overflow-hidden rounded-2xl border bg-[var(--surface-quiet)]/80 focus-within:bg-[var(--surface-strong)] focus-within:ring-2 ${
+                fieldErrors.password
+                  ? "border-rose-500/80 focus-within:border-rose-500 focus-within:ring-rose-500/20"
+                  : "border-[var(--border-soft)] focus-within:border-[var(--action)] focus-within:ring-[var(--action)]/20"
+              }`}
+            >
               <input
                 type={hidePassword ? "password" : "text"}
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={(e) => {
+                  clearErrors();
+                  setPassword(e.target.value);
+                }}
                 placeholder="••••••••"
                 className="h-12 w-full bg-transparent px-3.5 pr-11 text-sm font-medium text-[var(--foreground)] outline-none"
               />
               <button
                 type="button"
                 onClick={() => setHidePassword((current) => !current)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] hover:text-[var(--foreground)] cursor-pointer"
+                aria-label="Toggle password visibility"
               >
                 {hidePassword ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
               </button>
@@ -436,32 +506,39 @@ export function ForgotPasswordFlow({ onSwitchToLogin }) {
               <Lock className="size-3.5" />
               <span>Confirm New Password</span>
             </label>
-            <div className="relative overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-quiet)]/80 focus-within:border-[var(--action)] focus-within:ring-2 focus-within:ring-[var(--action)]/20">
+            <div
+              className={`relative overflow-hidden rounded-2xl border bg-[var(--surface-quiet)]/80 focus-within:bg-[var(--surface-strong)] focus-within:ring-2 ${
+                fieldErrors.confirmPassword
+                  ? "border-rose-500/80 focus-within:border-rose-500 focus-within:ring-rose-500/20"
+                  : "border-[var(--border-soft)] focus-within:border-[var(--action)] focus-within:ring-[var(--action)]/20"
+              }`}
+            >
               <input
                 type={hidePassword ? "password" : "text"}
                 value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
+                onChange={(e) => {
+                  clearErrors();
+                  setConfirmPassword(e.target.value);
+                }}
                 placeholder="••••••••"
                 className="h-12 w-full bg-transparent px-3.5 pr-11 text-sm font-medium text-[var(--foreground)] outline-none"
               />
             </div>
           </div>
 
-          {error ? <AuthNotice tone="error">{error}</AuthNotice> : null}
-
           <Button
             type="submit"
-            className="relative h-12 w-full rounded-2xl bg-[var(--action)] text-sm font-bold text-[var(--action-foreground)] shadow-lg transition-all hover:-translate-y-0.5 active:scale-[0.98] disabled:opacity-70"
+            className="relative h-12 w-full rounded-2xl bg-[var(--action)] text-sm font-bold text-[var(--action-foreground)] shadow-lg transition-all hover:-translate-y-0.5 active:scale-[0.98] disabled:opacity-70 cursor-pointer"
             disabled={loading}
           >
             {loading ? (
               <span className="flex items-center justify-center gap-2">
                 <Loader2 className="size-4 animate-spin" />
-                <span>Resetting...</span>
+                <span>Updating Password...</span>
               </span>
             ) : (
               <span className="flex items-center justify-center gap-2">
-                <span>Reset Password</span>
+                <span>Update Password</span>
                 <CheckCircle2 className="size-4" />
               </span>
             )}

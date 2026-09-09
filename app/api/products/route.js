@@ -5,6 +5,7 @@ import { createAuditLog, createInventoryMovement } from "@/lib/business-events";
 import { requireAdminUser } from "@/lib/auth";
 import { listCatalogProducts, normalizeProduct } from "@/lib/catalog";
 import { prisma } from "@/lib/prisma";
+import { findCodeConflict } from "@/lib/server/services/product-codes";
 import { productSchema } from "@/lib/validations";
 
 function buildVariantSku(productName, productSku) {
@@ -22,6 +23,8 @@ export async function GET() {
   });
 }
 
+// Barcodes/SKUs must stay unique across products and variants — checked up
+// front so the admin gets a precise message instead of a generic conflict.
 export async function POST(request) {
   try {
     const admin = await requireAdminUser();
@@ -37,6 +40,14 @@ export async function POST(request) {
       return fail("Invalid product payload.", 422, {
         issues: result.error.flatten(),
       });
+    }
+
+    const conflict = await findCodeConflict(prisma, {
+      sku: result.data.sku,
+      barcode: result.data.barcode,
+    });
+    if (conflict) {
+      return fail(conflict, 409);
     }
 
     const created = await prisma.$transaction(async (tx) => {
