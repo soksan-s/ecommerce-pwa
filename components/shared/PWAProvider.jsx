@@ -13,9 +13,14 @@ export function PWAProvider() {
       return;
     }
 
-    navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {
-      // Service worker registration should not block the app UI.
-    });
+    navigator.serviceWorker
+      .register("/sw.js", { scope: "/" })
+      .then((registration) => {
+        registration.update().catch(() => {});
+      })
+      .catch(() => {
+        // Service worker registration should not block the app UI.
+      });
   }, []);
 
   useEffect(() => {

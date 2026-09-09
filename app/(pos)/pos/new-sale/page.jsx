@@ -8,6 +8,7 @@ import { convertMoney, formatDisplayMoney } from "@/components/pos/format";
 import { PaymentModal } from "@/components/pos/PaymentModal";
 import { ProductCard } from "@/components/pos/ProductCard";
 import { ReceiptView } from "@/components/pos/ReceiptView";
+import { RepriceModal } from "@/components/pos/RepriceModal";
 import { VariantSelectorModal } from "@/components/pos/VariantSelectorModal";
 import { BarcodeScannerModal, useCameraBarcodeScanner } from "@/components/shared/barcode-scanner";
 import { useBarcodeScannerInput } from "@/hooks/useBarcodeScannerInput";
@@ -151,6 +152,8 @@ export default function NewSalePage() {
   const updateQty = usePosStore((state) => state.updateQty);
   const removeFromCart = usePosStore((state) => state.removeFromCart);
   const updateItemNote = usePosStore((state) => state.updateItemNote);
+  const repriceItem = usePosStore((state) => state.repriceItem);
+  const resetItemPrice = usePosStore((state) => state.resetItemPrice);
   const clearCart = usePosStore((state) => state.clearCart);
   const holdCurrentSale = usePosStore((state) => state.holdCurrentSale);
   const restoreHeldSale = usePosStore((state) => state.restoreHeldSale);
@@ -175,6 +178,7 @@ export default function NewSalePage() {
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [receipt, setReceipt] = useState(null);
   const [variantModalProduct, setVariantModalProduct] = useState(null);
+  const [repriceItemData, setRepriceItemData] = useState(null);
 
   const catalogVersion = usePosStore((state) => state.catalogVersion);
   const incrementCatalogVersion = usePosStore((state) => state.incrementCatalogVersion);
@@ -516,6 +520,7 @@ export default function NewSalePage() {
                 onUpdateQty={(qty) => updateQty(key, qty)}
                 onRemove={() => removeFromCart(key)}
                 onUpdateNote={(note) => updateItemNote(key, note)}
+                onReprice={() => setRepriceItemData(item)}
               />
             );
           })
@@ -797,6 +802,26 @@ export default function NewSalePage() {
         onClose={() => setVariantModalProduct(null)}
         onSelectVariant={(product, variant) => {
           addToCart(product, variant);
+        }}
+      />
+
+      <RepriceModal
+        open={Boolean(repriceItemData)}
+        item={repriceItemData ? cart.find((c) => (c.keyId || c.productId) === (repriceItemData.keyId || repriceItemData.productId)) || repriceItemData : null}
+        settings={settings}
+        displayCurrency={activeDisplayCurrency}
+        onClose={() => setRepriceItemData(null)}
+        onApply={(newPrice, reason) => {
+          if (repriceItemData) {
+            const key = repriceItemData.keyId || repriceItemData.productId;
+            repriceItem(key, newPrice, reason);
+          }
+        }}
+        onReset={() => {
+          if (repriceItemData) {
+            const key = repriceItemData.keyId || repriceItemData.productId;
+            resetItemPrice(key);
+          }
         }}
       />
 

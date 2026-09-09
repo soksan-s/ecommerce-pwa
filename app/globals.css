@@ -1,13 +1,29 @@
+/* ── Google Fonts ──────────────────────────────────────────────────────────
+   Latin UI fonts: Plus Jakarta Sans (body) + Space Grotesk (headings)
+   Khmer font   : Content (body & headings when Khmer text is displayed)
+   Accent fonts : Alice (serif headings) + Lora (editorial body text)      */
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Alice&family=Content:wght@400;700&family=Lora:ital,wght@0,400..700;1,400..700&display=swap');
 @import "tailwindcss";
-
 @import "./design-tokens.css";
+
+/* ── Khmer Unicode-range font fallback ─────────────────────────────────────
+   The browser uses "Content" automatically for any Khmer script characters
+   (U+1780–U+17FF) in ANY element, anywhere in the app — body, headings,
+   inputs, placeholders, buttons — without needing extra classes.           */
+@font-face {
+  font-family: "Content";
+  src: local("Content");
+  unicode-range: U+1780-17FF, U+19E0-19FF, U+200C-200D;
+  font-display: swap;
+}
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-display: "Space Grotesk", "Plus Jakarta Sans", system-ui, sans-serif;
+  /* Content is listed BEFORE the Latin fonts so Khmer glyphs resolve first */
+  --font-sans: "Content", "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-display: "Content", "Space Grotesk", "Plus Jakarta Sans", system-ui, sans-serif;
   --font-mono: "Consolas", "Courier New", monospace;
 }
 
@@ -35,11 +51,31 @@ a {
 }
 
 /* Display typeface on page-level headings — instant consistency across
-   storefront, POS and admin. Body/UI text keeps Plus Jakarta Sans. */
+   storefront, POS and admin. Body/UI text keeps Plus Jakarta Sans.
+   "Content" is already first in the stack so Khmer headings render correctly. */
 h1,
 h2 {
   font-family: var(--font-display);
   letter-spacing: -0.015em;
+}
+
+/* ── Khmer language explicit scoping ───────────────────────────────────────
+   When the <html> or any ancestor has lang="km" (set via JS), ALL descendant
+   text switches to the Content font family. This is a safety net in addition
+   to the unicode-range @font-face above.                                    */
+:lang(km),
+[lang="km"],
+.lang-km {
+  font-family: "Content", system-ui, sans-serif !important;
+  line-height: 1.8;
+  letter-spacing: 0;
+}
+
+/* ── Utility class for explicit Khmer text nodes ───────────────────────── */
+.font-khmer {
+  font-family: "Content", system-ui, sans-serif;
+  line-height: 1.8;
+  letter-spacing: 0;
 }
 
 img {

@@ -48,7 +48,10 @@ export const usePosStore = create((set, get) => ({
           variantId: v?.id || null,
           variantName: v?.name || null,
           name,
+          originalPrice: price,
           price,
+          isOverridden: false,
+          overrideReason: "",
           qty: 1,
           stock,
           sku,
@@ -86,6 +89,44 @@ export const usePosStore = create((set, get) => ({
   updateItemNote(keyId, note) {
     set({
       cart: get().cart.map((item) => (item.keyId === keyId || item.productId === keyId ? { ...item, note } : item)),
+    });
+  },
+  repriceItem(keyId, newPrice, reason = "") {
+    const parsedPrice = Number(newPrice || 0);
+    if (parsedPrice < 0) {
+      return;
+    }
+
+    set({
+      cart: get().cart.map((item) => {
+        if (item.keyId === keyId || item.productId === keyId) {
+          const originalPrice = item.originalPrice !== undefined ? item.originalPrice : item.price;
+          return {
+            ...item,
+            originalPrice,
+            price: parsedPrice,
+            isOverridden: true,
+            overrideReason: String(reason || "").trim(),
+          };
+        }
+        return item;
+      }),
+    });
+  },
+  resetItemPrice(keyId) {
+    set({
+      cart: get().cart.map((item) => {
+        if (item.keyId === keyId || item.productId === keyId) {
+          const originalPrice = item.originalPrice !== undefined ? item.originalPrice : item.price;
+          return {
+            ...item,
+            price: originalPrice,
+            isOverridden: false,
+            overrideReason: "",
+          };
+        }
+        return item;
+      }),
     });
   },
   holdCurrentSale() {

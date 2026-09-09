@@ -4,12 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  ArrowRight,
   Check,
   ChevronDown,
-  ChevronRight,
-  Globe,
   Heart,
+  Home,
   LogIn,
   LogOut,
   Menu,
@@ -17,11 +15,9 @@ import {
   ReceiptText,
   Search,
   ShoppingCart,
-  Sparkles,
   Store,
   User,
   X,
-  Zap,
 } from "lucide-react";
 
 import { useAppStore } from "@/components/app-store-provider";
@@ -34,6 +30,7 @@ import {
   ClientProductListPageView,
   ClientProfilePageView,
 } from "@/components/client-pages";
+import { ClientHomePageView } from "@/components/client-home";
 import { LogoutButton } from "@/components/logout-button";
 import { easeInOutCubic } from "@/components/motion/motion-utils";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -45,6 +42,7 @@ import { useTranslation } from "@/lib/translations";
 const PROTECTED_TABS = new Set(["favorites", "cart", "orders", "profile"]);
 
 const clientTabs = [
+  { key: "home", label: "Home", icon: Home },
   { key: "shop", label: "Shop", icon: Store },
   { key: "favorites", label: "Favorites", icon: Heart },
   { key: "cart", label: "Cart", icon: ShoppingCart },
@@ -52,29 +50,12 @@ const clientTabs = [
   { key: "profile", label: "Profile", icon: User },
 ];
 
-// Predefined store navigation categories matching the reference layout
-const STORE_NAV_CATEGORIES = [
-  { key: "All", label: "HOME", hasChevron: false },
-  { key: "Candy/Snack", label: "CANDY/SNACK", hasChevron: true },
-  { key: "Dry Food", label: "DRY FOOD", hasChevron: true },
-  { key: "Sauce/Spice", label: "SAUCE/SPICE", hasChevron: true },
-  { key: "Noodle", label: "NOODLE", hasChevron: true },
-  { key: "Drink", label: "DRINK", hasChevron: true },
-  { key: "Rice", label: "RICE", hasChevron: true },
-  { key: "Daily", label: "DAILY", hasChevron: true },
-  { key: "Beauty/Health", label: "BEAUTY/HEALTH", hasChevron: true },
-  { key: "Lifestyle", label: "LIFESTYLE", hasChevron: true },
-  { key: "Commercial", label: "COMMERCIAL", hasChevron: false },
-  { key: "On Demand", label: "ON DEMAND", hasChevron: true },
-  { key: "Fresh Vegetable", label: "FRESH VEGETABLE", hasChevron: false },
-];
-
 function resolveClientTab(value) {
-  return clientTabs.some((tab) => tab.key === value) ? value : "shop";
+  return clientTabs.some((tab) => tab.key === value) ? value : "home";
 }
 
 function clientTabHref(tab) {
-  return tab === "shop" ? "/client" : `/client?tab=${tab}`;
+  return tab === "home" ? "/client" : `/client?tab=${tab}`;
 }
 
 function DrawerButton({ active, icon: Icon, label, onClick }) {
@@ -96,40 +77,26 @@ function DrawerButton({ active, icon: Icon, label, onClick }) {
   );
 }
 
-export function ClientShell({ user, initialTab = "shop", orderDetailId = "" }) {
+export function ClientShell({ user, initialTab = "home", orderDetailId = "" }) {
   const store = useAppStore();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
-  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
   const [selectedTab, setSelectedTab] = useState(() => resolveClientTab(searchParams.get("tab") || initialTab));
   const [authModal, setAuthModal] = useState({ isOpen: false, hint: "" });
 
-  const categoryDropdownRef = useRef(null);
   const langDropdownRef = useRef(null);
 
   const lang = store.language || "en";
   const { t } = useTranslation(lang);
   const activeTab = orderDetailId ? "orders" : selectedTab;
 
-  // Extract all categories from active products to merge with default list
-  const availableCategories = useMemo(() => {
-    const productCats = (store.activeProducts || [])
-      .map((p) => p.category)
-      .filter(Boolean);
-    const combined = ["All", ...new Set([...STORE_NAV_CATEGORIES.map((c) => c.key), ...productCats])];
-    return combined;
-  }, [store.activeProducts]);
-
-  // Close dropdowns on outside click
+  // Close language dropdown on outside click
   useEffect(() => {
     function handleClickOutside(event) {
-      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(event.target)) {
-        setCategoryDropdownOpen(false);
-      }
       if (langDropdownRef.current && !langDropdownRef.current.contains(event.target)) {
         setLangDropdownOpen(false);
       }
@@ -175,18 +142,20 @@ export function ClientShell({ user, initialTab = "shop", orderDetailId = "" }) {
     router.push(clientTabHref(nextTab));
   }
 
-  function handleCategorySelect(catKey) {
+  /** Called from Homepage category cards — navigate to Shop with category pre-selected */
+  function handleSelectCategory(catKey) {
     setSelectedCategory(catKey);
-    setCategoryDropdownOpen(false);
-    if (selectedTab !== "shop") {
-      openTab("shop");
-    }
+    setQuery("");
+    const nextTab = "shop";
+    setSelectedTab(nextTab);
+    setDrawerOpen(false);
+    router.push(clientTabHref(nextTab));
   }
 
   function handleLogoClick() {
     setSelectedCategory("All");
     setQuery("");
-    openTab("shop");
+    openTab("home");
   }
 
   function renderContent() {
@@ -194,7 +163,16 @@ export function ClientShell({ user, initialTab = "shop", orderDetailId = "" }) {
       return <ClientOrderDetailPageView orderId={orderDetailId} />;
     }
 
-    switch (selectedTab) {
+    switch (activeTab) {
+      case "home":
+        return (
+          <ClientHomePageView
+            store={store}
+            requireAuth={requireAuth}
+            onNavigateToShop={() => openTab("shop")}
+            onSelectCategory={handleSelectCategory}
+          />
+        );
       case "favorites":
         return <ClientFavoritesPageView />;
       case "cart":
@@ -216,7 +194,8 @@ export function ClientShell({ user, initialTab = "shop", orderDetailId = "" }) {
     }
   }
 
-  const storeName = store.settings?.storeInfo?.storeName || "GOHAN MARKET";
+  const storeName = store.settings?.storeInfo?.storeName || "Soeum Savet Store";
+  const storeTagline = lang === "km" ? "ហាង ស៊ើម សាវេត" : "Wholesale & Retail · Siem Reap";
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] flex flex-col font-sans transition-colors duration-200">
@@ -225,10 +204,13 @@ export function ClientShell({ user, initialTab = "shop", orderDetailId = "" }) {
       {/* ─────────────────────────────────────────────────────────────────── */}
       <div className="w-full bg-[var(--surface-quiet)] border-b border-[var(--border-soft)] text-[var(--foreground)] transition-colors">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-9 sm:h-10 flex items-center justify-between gap-4 text-[11px] sm:text-xs font-semibold">
-          {/* Promo notice */}
+          {/* Local delivery notice */}
           <div className="flex items-center gap-1.5 overflow-hidden truncate">
-            <span className="truncate">
-              Free Shipping on Orders Over $150 (Excluding Alaska &amp; Hawaii) &gt; ★ Share Happiness ★
+            <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+            <span className="truncate text-[var(--muted-foreground)]">
+              {lang === "km"
+                ? "ដឹកជញ្ជូនក្នុងស្រុក • ខេត្តសៀមរាប • ទូទាត់ KHQR & ជាសាច់ប្រាក់"
+                : "Local Delivery in Siem Reap • KHQR & Cash on Delivery • Retail & Wholesale"}
             </span>
           </div>
 
@@ -305,37 +287,34 @@ export function ClientShell({ user, initialTab = "shop", orderDetailId = "" }) {
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
           {/* Top Row on mobile: Brand + Mobile Menu & Quick Icons */}
           <div className="flex items-center justify-between w-full md:w-auto">
-            {/* Brand Logo & Taglines */}
+            {/* Brand Logo & Name */}
             <div
               onClick={handleLogoClick}
-              className="cursor-pointer flex items-center gap-3.5 select-none group"
+              className="cursor-pointer flex items-center gap-3 select-none group"
               role="button"
               tabIndex={0}
               aria-label="Go to home"
             >
-              {/* Distinctive Gohan Market / MyShop Logo Emblem */}
-              <div className="flex h-11 w-11 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--surface-quiet)] border border-[var(--border-strong)] text-[var(--foreground)] shadow-sm group-hover:border-[var(--action)] transition-colors relative overflow-hidden">
-                {/* Red sun dot accent on dark bowl shape */}
-                <div className="flex flex-col items-center justify-center">
-                  <span className="h-3 w-3 rounded-full bg-rose-500 mb-0.5 shadow-sm" />
-                  <div className="h-3.5 w-6 rounded-b-full bg-[var(--action)] border border-[var(--border-soft)]" />
-                </div>
+              {/* Store Emblem */}
+              <div className="flex h-11 w-11 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--action)] text-[var(--action-foreground)] shadow-lg group-hover:scale-105 transition-transform relative overflow-hidden">
+                <span className="text-lg font-black leading-none">S</span>
+                <span className="absolute bottom-1 right-1.5 text-[8px] font-black opacity-70">ស</span>
               </div>
 
               <div className="flex flex-col">
-                <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.24em] text-rose-500 dark:text-rose-400">
-                  Share Happiness With
+                <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--action)]">
+                  {lang === "km" ? "ហាង លក់ដូរ" : "Wholesale & Retail"}
                 </span>
-                <span className="font-display text-xl sm:text-2xl font-black tracking-tight text-[var(--foreground)] leading-none my-0.5">
+                <span className="font-display text-lg sm:text-xl font-black tracking-tight text-[var(--foreground)] leading-none my-0.5">
                   {storeName}
                 </span>
-                <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
-                  Japanese Grocery Store + Online
+                <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
+                  {storeTagline}
                 </span>
               </div>
             </div>
 
-            {/* Mobile Actions: Hamburger + Cart */}
+            {/* Mobile Actions: Cart + Hamburger */}
             <div className="flex items-center gap-2 md:hidden">
               <button
                 type="button"
@@ -362,54 +341,9 @@ export function ClientShell({ user, initialTab = "shop", orderDetailId = "" }) {
             </div>
           </div>
 
-          {/* Center: Search Box with Integrated Category Dropdown */}
+          {/* Center: Search Box */}
           <div className="flex-1 max-w-2xl w-full mx-auto md:mx-6">
             <div className="flex items-center w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface-quiet)]/40 focus-within:border-[var(--action)] focus-within:ring-2 focus-within:ring-[var(--action)]/15 focus-within:bg-[var(--surface-strong)] transition-all relative">
-              {/* Category Dropdown inside Search Bar */}
-              <div className="relative shrink-0" ref={categoryDropdownRef}>
-                <button
-                  type="button"
-                  onClick={() => setCategoryDropdownOpen(!categoryDropdownOpen)}
-                  className="flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-bold text-[var(--foreground)] hover:text-[var(--action)] transition-colors whitespace-nowrap focus:outline-none"
-                  aria-label="Select search category"
-                >
-                  <span className="max-w-[100px] truncate">{selectedCategory}</span>
-                  <ChevronDown className="size-3.5 text-[var(--muted-foreground)]" />
-                </button>
-
-                <AnimatePresence>
-                  {categoryDropdownOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 4, scale: 0.96 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 4, scale: 0.96 }}
-                      transition={{ duration: 0.15 }}
-                      className="absolute left-0 top-full mt-2 z-50 w-52 max-h-64 overflow-y-auto rounded-xl border border-[var(--border-strong)] bg-[var(--surface-strong)] p-1.5 shadow-2xl"
-                    >
-                      {availableCategories.map((cat) => (
-                        <button
-                          key={cat}
-                          type="button"
-                          onClick={() => handleCategorySelect(cat)}
-                          className={cn(
-                            "flex w-full items-center justify-between px-3 py-2 text-xs rounded-lg transition-colors text-left",
-                            selectedCategory === cat
-                              ? "bg-[var(--action-surface)] font-bold text-[var(--action)]"
-                              : "text-[var(--foreground)] hover:bg-[var(--surface-quiet)]"
-                          )}
-                        >
-                          <span className="truncate">{cat}</span>
-                          {selectedCategory === cat && <Check className="size-3.5 shrink-0" />}
-                        </button>
-                      ))}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-
-              {/* Vertical Divider */}
-              <div className="h-6 w-[1px] bg-[var(--border-strong)] shrink-0" />
-
               {/* Search Input Field */}
               <input
                 type="text"
@@ -417,11 +351,12 @@ export function ClientShell({ user, initialTab = "shop", orderDetailId = "" }) {
                 onChange={(e) => {
                   setQuery(e.target.value);
                   if (activeTab !== "shop") {
-                    openTab("shop");
+                    setSelectedTab("shop");
+                    router.push(clientTabHref("shop"));
                   }
                 }}
-                placeholder="Search for products, ramen, drinks, snacks..."
-                className="flex-1 bg-transparent px-3.5 py-2.5 text-xs sm:text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] outline-none min-w-0"
+                placeholder={lang === "km" ? "ស្វែងរកផលិតផល..." : "Search products, beverages, snacks..."}
+                className="flex-1 bg-transparent px-4 py-2.5 text-xs sm:text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] outline-none min-w-0"
                 aria-label="Search catalog"
               />
 
@@ -437,7 +372,7 @@ export function ClientShell({ user, initialTab = "shop", orderDetailId = "" }) {
                 </button>
               ) : null}
 
-              {/* Mic / Voice Search Icon & Search Trigger */}
+              {/* Search Icons */}
               <div className="flex items-center pr-3 gap-1 text-[var(--muted-foreground)]">
                 <button
                   type="button"
@@ -450,7 +385,10 @@ export function ClientShell({ user, initialTab = "shop", orderDetailId = "" }) {
                 <button
                   type="button"
                   onClick={() => {
-                    if (activeTab !== "shop") openTab("shop");
+                    if (activeTab !== "shop") {
+                      setSelectedTab("shop");
+                      router.push(clientTabHref("shop"));
+                    }
                   }}
                   className="p-1 hover:text-[var(--action)] transition-colors"
                   aria-label="Submit search"
@@ -529,36 +467,35 @@ export function ClientShell({ user, initialTab = "shop", orderDetailId = "" }) {
       </header>
 
       {/* ─────────────────────────────────────────────────────────────────── */}
-      {/* TIER 3: Horizontal Category Navigation Bar                          */}
+      {/* TIER 3: Main Tab Navigation Bar                                     */}
       {/* ─────────────────────────────────────────────────────────────────── */}
-      <nav className="w-full bg-[var(--surface-strong)]/95 backdrop-blur-md border-b border-[var(--border-soft)] px-4 sm:px-6 lg:px-8 sticky top-0 z-30 transition-colors">
-        <div className="max-w-7xl mx-auto flex items-center gap-1 sm:gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden py-1">
-          {STORE_NAV_CATEGORIES.map((navCat) => {
-            const isActive =
-              navCat.key === "All"
-                ? selectedCategory === "All" && activeTab === "shop"
-                : selectedCategory.toLowerCase() === navCat.key.toLowerCase();
-
+      <nav className="w-full bg-[var(--surface-strong)]/95 backdrop-blur-md border-b border-[var(--border-soft)] px-4 sm:px-6 lg:px-8 sticky top-0 z-30 transition-colors hidden md:block">
+        <div className="max-w-7xl mx-auto flex items-center gap-1 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden py-0.5">
+          {clientTabs.map((tab) => {
+            const isActive = activeTab === tab.key;
+            const Icon = tab.icon;
             return (
               <button
-                key={navCat.key}
+                key={tab.key}
                 type="button"
-                onClick={() => handleCategorySelect(navCat.key)}
+                onClick={() => openTab(tab.key)}
                 className={cn(
-                  "relative flex items-center gap-1 py-3 px-3.5 text-[11px] sm:text-xs font-bold uppercase tracking-[0.08em] whitespace-nowrap transition-colors rounded-lg",
+                  "relative flex items-center gap-2 py-3 px-4 text-[11px] sm:text-xs font-bold tracking-wide whitespace-nowrap transition-colors rounded-lg",
                   isActive
                     ? "text-[var(--foreground)] font-extrabold"
                     : "text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--surface-quiet)]/50"
                 )}
               >
-                <span>{navCat.label}</span>
-                {navCat.hasChevron && (
-                  <ChevronDown className="size-3 text-[var(--muted-foreground)] opacity-70" />
+                <Icon className="size-3.5" />
+                <span>{t(tab.key)}</span>
+                {tab.key === "cart" && store.cartCount > 0 && (
+                  <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--action)] px-1 text-[9px] font-black text-[var(--action-foreground)]">
+                    {store.cartCount}
+                  </span>
                 )}
-                {/* Active Indicator Underline — exact match to reference layout */}
                 {isActive && (
                   <motion.div
-                    layoutId="activeCategoryIndicator"
+                    layoutId="activeTabIndicator"
                     className="absolute bottom-0 left-2 right-2 h-0.5 bg-[var(--action)] rounded-full"
                     transition={{ type: "spring", stiffness: 380, damping: 30 }}
                   />
@@ -568,25 +505,6 @@ export function ClientShell({ user, initialTab = "shop", orderDetailId = "" }) {
           })}
         </div>
       </nav>
-
-      {/* ─────────────────────────────────────────────────────────────────── */}
-      {/* TIER 4: Promotional Sub-Header Strip                                */}
-      {/* ─────────────────────────────────────────────────────────────────── */}
-      <aside aria-label="Store announcement" className="w-full bg-[var(--surface-soft)]/60 border-b border-[var(--border-soft)] py-2 sm:py-2.5 px-4 text-center text-xs sm:text-sm transition-colors">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-center gap-2 sm:gap-3">
-          <span className="font-extrabold tracking-tight text-[var(--foreground)]">umamimania.com</span>
-          <span className="text-[var(--muted-foreground)]">
-            Casual &amp; Easy Japanese Recipes for all.
-          </span>
-          <button
-            type="button"
-            onClick={() => handleCategorySelect("All")}
-            className="font-extrabold uppercase tracking-wider text-[var(--action)] underline hover:text-[var(--action-hover)] transition-colors focus:outline-none"
-          >
-            CLICK HERE
-          </button>
-        </div>
-      </aside>
 
       {/* ─────────────────────────────────────────────────────────────────── */}
       {/* Main Page Content Body                                              */}
@@ -650,7 +568,7 @@ export function ClientShell({ user, initialTab = "shop", orderDetailId = "" }) {
               {/* Drawer Navigation Links */}
               <div className="py-4 space-y-1.5 flex-1 overflow-y-auto">
                 <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-widest text-[var(--muted-foreground)]">
-                  Store Navigation
+                  Navigation
                 </p>
                 {clientTabs.map((tab) => (
                   <DrawerButton

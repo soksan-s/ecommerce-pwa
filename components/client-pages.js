@@ -484,7 +484,7 @@ function getProductMaxDiscountPercent(product) {
   return Number(product?.discountPercent || 0);
 }
 
-function ProductCard({ product, store, requireAuth = null }) {
+export function ProductCard({ product, store, requireAuth = null }) {
   const { t } = useTranslation(store.language);
   const isFavorite = store.isFavorite(product.id);
   const discountedPrice = getProductDiscountedPrice(product);

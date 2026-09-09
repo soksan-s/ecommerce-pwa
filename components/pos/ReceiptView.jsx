@@ -35,8 +35,8 @@ export function ReceiptView({ transaction, settings, onNewSale }) {
         </div>
 
         <div className="space-y-2.5">
-          {transaction.items.map((item) => (
-            <div key={item.productId} className="text-xs">
+          {transaction.items.map((item, idx) => (
+            <div key={item.keyId || item.variantId || item.productId || idx} className="text-xs">
               <div className="flex justify-between gap-4 font-bold text-[var(--foreground)]">
                 <span>{item.name}</span>
                 <span>{money(item.price * item.qty)}</span>

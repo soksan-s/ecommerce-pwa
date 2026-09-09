@@ -97,6 +97,11 @@ export function AppStoreProvider({ children }) {
 
       if (active) {
         setState(offlineState);
+        // Apply persisted language to <html lang="..."> on first load
+        if (typeof document !== "undefined" && offlineState.language) {
+          document.documentElement.lang = offlineState.language;
+          document.documentElement.setAttribute("data-lang", offlineState.language);
+        }
       }
     }, 0);
 
@@ -105,6 +110,7 @@ export function AppStoreProvider({ children }) {
       window.clearTimeout(timer);
     };
   }, []);
+
 
 useEffect(() => {
     let active = true;
@@ -262,7 +268,14 @@ useEffect(() => {
           ...current,
           language,
         }));
+        // Sync the HTML lang attribute so :lang(km) CSS selector and
+        // the Content Khmer font apply automatically to the whole page.
+        if (typeof document !== "undefined") {
+          document.documentElement.lang = language;
+          document.documentElement.setAttribute("data-lang", language);
+        }
       },
+
       getProduct(id) {
         return productsById.get(id) || null;
       },

@@ -1,6 +1,33 @@
-const CACHE_NAME = "myshop-cache-v2";
-const STATIC_CACHE_EXTENSIONS = [".js", ".css", ".png", ".jpg", ".jpeg", ".webp", ".svg", ".ico", ".woff", ".woff2"];
-const APP_SHELL = ["/", "/pos", "/ecommerce", "/offline", "/manifest.json", "/icons/icon-192.svg", "/icons/icon-512.svg"];
+const CACHE_NAME = "myshop-cache-v4";
+const STATIC_CACHE_EXTENSIONS = [
+  ".js",
+  ".css",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".webp",
+  ".svg",
+  ".ico",
+  ".woff",
+  ".woff2",
+  ".json",
+  ".ttf",
+];
+
+const APP_SHELL = [
+  "/",
+  "/pos",
+  "/pos/new-sale",
+  "/pos/orders",
+  "/pos/products",
+  "/pos/reports",
+  "/pos/settings",
+  "/offline",
+  "/manifest.json",
+  "/icons/icon-192.svg",
+  "/icons/icon-512.svg",
+];
+
 const DB_NAME = "myshop-db";
 const DB_VERSION = 3;
 
@@ -101,51 +128,65 @@ async function addSyncLog(entry) {
 async function cacheAppShell() {
   const cache = await caches.open(CACHE_NAME);
 
-  await Promise.all(
+  await Promise.allSettled(
     APP_SHELL.map(async (url) => {
       try {
         const response = await fetch(url, { cache: "reload" });
         if (response.ok) {
-          await cache.put(url, response);
+          await cache.put(url, response.clone());
         }
       } catch {
-        // In dev, a route can fail while compiling. Keep installing with the pages that worked.
+        // Continue pre-caching other routes even if one fails
       }
-    }),
+    })
   );
 }
 
 function isStaticAsset(url) {
-  return STATIC_CACHE_EXTENSIONS.some((extension) => url.pathname.endsWith(extension)) || url.pathname.startsWith("/_next/static/");
+  return (
+    STATIC_CACHE_EXTENSIONS.some((extension) => url.pathname.endsWith(extension)) ||
+    url.pathname.startsWith("/_next/static/")
+  );
 }
 
-async function cacheFirst(request) {
-  const cached = await caches.match(request);
+async function staticAssetHandler(request) {
+  const cache = await caches.open(CACHE_NAME);
+  const cached = await cache.match(request, { ignoreSearch: true });
+
   if (cached) {
+    // Return cached asset immediately, revalidate in background if online
+    fetch(request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.ok) {
+          cache.put(request, networkResponse.clone());
+        }
+      })
+      .catch(() => {});
     return cached;
   }
 
-  const response = await fetch(request);
-  if (response.ok) {
-    const cache = await caches.open(CACHE_NAME);
-    await cache.put(request, response.clone());
-  }
-
-  return response;
-}
-
-async function networkFirst(request) {
-  const cache = await caches.open(CACHE_NAME);
-
   try {
     const response = await fetch(request);
-    if (response.ok && request.method === "GET") {
-      await cache.put(request, response.clone());
+    if (response && response.ok) {
+      cache.put(request, response.clone());
     }
     return response;
   } catch {
-    const cached = await cache.match(request);
-    return cached || new Response(JSON.stringify({ error: "Offline" }), { status: 503 });
+    // If offline and not in cache, return safe fallbacks instead of 503 JSON (which breaks script parsing)
+    const url = new URL(request.url);
+    if (url.pathname.endsWith(".js") || url.pathname.includes("/_next/static/chunks/")) {
+      return new Response("/* Offline bundle unavailable */", {
+        status: 200,
+        headers: { "Content-Type": "application/javascript" },
+      });
+    }
+    if (url.pathname.endsWith(".css")) {
+      return new Response("/* Offline stylesheet */", {
+        status: 200,
+        headers: { "Content-Type": "text/css" },
+      });
+    }
+    return new Response(null, { status: 404 });
   }
 }
 
@@ -155,13 +196,16 @@ async function staleWhileRevalidate(request) {
 
   const fetchPromise = fetch(request)
     .then((response) => {
-      if (response.ok) {
+      if (response && response.ok) {
         cache.put(request, response.clone());
       }
       return response;
     })
     .catch(() => {
-      return new Response(JSON.stringify({ error: "Offline" }), { status: 503 });
+      return cached || new Response(JSON.stringify({ error: "Offline", offline: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
     });
 
   return cached || fetchPromise;
@@ -187,15 +231,72 @@ async function queueFailedApiPost(request) {
 
 async function navigationFallback(request) {
   const cache = await caches.open(CACHE_NAME);
+  const url = new URL(request.url);
 
   try {
     const response = await fetch(request);
-    if (response.ok) {
+    if (response && response.ok) {
+      // Cache both the full request and the path name so it matches reliably offline
       await cache.put(request, response.clone());
+      await cache.put(url.pathname, response.clone());
     }
     return response;
   } catch {
-    return (await cache.match(request)) || (await cache.match("/offline")) || (await cache.match("/")) || Response.error();
+    // 1. Try matching exact request
+    const exactMatch = await cache.match(request, { ignoreSearch: true });
+    if (exactMatch) return exactMatch;
+
+    // 2. Try matching pathname (e.g. /pos/new-sale)
+    const pathMatch = await cache.match(url.pathname, { ignoreSearch: true });
+    if (pathMatch) return pathMatch;
+
+    // 3. For any /pos/* route, fall back to cached /pos/new-sale or /pos
+    if (url.pathname.startsWith("/pos")) {
+      const posNewSaleMatch = await cache.match("/pos/new-sale", { ignoreSearch: true });
+      if (posNewSaleMatch) return posNewSaleMatch;
+
+      const posMatch = await cache.match("/pos", { ignoreSearch: true });
+      if (posMatch) return posMatch;
+    }
+
+    // 4. Fall back to /offline page
+    const offlineMatch = await cache.match("/offline", { ignoreSearch: true });
+    if (offlineMatch) return offlineMatch;
+
+    // 5. Fall back to root /
+    const rootMatch = await cache.match("/", { ignoreSearch: true });
+    if (rootMatch) return rootMatch;
+
+    // 6. Final fallback HTML if cache was completely cleared while offline
+    return new Response(
+      `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Offline — POS</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #f8fafc; display: grid; place-items: center; min-height: 100vh; margin: 0; padding: 24px; box-sizing: border-box; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 32px; max-width: 440px; text-align: center; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); }
+    h1 { font-size: 22px; font-weight: 800; margin: 0 0 10px; color: #38bdf8; }
+    p { font-size: 14px; color: #94a3b8; line-height: 1.6; margin: 0 0 24px; }
+    .btn { display: inline-block; background: #0ea5e9; color: #ffffff; font-weight: 700; font-size: 14px; padding: 12px 24px; border-radius: 10px; text-decoration: none; border: none; cursor: pointer; transition: opacity 0.2s; }
+    .btn:hover { opacity: 0.9; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>You are Offline</h1>
+    <p>Please connect to the network once while opening the POS so that all assets are cached for offline use.</p>
+    <button class="btn" onclick="location.reload()">Reload Application</button>
+  </div>
+</body>
+</html>`,
+      {
+        status: 200,
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      }
+    );
   }
 }
 
@@ -232,7 +333,6 @@ async function replayQueue() {
         error: error.message || "Network error",
         timestamp: new Date().toISOString(),
       });
-      // Keep the item queued until the next sync attempt.
     }
   }
 }
@@ -245,8 +345,10 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
-      .then(() => self.clients.claim()),
+      .then((keys) =>
+        Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))
+      )
+      .then(() => self.clients.claim())
   );
 });
 
@@ -254,15 +356,36 @@ self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
+  // Handle external fonts (Google Fonts)
   if (url.origin !== self.location.origin) {
+    if (url.hostname.includes("fonts.googleapis.com") || url.hostname.includes("fonts.gstatic.com")) {
+      event.respondWith(
+        caches.match(request).then((cached) => {
+          return (
+            cached ||
+            fetch(request)
+              .then((response) => {
+                if (response && response.ok) {
+                  const clone = response.clone();
+                  caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+                }
+                return response;
+              })
+              .catch(() => cached || new Response("", { status: 200 }))
+          );
+        })
+      );
+    }
     return;
   }
 
-  if (request.mode === "navigate") {
+  // Handle HTML document navigations
+  if (request.mode === "navigate" || request.destination === "document") {
     event.respondWith(navigationFallback(request));
     return;
   }
 
+  // Handle API Requests
   if (url.pathname.startsWith("/api/")) {
     if (request.method === "GET") {
       event.respondWith(staleWhileRevalidate(request));
@@ -275,8 +398,16 @@ self.addEventListener("fetch", (event) => {
     }
   }
 
-  if (request.method === "GET" && isStaticAsset(url)) {
-    event.respondWith(staleWhileRevalidate(request));
+  // Handle Static Assets (_next/static, css, js, icons, images, fonts)
+  if (
+    request.method === "GET" &&
+    (isStaticAsset(url) ||
+      request.destination === "script" ||
+      request.destination === "style" ||
+      request.destination === "image" ||
+      request.destination === "font")
+  ) {
+    event.respondWith(staticAssetHandler(request));
   }
 });
 

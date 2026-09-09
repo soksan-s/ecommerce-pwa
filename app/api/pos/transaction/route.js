@@ -114,10 +114,14 @@ export async function POST(request) {
         throw new Error(`Variant not found: ${variantId}`);
       }
       const quantity = Number(item.qty || item.quantity || 0);
+      const unitPrice = item.price !== undefined && !isNaN(Number(item.price)) && Number(item.price) >= 0
+        ? Number(item.price)
+        : Number(variant.price);
 
       return {
         variant,
         quantity,
+        unitPrice,
         note: item.note || null,
       };
     });
@@ -208,8 +212,8 @@ export async function POST(request) {
               name: item.variant.product.name,
               sku: item.variant.sku,
               quantity: item.quantity,
-              unitPrice: Number(item.variant.price),
-              lineTotal: Number((Number(item.variant.price) * item.quantity).toFixed(2)),
+              unitPrice: item.unitPrice,
+              lineTotal: Number((item.unitPrice * item.quantity).toFixed(2)),
               note: item.note,
             })),
           },
