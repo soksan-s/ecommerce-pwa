@@ -1360,7 +1360,26 @@ export function ClientCheckoutPageView() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => router.push("/client?tab=cart")}
+          className="inline-flex items-center gap-2 rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-2.5 text-sm font-semibold text-[var(--foreground)] shadow-[var(--shadow-soft)] transition hover:bg-[var(--surface-quiet)] active:scale-95"
+        >
+          <CircleArrowLeft className="size-4 text-[var(--action)]" />
+          <span>{t("back_to_cart") || "Back to Cart"}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => router.push("/client?tab=shop")}
+          className="text-sm font-semibold text-[var(--action)] transition hover:underline"
+        >
+          {t("continue_shopping") || "Continue Shopping"}
+        </button>
+      </div>
+
+      <form onSubmit={handleSubmit} className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
         <Card>
           <h2 className="text-xl font-semibold text-[var(--foreground)]">{t("order_summary")}</h2>
           <div className="mt-4 space-y-3">
@@ -1432,6 +1451,7 @@ export function ClientCheckoutPageView() {
           </div>
         </Card>
       </form>
+    </div>
   );
 }
 

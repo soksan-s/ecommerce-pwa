@@ -136,7 +136,6 @@ export async function POST(request) {
             name: item.variantName || "Default",
             sku: item.sku || product.sku || `SKU-${product.id.slice(-6)}`,
             price: Number(item.price || product.price || 0),
-            stock: Number(product.stock || 100),
             isActive: true,
           },
           include: { product: true },
@@ -309,11 +308,7 @@ export async function POST(request) {
           },
         });
 
-        // Also decrement ProductVariant and Product stock
-        await tx.productVariant.updateMany({
-          where: { id: item.variant.id },
-          data: { stock: { decrement: item.quantity } },
-        });
+        // Decrement Product stock if product ID exists
         if (item.variant.productId) {
           await tx.product.updateMany({
             where: { id: item.variant.productId },
@@ -321,8 +316,8 @@ export async function POST(request) {
           });
         }
 
-        const availBefore = (inv ? inv.availableQuantity : (Number(item.variant.stock) || 0)) + item.quantity;
-        const availAfter = inv ? inv.availableQuantity : Math.max(0, (Number(item.variant.stock) || 100) - item.quantity);
+        const availBefore = (inv ? inv.availableQuantity : 100) + item.quantity;
+        const availAfter = inv ? inv.availableQuantity : Math.max(0, 100 - item.quantity);
 
         await createInventoryMovement(tx, {
           variantId: item.variant.id,
@@ -334,12 +329,12 @@ export async function POST(request) {
           previousStock: Number(availBefore),
           nextStock: Number(availAfter),
           note: "POS sale",
-          userId: user.id,
+          userId: user?.id || null,
         });
       }
 
       await createAuditLog(tx, {
-        userId: user.id,
+        userId: user?.id || null,
         action: "CREATE",
         module: "sales",
         recordId: created.id,

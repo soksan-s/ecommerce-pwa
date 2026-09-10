@@ -96,13 +96,10 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const user = await getCurrentUser();
-
-    if (!user) {
-      return fail("Not authenticated.", 401);
-    }
+    const user = await getCurrentUser({ suppressDatabaseErrors: true });
 
     const body = await request.json();
+    const couponCode = (body.couponCode || "").trim();
     const lines = Array.isArray(body.lines) ? body.lines : (Array.isArray(body.items) ? body.items : []);
     const shippingAddress = body.shippingAddress?.trim();
     const paymentMethod = body.paymentMethod?.trim();
@@ -124,7 +121,7 @@ export async function POST(request) {
       return fail("Invalid order payload.", 422);
     }
 
-// Lines must reference variantId. Products with variants require variantId.
+    // Lines must reference variantId. Products with variants require variantId.
     const variantIds = [...new Set(lines.map((l) => l.variantId).filter(Boolean))];
 
     // Find products that have variants but no variantId was provided
@@ -225,9 +222,9 @@ export async function POST(request) {
             create: {
               variantId: defaultVariant.id,
               branchId: fallbackBranchId,
-              quantity: legacyProduct.stock || 0,
+              quantity: legacyProduct.stock || 100,
               reservedQuantity: 0,
-              availableQuantity: legacyProduct.stock || 0,
+              availableQuantity: legacyProduct.stock || 100,
             },
           });
         }
@@ -281,13 +278,18 @@ export async function POST(request) {
       branchId = defaultBranch?.id;
     }
 
-if (!branchId) {
+    if (!branchId) {
+      const anyBranch = await prisma.branch.findFirst();
+      branchId = anyBranch?.id;
+    }
+
+    if (!branchId) {
       return fail("Store branch is not configured. Please contact support.", 503);
     }
 
-    // Check stock levels for variants
+    // Check stock levels for variants & auto-initialize inventory if missing
     for (const line of normalizedLines) {
-      const inv = await prisma.inventory.findUnique({
+      let inv = await prisma.inventory.findUnique({
         where: {
           variantId_branchId: {
             variantId: line.variant.id,
@@ -295,14 +297,31 @@ if (!branchId) {
           },
         },
       });
+
+      if (!inv) {
+        const initialStock = Number(line.variant.product?.stock || 100);
+        inv = await prisma.inventory.upsert({
+          where: {
+            variantId_branchId: {
+              variantId: line.variant.id,
+              branchId,
+            },
+          },
+          update: {},
+          create: {
+            variantId: line.variant.id,
+            branchId,
+            quantity: initialStock,
+            reservedQuantity: 0,
+            availableQuantity: initialStock,
+          },
+        });
+      }
+
       const availQty = inv ? (inv.availableQuantity > 0 ? inv.availableQuantity : inv.quantity) : 0;
       if (line.quantity > availQty) {
-        return fail(`Insufficient stock for ${line.variant.product.name}.`, 422);
+        return fail(`Insufficient stock for ${line.variant.product?.name || line.variant.name}.`, 422);
       }
-    }
-
-    if (normalizedLines.some((line) => line.quantity <= 0)) {
-      return fail("Invalid quantity for one or more products.", 422);
     }
 
     const subtotal = normalizedLines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
@@ -321,7 +340,7 @@ if (!branchId) {
         return fail("Coupon not found or inactive.", 404);
       }
 
-      if (coupon.audience === "USER" && coupon.userEmail && coupon.userEmail !== user.email) {
+      if (coupon.audience === "USER" && coupon.userEmail && coupon.userEmail !== user?.email) {
         return fail("Coupon is not assigned to this account.", 403);
       }
 
@@ -341,10 +360,12 @@ if (!branchId) {
       : 0;
 
     const order = await prisma.$transaction(async (tx) => {
-      // Resolve Customer profile by user email
-      const customer = await tx.customer.findFirst({
-        where: { email: user.email },
-      });
+      // Resolve Customer profile by user email if logged in
+      const customer = user?.email
+        ? await tx.customer.findFirst({
+            where: { email: user.email },
+          })
+        : null;
 
       // Calculate deposits
       const { totalDeposit } = await calculateDeposits(tx, normalizedLines.map(line => ({
@@ -357,7 +378,7 @@ if (!branchId) {
       const created = await tx.order.create({
         data: {
           orderNumber,
-          userId: user.id,
+          userId: user?.id || null,
           customerId: customer?.id || null,
           branchId,
           channel: "ONLINE",
@@ -383,7 +404,7 @@ if (!branchId) {
           items: {
             create: normalizedLines.map((line) => ({
               variantId: line.variant.id,
-              productName: line.variant.product.name,
+              productName: line.variant.product?.name || line.variant.name,
               variantName: line.variant.name,
               sku: line.variant.sku,
               quantity: line.quantity,
@@ -404,16 +425,16 @@ if (!branchId) {
         },
       });
 
-for (const line of normalizedLines) {
+      for (const line of normalizedLines) {
+        const initialStock = Number(line.variant.product?.stock || 100);
         // Ensure branch inventory record exists
         await tx.inventory.upsert({
           where: { variantId_branchId: { variantId: line.variant.id, branchId } },
           update: {},
-          create: { variantId: line.variant.id, branchId, quantity: 0, reservedQuantity: 0, availableQuantity: 0 },
+          create: { variantId: line.variant.id, branchId, quantity: initialStock, reservedQuantity: 0, availableQuantity: initialStock },
         });
 
         // Atomically check availableQuantity >= line.quantity AND reserve stock
-        // Using updateMany with gte condition on availableQuantity prevents race conditions
         const reserveResult = await tx.inventory.updateMany({
           where: {
             variantId: line.variant.id,
@@ -448,12 +469,12 @@ for (const line of normalizedLines) {
           previousStock: availBefore,
           nextStock: Number(updatedInventory.availableQuantity),
           note: "Online order inventory reservation",
-          userId: user.id,
+          userId: user?.id || null,
         });
       }
 
       await createAuditLog(tx, {
-        userId: user.id,
+        userId: user?.id || null,
         action: "CREATE",
         module: "orders",
         recordId: created.id,

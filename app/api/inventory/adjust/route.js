@@ -72,20 +72,8 @@ export async function POST(request) {
         data: { stock: nextProductStock },
       });
 
-      // Update variant stock if variant exists
+      // Target variant ID for inventory movement
       const movementVariantId = targetVariant ? targetVariant.id : existingProduct.id;
-      if (targetVariant) {
-        const previousVariantStock = Number(targetVariant.stock || 0);
-        const nextVariantStock =
-          action === "STOCK_IN" || action === "ADJUSTMENT_INCREASE"
-            ? previousVariantStock + quantity
-            : Math.max(0, previousVariantStock - quantity);
-
-        await tx.productVariant.update({
-          where: { id: targetVariant.id },
-          data: { stock: nextVariantStock },
-        });
-      }
 
       // Sync Branch Inventory (HQ)
       const branch = await tx.branch.findFirst({ where: { code: "HQ" } });
