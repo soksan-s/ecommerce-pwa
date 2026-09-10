@@ -159,9 +159,30 @@ export async function POST(request) {
     }
 
     const normalizedItems = resolvedItems;
-
     const totalMoney = toMoney(body.total);
     const paymentMethodName = body.paymentMethod || "Cash";
+
+    // 1. Resolve Payment Method before transaction
+    const pm = await prisma.paymentMethod.findFirst({
+      where: { name: { equals: paymentMethodName, mode: "insensitive" } },
+    });
+
+    // 2. Pre-calculate deposits before transaction
+    const { totalDeposit, itemsList: depositItems } = await calculateDeposits(prisma, normalizedItems.map(item => ({
+      productId: item.variant.productId,
+      quantity: item.quantity,
+    })));
+
+    // 3. Resolve Sale Receipt Number (match POS client Sale ID)
+    let assignedReceiptNumber = body.receiptNumber;
+    if (assignedReceiptNumber) {
+      const existingReceipt = await prisma.sale.findUnique({ where: { receiptNumber: assignedReceiptNumber } });
+      if (existingReceipt && existingReceipt.id !== body.id) {
+        assignedReceiptNumber = await generateReceiptNumber(prisma);
+      }
+    } else {
+      assignedReceiptNumber = await generateReceiptNumber(prisma);
+    }
 
     const sale = await prisma.$transaction(async (tx) => {
       // 1. Resolve Customer & Credit Checks if using credit payment
@@ -208,29 +229,7 @@ export async function POST(request) {
         });
       }
 
-      // 2. Resolve Payment Method
-      const pm = await tx.paymentMethod.findFirst({
-        where: { name: { equals: paymentMethodName, mode: "insensitive" } },
-      });
-
-      // 2.5 Calculate deposits — uses productId from variant.productId
-      const { totalDeposit, itemsList: depositItems } = await calculateDeposits(tx, normalizedItems.map(item => ({
-        productId: item.variant.productId,
-        quantity: item.quantity,
-      })));
-
-      // 2.6 Resolve Sale Receipt Number (match POS client Sale ID)
-      let assignedReceiptNumber = body.receiptNumber;
-      if (assignedReceiptNumber) {
-        const existingReceipt = await tx.sale.findUnique({ where: { receiptNumber: assignedReceiptNumber } });
-        if (existingReceipt && existingReceipt.id !== body.id) {
-          assignedReceiptNumber = await generateReceiptNumber(tx);
-        }
-      } else {
-        assignedReceiptNumber = await generateReceiptNumber(tx);
-      }
-
-      // 3. Create the POS Sale record — items now reference variantId
+      // 2. Create the POS Sale record — items reference variantId
       const created = await tx.sale.create({
         data: {
           ...(body.id ? { id: String(body.id) } : {}),
@@ -276,7 +275,7 @@ export async function POST(request) {
         },
       });
 
-      // 3.5 Log container issues if customer is associated
+      // 3. Log container issues if customer is associated
       if (customerId && depositItems.length > 0) {
         await createContainerIssues(tx, {
           customerId,
@@ -302,9 +301,9 @@ export async function POST(request) {
           create: {
             variantId: item.variant.id,
             branchId,
-            quantity: Math.max(0, (Number(item.variant.stock) || 100) - item.quantity),
+            quantity: Math.max(0, 100 - item.quantity),
             reservedQuantity: 0,
-            availableQuantity: Math.max(0, (Number(item.variant.stock) || 100) - item.quantity),
+            availableQuantity: Math.max(0, 100 - item.quantity),
           },
         });
 
@@ -348,6 +347,9 @@ export async function POST(request) {
       });
 
       return created;
+    }, {
+      maxWait: 15000,
+      timeout: 30000,
     });
 
     return ok({

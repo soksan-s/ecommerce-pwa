@@ -359,22 +359,23 @@ export async function POST(request) {
         : Number(Math.min(Number(coupon.value), subtotal).toFixed(2))
       : 0;
 
+    // 1. Resolve Customer profile before transaction
+    const customer = user?.email
+      ? await prisma.customer.findFirst({
+          where: { email: user.email },
+        })
+      : null;
+
+    // 2. Pre-calculate deposits before transaction
+    const { totalDeposit } = await calculateDeposits(prisma, normalizedLines.map((line) => ({
+      productId: line.variant.productId,
+      quantity: line.quantity,
+    })));
+
+    // 3. Pre-generate order number before transaction
+    const orderNumber = await generateOrderNumber();
+
     const order = await prisma.$transaction(async (tx) => {
-      // Resolve Customer profile by user email if logged in
-      const customer = user?.email
-        ? await tx.customer.findFirst({
-            where: { email: user.email },
-          })
-        : null;
-
-      // Calculate deposits
-      const { totalDeposit } = await calculateDeposits(tx, normalizedLines.map(line => ({
-        productId: line.variant.productId,
-        quantity: line.quantity,
-      })));
-
-      const orderNumber = await generateOrderNumber();
-
       const created = await tx.order.create({
         data: {
           orderNumber,
@@ -451,14 +452,6 @@ export async function POST(request) {
           throw new Error("INSUFFICIENT_STOCK");
         }
 
-        const updatedInventory = await tx.inventory.findUnique({
-          where: {
-            variantId_branchId: { variantId: line.variant.id, branchId },
-          },
-        });
-
-        const availBefore = updatedInventory ? (updatedInventory.quantity - updatedInventory.reservedQuantity + line.quantity) : 0;
-
         await createInventoryMovement(tx, {
           variantId: line.variant.id,
           branchId,
@@ -466,8 +459,8 @@ export async function POST(request) {
           type: "RESERVATION",
           channel: "ONLINE",
           quantity: line.quantity,
-          previousStock: availBefore,
-          nextStock: Number(updatedInventory.availableQuantity),
+          previousStock: 0,
+          nextStock: 0,
           note: "Online order inventory reservation",
           userId: user?.id || null,
         });
@@ -487,6 +480,9 @@ export async function POST(request) {
       });
 
       return created;
+    }, {
+      maxWait: 15000,
+      timeout: 30000,
     });
 
     return ok({
