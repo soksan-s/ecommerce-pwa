@@ -55,7 +55,7 @@ export async function GET(request) {
     const status = searchParams.get("status")?.toUpperCase();
     const where = {};
 
-    if (user.role === "ADMIN") {
+    if (user.role === "ADMIN" || user.role === "SUPER_ADMIN") {
       if (channel === "ONLINE" || channel === "POS") {
         where.channel = channel;
       }
@@ -73,6 +73,13 @@ export async function GET(request) {
       where,
       include: {
         items: true,
+        delivery: {
+          include: {
+            driver: true,
+          },
+        },
+        customer: true,
+        user: true,
       },
       orderBy: {
         createdAt: "desc",
@@ -96,10 +103,22 @@ export async function POST(request) {
     }
 
     const body = await request.json();
+    const lines = Array.isArray(body.lines) ? body.lines : (Array.isArray(body.items) ? body.items : []);
     const shippingAddress = body.shippingAddress?.trim();
     const paymentMethod = body.paymentMethod?.trim();
-    const lines = Array.isArray(body.lines) ? body.lines : [];
-    const couponCode = body.couponCode?.trim().toUpperCase() || null;
+    const lat =
+      body.deliveryLatitude !== undefined && body.deliveryLatitude !== null
+        ? Number(body.deliveryLatitude)
+        : body.lat !== undefined && body.lat !== null
+          ? Number(body.lat)
+          : null;
+    const lng =
+      body.deliveryLongitude !== undefined && body.deliveryLongitude !== null
+        ? Number(body.deliveryLongitude)
+        : body.lng !== undefined && body.lng !== null
+          ? Number(body.lng)
+          : null;
+    const deliveryNote = (body.deliveryNote || body.note || "").trim() || null;
 
     if (!shippingAddress || shippingAddress.length < 8 || !paymentMethod || !lines.length) {
       return fail("Invalid order payload.", 422);
@@ -343,6 +362,7 @@ if (!branchId) {
           branchId,
           channel: "ONLINE",
           shippingAddress,
+          note: deliveryNote,
           paymentMethod,
           subtotal,
           total: subtotal - couponDiscount + totalDeposit,
@@ -351,6 +371,15 @@ if (!branchId) {
           couponType: coupon ? mapCouponType(coupon.type) : null,
           couponValue: coupon ? Number(coupon.value) : null,
           couponDiscount,
+          delivery: {
+            create: {
+              address: shippingAddress,
+              lat: lat !== null && !isNaN(lat) ? lat : null,
+              lng: lng !== null && !isNaN(lng) ? lng : null,
+              note: deliveryNote,
+              status: "PENDING",
+            },
+          },
           items: {
             create: normalizedLines.map((line) => ({
               variantId: line.variant.id,
@@ -365,6 +394,13 @@ if (!branchId) {
         },
         include: {
           items: true,
+          delivery: {
+            include: {
+              driver: true,
+            },
+          },
+          customer: true,
+          user: true,
         },
       });
 

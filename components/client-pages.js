@@ -41,6 +41,8 @@ import {
 import { useAppStore } from "@/components/app-store-provider";
 import { AuthModal } from "@/components/auth-modal";
 import { DeliveryLocationPicker } from "@/components/delivery-location-picker";
+import { OrderDeliveryMap } from "@/components/shared/OrderDeliveryMap";
+import { OrderPrintView } from "@/components/shared/OrderPrintView";
 import { LogoutButton } from "@/components/logout-button";
 import { easeInOutCubic } from "@/components/motion/motion-utils";
 import { Button } from "@/components/ui/button";
@@ -1277,6 +1279,8 @@ export function ClientCheckoutPageView() {
   const { t } = useTranslation(store.language);
   const router = useRouter();
   const [shippingAddress, setShippingAddress] = useState("");
+  const [deliveryCoords, setDeliveryCoords] = useState(null);
+  const [deliveryNote, setDeliveryNote] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("CASH_ON_DELIVERY");
   const [couponCode, setCouponCode] = useState("");
   const [message, setMessage] = useState("");
@@ -1302,6 +1306,9 @@ export function ClientCheckoutPageView() {
       shippingAddress: shippingAddress.trim(),
       paymentMethod,
       couponCode: couponCode.trim(),
+      deliveryLatitude: deliveryCoords?.lat || null,
+      deliveryLongitude: deliveryCoords?.lng || null,
+      deliveryNote: deliveryNote.trim() || null,
     });
 
     if (!result.success || !result.order) {
@@ -1380,6 +1387,10 @@ export function ClientCheckoutPageView() {
           <div className="mt-4 space-y-4">
             <DeliveryLocationPicker
               onAddressSelect={setShippingAddress}
+              onLocationSelect={(loc) => {
+                setShippingAddress(loc.address);
+                setDeliveryCoords({ lat: loc.lat, lng: loc.lng });
+              }}
               locateLabel={t("use_current_location")}
               pickLabel={t("pick_on_map")}
               hint={t("map_location_hint")}
@@ -1388,7 +1399,13 @@ export function ClientCheckoutPageView() {
               value={shippingAddress}
               onChange={(event) => setShippingAddress(event.target.value)}
               placeholder={t("shipping_address")}
-              className="app-input min-h-32 px-4 py-3 text-sm"
+              className="app-input min-h-24 px-4 py-3 text-sm"
+            />
+            <input
+              value={deliveryNote}
+              onChange={(event) => setDeliveryNote(event.target.value)}
+              placeholder="Delivery instructions / notes (e.g. Near Wat Bo, call when arrived)"
+              className="app-input px-4 py-2.5 text-sm"
             />
             <div className="rounded-[1.125rem] border border-[color:color-mix(in_srgb,var(--border-soft)_85%,transparent)] bg-[linear-gradient(135deg,color-mix(in_srgb,var(--action)_12%,var(--surface)),color-mix(in_srgb,var(--accent-secondary)_35%,var(--surface)))] p-4">
               <div className="flex items-start gap-3">
@@ -1818,7 +1835,8 @@ export function ClientOrderDetailPageView({ orderId }) {
             </span>
           </div>
         </div>
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <OrderPrintView order={order} />
           {order.status === "pending" ? (
             <>
               <button
@@ -1908,7 +1926,10 @@ export function ClientOrderDetailPageView({ orderId }) {
             <div className="grid gap-6 pt-5 md:grid-cols-2">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Shipping address</p>
-                <p className="mt-3 whitespace-pre-line text-sm font-medium leading-7 text-[var(--foreground)]">{order.shippingAddress}</p>
+                <p className="mt-3 whitespace-pre-line text-sm font-medium leading-7 text-[var(--foreground)]">{order.shippingAddress || order.delivery?.address || "Store Pickup"}</p>
+                {order.note || order.delivery?.note ? (
+                  <p className="mt-2 text-xs italic text-[var(--muted-foreground)]">Note: {order.note || order.delivery?.note}</p>
+                ) : null}
               </div>
               <div className="space-y-5">
                 <div>
@@ -1921,6 +1942,16 @@ export function ClientOrderDetailPageView({ orderId }) {
                   {order.trackingNumber ? <p className="mt-1 text-xs text-[var(--muted-foreground)]">Number: {order.trackingNumber}</p> : null}
                 </div>
               </div>
+            </div>
+            <div className="mt-5">
+              <OrderDeliveryMap
+                lat={order.delivery?.lat}
+                lng={order.delivery?.lng}
+                address={order.shippingAddress || order.delivery?.address}
+                deliveryNote={order.note || order.delivery?.note}
+                driver={order.delivery?.driver}
+                status={order.status}
+              />
             </div>
           </section>
 

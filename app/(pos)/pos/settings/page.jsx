@@ -101,6 +101,11 @@ export default function PosSettingsPage() {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setDraft(settings);
+
+      // Restore posLayout data-attribute so layout mode is applied on mount.
+      const layout = settings?.appearance?.posLayout || "comfortable";
+      document.documentElement.dataset.posLayout = layout;
+      document.body.dataset.posLayout = layout;
     }, 0);
 
     return () => window.clearTimeout(timer);
@@ -126,8 +131,25 @@ export default function PosSettingsPage() {
   }
 
   async function saveSection(section) {
-    await updateSettings(section, draft[section]);
+    const next = await updateSettings(section, draft[section]);
 
+    // Apply theme immediately so the user sees the change without a page reload.
+    if (section === "appearance") {
+      const theme = draft.appearance.theme;
+      if (theme === "light" || theme === "dark") {
+        window.localStorage.setItem("grocery-mode", theme);
+      } else if (theme === "system") {
+        window.localStorage.removeItem("grocery-mode");
+      }
+      window.dispatchEvent(new Event("grocery-theme-change"));
+
+      // Apply posLayout as a data-attribute so CSS can target compact vs comfortable.
+      const layout = draft.appearance.posLayout || "comfortable";
+      document.documentElement.dataset.posLayout = layout;
+      document.body.dataset.posLayout = layout;
+    }
+
+    // Sync cashiers to the dedicated endpoint so they can be fetched independently.
     if (section === "cashiers" && isOnline) {
       try {
         await fetch("/api/pos/cashiers", {
@@ -141,6 +163,7 @@ export default function PosSettingsPage() {
     }
 
     setSavedSection(section);
+    return next;
   }
 
   function handleLogoUpload(file) {

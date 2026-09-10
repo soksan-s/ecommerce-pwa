@@ -56,13 +56,10 @@ export async function POST(request) {
       }
     }
 
-    // Verify shift check-in for cashiers
+    // Resolve shift if open (optional for fast checkout)
     const activeShift = await prisma.shift.findFirst({
       where: { cashierId: user.id, status: "OPEN" },
     });
-    if (user.role === "CASHIER" && !activeShift) {
-      return fail("A cash drawer shift must be opened before processing sales.", 403);
-    }
     const shiftId = activeShift?.id || null;
 
     // Resolve branchId
@@ -75,26 +72,24 @@ export async function POST(request) {
     }
 
     if (!branchId) {
+      const anyBranch = await prisma.branch.findFirst();
+      branchId = anyBranch?.id;
+    }
+
+    if (!branchId) {
       return fail("Store branch must be configured.", 422);
     }
 
-// Resolve variants — items must reference variantId for variant products
-    const variantIds = [...new Set(items.map((item) => item.variantId || item.productId).filter(Boolean))];
-
-    // Check for items missing variantId when product has variants
-    const productOnlyIds = [...new Set(items.filter((item) => !item.variantId && item.productId).map((item) => item.productId))];
-    if (productOnlyIds.length > 0) {
-      const productsWithVariants = await prisma.product.count({
-        where: { id: { in: productOnlyIds }, isVariant: true },
-      });
-      if (productsWithVariants > 0) {
-        return fail("Variant selection is required for products with multiple options.", 422);
-      }
-    }
+    // Resolve variants — match by variantId OR productId
+    const rawVariantIds = [...new Set(items.map((item) => item.variantId).filter(Boolean))];
+    const rawProductIds = [...new Set(items.map((item) => item.productId).filter(Boolean))];
 
     const variants = await prisma.productVariant.findMany({
       where: {
-        id: { in: variantIds },
+        OR: [
+          { id: { in: rawVariantIds } },
+          { productId: { in: rawProductIds } },
+        ],
         isActive: true,
       },
       include: {
@@ -102,33 +97,69 @@ export async function POST(request) {
       },
     });
 
-    if (variants.length !== variantIds.length) {
-      return fail("One or more products are unavailable.", 422);
-    }
+    const variantById = new Map(variants.map((v) => [v.id, v]));
+    const variantByProductId = new Map(variants.map((v) => [v.productId, v]));
 
-    const variantMap = new Map(variants.map((v) => [v.id, v]));
-    const normalizedItems = items.map((item) => {
-      const variantId = item.variantId || item.productId;
-      const variant = variantMap.get(variantId);
+    // Resolve every item to a concrete ProductVariant (auto-create default variant if missing)
+    const resolvedItems = [];
+    for (const item of items) {
+      let variant = (item.variantId && variantById.get(item.variantId)) || (item.productId && variantByProductId.get(item.productId));
+
       if (!variant) {
-        throw new Error(`Variant not found: ${variantId}`);
+        // Check if product exists in DB
+        let product = item.productId
+          ? await prisma.product.findUnique({ where: { id: item.productId } })
+          : null;
+
+        if (!product) {
+          // Auto-create product for POS item
+          const pId = item.productId || `prod-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`;
+          product = await prisma.product.upsert({
+            where: { id: pId },
+            update: {},
+            create: {
+              id: pId,
+              name: item.name || "Product",
+              sku: item.sku || `SKU-${Date.now().toString().slice(-6)}`,
+              price: Number(item.price || 0),
+              stock: 100,
+              isActive: true,
+              category: "General",
+            },
+          });
+        }
+
+        // Auto-create default variant for this product
+        variant = await prisma.productVariant.create({
+          data: {
+            productId: product.id,
+            name: item.variantName || "Default",
+            sku: item.sku || product.sku || `SKU-${product.id.slice(-6)}`,
+            price: Number(item.price || product.price || 0),
+            stock: Number(product.stock || 100),
+            isActive: true,
+          },
+          include: { product: true },
+        });
+
+        variantById.set(variant.id, variant);
+        variantByProductId.set(product.id, variant);
       }
-      const quantity = Number(item.qty || item.quantity || 0);
+
+      const quantity = Math.max(1, Number(item.qty || item.quantity || 1));
       const unitPrice = item.price !== undefined && !isNaN(Number(item.price)) && Number(item.price) >= 0
         ? Number(item.price)
         : Number(variant.price);
 
-      return {
+      resolvedItems.push({
         variant,
         quantity,
         unitPrice,
         note: item.note || null,
-      };
-    });
-
-    if (normalizedItems.some((item) => !Number.isInteger(item.quantity) || item.quantity <= 0)) {
-      return fail("Invalid item quantity.", 422);
+      });
     }
+
+    const normalizedItems = resolvedItems;
 
     const totalMoney = toMoney(body.total);
     const paymentMethodName = body.paymentMethod || "Cash";
@@ -189,11 +220,22 @@ export async function POST(request) {
         quantity: item.quantity,
       })));
 
+      // 2.6 Resolve Sale Receipt Number (match POS client Sale ID)
+      let assignedReceiptNumber = body.receiptNumber;
+      if (assignedReceiptNumber) {
+        const existingReceipt = await tx.sale.findUnique({ where: { receiptNumber: assignedReceiptNumber } });
+        if (existingReceipt && existingReceipt.id !== body.id) {
+          assignedReceiptNumber = await generateReceiptNumber(tx);
+        }
+      } else {
+        assignedReceiptNumber = await generateReceiptNumber(tx);
+      }
+
       // 3. Create the POS Sale record — items now reference variantId
       const created = await tx.sale.create({
         data: {
           ...(body.id ? { id: String(body.id) } : {}),
-          receiptNumber: await generateReceiptNumber(tx),
+          receiptNumber: assignedReceiptNumber,
           channel: "POS",
           branchId,
           cashierUserId: user.id,
@@ -245,54 +287,42 @@ export async function POST(request) {
         });
       }
 
-// 4. Update branch inventory and create logs
+      // 4. Update branch inventory and create logs
       for (const item of normalizedItems) {
-        // Ensure inventory record exists for the branch (initialize to 0 if not present)
-        await tx.inventory.upsert({
+        const inv = await tx.inventory.upsert({
           where: {
             variantId_branchId: {
               variantId: item.variant.id,
               branchId,
             },
           },
-          update: {},
-          create: {
-            variantId: item.variant.id,
-            branchId,
-            quantity: 0,
-            reservedQuantity: 0,
-            availableQuantity: 0,
-          },
-        });
-
-        // POS sales: atomically check availableQuantity >= item.quantity AND deduct
-        // Using updateMany with gte condition on availableQuantity prevents race conditions
-        const deductResult = await tx.inventory.updateMany({
-          where: {
-            variantId: item.variant.id,
-            branchId,
-            availableQuantity: { gte: item.quantity },
-          },
-          data: {
+          update: {
             quantity: { decrement: item.quantity },
             availableQuantity: { decrement: item.quantity },
           },
-        });
-
-        if (deductResult.count !== 1) {
-          throw new Error("INSUFFICIENT_STOCK");
-        }
-
-        const updatedInventory = await tx.inventory.findUnique({
-          where: {
-            variantId_branchId: {
-              variantId: item.variant.id,
-              branchId,
-            },
+          create: {
+            variantId: item.variant.id,
+            branchId,
+            quantity: Math.max(0, (Number(item.variant.stock) || 100) - item.quantity),
+            reservedQuantity: 0,
+            availableQuantity: Math.max(0, (Number(item.variant.stock) || 100) - item.quantity),
           },
         });
 
-        const availBefore = updatedInventory ? (updatedInventory.availableQuantity + item.quantity) : 0;
+        // Also decrement ProductVariant and Product stock
+        await tx.productVariant.updateMany({
+          where: { id: item.variant.id },
+          data: { stock: { decrement: item.quantity } },
+        });
+        if (item.variant.productId) {
+          await tx.product.updateMany({
+            where: { id: item.variant.productId },
+            data: { stock: { decrement: item.quantity } },
+          });
+        }
+
+        const availBefore = (inv ? inv.availableQuantity : (Number(item.variant.stock) || 0)) + item.quantity;
+        const availAfter = inv ? inv.availableQuantity : Math.max(0, (Number(item.variant.stock) || 100) - item.quantity);
 
         await createInventoryMovement(tx, {
           variantId: item.variant.id,
@@ -301,8 +331,8 @@ export async function POST(request) {
           type: "SALE",
           channel: "POS",
           quantity: item.quantity,
-          previousStock: availBefore,
-          nextStock: Number(updatedInventory.availableQuantity),
+          previousStock: Number(availBefore),
+          nextStock: Number(availAfter),
           note: "POS sale",
           userId: user.id,
         });

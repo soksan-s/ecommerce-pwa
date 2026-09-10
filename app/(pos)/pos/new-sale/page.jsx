@@ -109,6 +109,34 @@ function createTransactionId() {
   return `txn-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
 }
 
+async function generateLocalReceiptNumber() {
+  const now = new Date();
+  const datePart = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+  const prefix = `SALE-${datePart}-`;
+
+  try {
+    const localTxns = await getAll("transactions");
+    const todayMatches = (Array.isArray(localTxns) ? localTxns : []).filter((t) => {
+      const num = String(t?.receiptNumber || t?.id || "");
+      return num.startsWith(prefix);
+    });
+
+    let maxSeq = 0;
+    for (const txn of todayMatches) {
+      const num = String(txn.receiptNumber || txn.id || "");
+      const match = num.match(new RegExp(`^${prefix}(\\d+)`));
+      if (match) {
+        const parsed = parseInt(match[1], 10);
+        if (parsed > maxSeq) maxSeq = parsed;
+      }
+    }
+    const nextSeq = String(maxSeq + 1).padStart(3, "0");
+    return `${prefix}${nextSeq}`;
+  } catch {
+    return `${prefix}${Date.now().toString().slice(-4)}`;
+  }
+}
+
 function normalizeProduct(product) {
   const rawVariants = Array.isArray(product.variants) ? product.variants : [];
   const variants = rawVariants.map((v) => ({
@@ -412,8 +440,10 @@ export default function NewSalePage() {
 
   async function confirmPayment(payment) {
     const txnId = createTransactionId();
+    const receiptNumber = await generateLocalReceiptNumber();
     const transaction = {
       id: txnId,
+      receiptNumber,
       items: cart,
       subtotal,
       tax,
@@ -444,29 +474,56 @@ export default function NewSalePage() {
       setProducts(updatedLocalProducts.map(normalizeProduct));
     }
 
-    // 4. Add request to offline_queue
-    await addToQueue({
-      url: "/api/pos/transaction",
-      method: "POST",
-      body: JSON.stringify(transaction),
-    });
+    // 4. If online, sync directly to PostgreSQL immediately so reports update in real-time
+    let finalTransaction = transaction;
+    if (isOnline) {
+      try {
+        const response = await fetch("/api/pos/transaction", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(transaction),
+        });
+        const payload = await response.json();
+        if (response.ok && payload?.data) {
+          finalTransaction = {
+            ...transaction,
+            synced: true,
+            syncStatus: "synced",
+            receiptNumber: payload.data.receiptNumber || transaction.receiptNumber,
+          };
+          await put("transactions", finalTransaction);
+        } else {
+          // Fall back to queue if backend returned an unexpected response
+          await addToQueue({
+            url: "/api/pos/transaction",
+            method: "POST",
+            body: JSON.stringify(transaction),
+          });
+        }
+      } catch {
+        // Fall back to queue if network error occurs
+        await addToQueue({
+          url: "/api/pos/transaction",
+          method: "POST",
+          body: JSON.stringify(transaction),
+        });
+      }
+    } else {
+      await addToQueue({
+        url: "/api/pos/transaction",
+        method: "POST",
+        body: JSON.stringify(transaction),
+      });
+    }
 
     const queue = await getAll("offline_queue");
     setPendingSyncCount(Array.isArray(queue) ? queue.length : 0);
-
-    // 5. If online, trigger background replay
-    if (isOnline) {
-      replayQueue().then(async () => {
-        const remainingQueue = await getAll("offline_queue");
-        setPendingSyncCount(Array.isArray(remainingQueue) ? remainingQueue.length : 0);
-      }).catch(() => {});
-    }
 
     clearCart();
     setPaymentOpen(false);
     setDrawerOpen(false);
     setAppliedDiscount({ type: "percent", value: 0, amount: 0 });
-    setReceipt(transaction);
+    setReceipt(finalTransaction);
   }
 
   if (receipt) {

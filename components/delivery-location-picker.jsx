@@ -5,13 +5,14 @@ import { MapPin, Navigation } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
-const DEFAULT_CENTER = { lat: 11.5564, lng: 104.9282 };
+// Default center: Siem Reap, Cambodia (Soeum Savet Store home city)
+const DEFAULT_CENTER = { lat: 13.3633, lng: 103.8564 };
 
 async function reverseGeocode(lat, lng) {
   const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`;
   const response = await fetch(url, {
     headers: {
-      "Accept-Language": "en",
+      "Accept-Language": "en,km",
     },
   });
 
@@ -23,17 +24,19 @@ async function reverseGeocode(lat, lng) {
   return data.display_name || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
 }
 
-export function DeliveryLocationPicker({ onAddressSelect, pickLabel, locateLabel, hint }) {
+export function DeliveryLocationPicker({ onAddressSelect, onLocationSelect, initialLat, initialLng, pickLabel, locateLabel, hint }) {
   const mapNodeRef = useRef(null);
   const mapRef = useRef(null);
   const markerRef = useRef(null);
   const onAddressSelectRef = useRef(onAddressSelect);
+  const onLocationSelectRef = useRef(onLocationSelect);
   const [status, setStatus] = useState("");
   const [locating, setLocating] = useState(false);
 
   useEffect(() => {
     onAddressSelectRef.current = onAddressSelect;
-  }, [onAddressSelect]);
+    onLocationSelectRef.current = onLocationSelect;
+  }, [onAddressSelect, onLocationSelect]);
 
   useEffect(() => {
     let cancelled = false;
@@ -55,11 +58,18 @@ export function DeliveryLocationPicker({ onAddressSelect, pickLabel, locateLabel
         shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
       });
 
-      const map = L.map(mapNodeRef.current).setView([DEFAULT_CENTER.lat, DEFAULT_CENTER.lng], 13);
+      const startLat = initialLat ? Number(initialLat) : DEFAULT_CENTER.lat;
+      const startLng = initialLng ? Number(initialLng) : DEFAULT_CENTER.lng;
+
+      const map = L.map(mapNodeRef.current).setView([startLat, startLng], 14);
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       }).addTo(map);
+
+      if (initialLat && initialLng) {
+        markerRef.current = L.marker([startLat, startLng]).addTo(map);
+      }
 
       async function setLocation(lat, lng) {
         if (markerRef.current) {
@@ -74,10 +84,12 @@ export function DeliveryLocationPicker({ onAddressSelect, pickLabel, locateLabel
         try {
           const address = await reverseGeocode(lat, lng);
           onAddressSelectRef.current?.(address);
+          onLocationSelectRef.current?.({ lat, lng, address });
           setStatus("");
         } catch {
           const fallback = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
           onAddressSelectRef.current?.(fallback);
+          onLocationSelectRef.current?.({ lat, lng, address: fallback });
           setStatus("Could not resolve street address. Coordinates were added instead.");
         }
       }
@@ -104,7 +116,7 @@ export function DeliveryLocationPicker({ onAddressSelect, pickLabel, locateLabel
         markerRef.current = null;
       }
     };
-  }, []);
+  }, [initialLat, initialLng]);
 
   function useCurrentLocation() {
     if (!navigator.geolocation) {

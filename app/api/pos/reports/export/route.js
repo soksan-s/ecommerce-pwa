@@ -63,10 +63,8 @@ export async function GET(request) {
     let end = new Date();
 
     if (startDateParam && endDateParam) {
-      start = new Date(startDateParam);
-      start.setHours(0, 0, 0, 0);
-      end = new Date(endDateParam);
-      end.setHours(23, 59, 59, 999);
+      start = new Date(`${startDateParam}T00:00:00`);
+      end = new Date(`${endDateParam}T23:59:59.999`);
     } else {
       start.setHours(0, 0, 0, 0);
       end.setHours(23, 59, 59, 999);
@@ -74,8 +72,8 @@ export async function GET(request) {
 
     const baseWhere = {
       channel: "POS",
-      ...(user.branchId ? { branchId: user.branchId } : {}),
-      ...(user.role === "CASHIER" ? { cashierUserId: user.id } : {}),
+      ...(searchParams.get("branchId") ? { branchId: searchParams.get("branchId") } : {}),
+      ...(searchParams.get("cashier") ? { cashierName: searchParams.get("cashier") } : {}),
     };
 
     const sales = await prisma.sale.findMany({

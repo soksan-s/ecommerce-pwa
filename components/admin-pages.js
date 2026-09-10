@@ -8,33 +8,48 @@ import {
   AlertCircle,
   AlertTriangle,
   ArrowRight,
+  ArrowUpDown,
   ChartColumn,
+  Check,
+  CheckCircle,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   CircleDollarSign,
   ClipboardCheck,
+  Clock,
   Download,
   Edit3,
+  ExternalLink,
   Eye,
   EyeOff,
+  FileText,
   Filter,
   ImagePlus,
   Layers,
+  MapPin,
+  MinusCircle,
+  Navigation,
   PackageOpen,
   PackageSearch,
   Pencil,
+  Phone,
   Plus,
+  PlusCircle,
+  Printer,
   ReceiptText,
   RefreshCw,
   Save,
   Search,
   ShieldAlert,
+  ShieldCheck,
   SlidersHorizontal,
   Ticket,
   TrendingUp,
   Trash2,
+  Truck,
   Upload,
+  User,
   UserCheck,
   UserX,
   UserPlus,
@@ -46,6 +61,8 @@ import { useAppStore } from "@/components/app-store-provider";
 import { EntranceMotion } from "@/components/motion/entrance-motion";
 import { HoverLift } from "@/components/motion/hover-lift";
 import { easeInOutCubic } from "@/components/motion/motion-utils";
+import { OrderDeliveryMap } from "@/components/shared/OrderDeliveryMap";
+import { OrderPrintView } from "@/components/shared/OrderPrintView";
 import { Button } from "@/components/ui/button";
 import { cn, formatCurrency } from "@/lib/utils";
 
@@ -1560,15 +1577,44 @@ export function AdminProductManagementPageView() {
 
 export function AdminInventoryPageView() {
   const store = useAppStore();
-  const lowStock = store.products.filter((product) => product.stock <= 8);
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [csvText, setCsvText] = useState("");
   const [csvMessage, setCsvMessage] = useState("");
   const [movements, setMovements] = useState([]);
+  const [movementFilter, setMovementFilter] = useState("ALL");
+  const [movementLoading, setMovementLoading] = useState(false);
   const [movementMessage, setMovementMessage] = useState("");
 
+  // Stock In Modal State
+  const [stockInModal, setStockInModal] = useState({
+    open: false,
+    product: null,
+    variantId: "",
+    quantity: "10",
+    note: "",
+    loading: false,
+    error: "",
+    success: "",
+  });
+
+  // Stock Adjustment Modal State
+  const [adjustModal, setAdjustModal] = useState({
+    open: false,
+    product: null,
+    variantId: "",
+    type: "ADJUSTMENT_INCREASE",
+    quantity: "1",
+    reason: "",
+    loading: false,
+    error: "",
+    success: "",
+  });
+
   async function loadMovements() {
+    setMovementLoading(true);
     try {
-      const response = await fetch("/api/inventory/movements?limit=30", { cache: "no-store" });
+      const response = await fetch("/api/inventory/movements?limit=50", { cache: "no-store" });
       const payload = await response.json();
 
       if (!response.ok || !Array.isArray(payload.data)) {
@@ -1580,15 +1626,13 @@ export function AdminInventoryPageView() {
       setMovementMessage("");
     } catch {
       setMovementMessage("Unable to load movement history.");
+    } finally {
+      setMovementLoading(false);
     }
   }
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      loadMovements();
-    }, 0);
-
-    return () => window.clearTimeout(timer);
+    loadMovements();
   }, []);
 
   async function handleImport() {
@@ -1608,136 +1652,1223 @@ export function AdminInventoryPageView() {
     file.text().then(setCsvText);
   }
 
+  const productsList = useMemo(() => {
+    const lower = query.trim().toLowerCase();
+    return store.products.filter((product) => {
+      const totalStock = getProductTotalStock(product);
+      const minAlert = product.minStockAlert || 5;
+
+      if (lower) {
+        const matchName = product.name?.toLowerCase().includes(lower);
+        const matchSku = product.sku?.toLowerCase().includes(lower);
+        const matchCategory = product.category?.toLowerCase().includes(lower);
+        if (!matchName && !matchSku && !matchCategory) return false;
+      }
+
+      if (statusFilter === "lowStock" && (totalStock > minAlert || totalStock === 0)) {
+        return false;
+      }
+      if (statusFilter === "outOfStock" && totalStock > 0) {
+        return false;
+      }
+      return true;
+    });
+  }, [store.products, query, statusFilter]);
+
+  const metrics = useMemo(() => {
+    let totalStockCount = 0;
+    let lowStockCount = 0;
+    let outOfStockCount = 0;
+
+    store.products.forEach((p) => {
+      const stock = getProductTotalStock(p);
+      const min = p.minStockAlert || 5;
+      totalStockCount += stock;
+      if (stock === 0) {
+        outOfStockCount++;
+      } else if (stock <= min) {
+        lowStockCount++;
+      }
+    });
+
+    return {
+      totalProducts: store.products.length,
+      totalUnits: totalStockCount,
+      lowStockCount,
+      outOfStockCount,
+    };
+  }, [store.products]);
+
+  // Handle Stock In Submit
+  async function submitStockIn(e) {
+    e.preventDefault();
+    const qty = parseInt(stockInModal.quantity, 10);
+    if (isNaN(qty) || qty <= 0) {
+      setStockInModal((m) => ({ ...m, error: "Please enter a valid quantity greater than 0." }));
+      return;
+    }
+
+    setStockInModal((m) => ({ ...m, loading: true, error: "" }));
+
+    try {
+      const response = await fetch("/api/inventory/adjust", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "STOCK_IN",
+          variantId: stockInModal.variantId || undefined,
+          productId: !stockInModal.variantId ? stockInModal.product?.id : undefined,
+          quantity: qty,
+          note: stockInModal.note.trim() || "Stock In / Restock",
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to restock item.");
+      }
+
+      // Update local store product stock
+      store.restockProduct(stockInModal.product.id, qty);
+      loadMovements();
+
+      setStockInModal((m) => ({ ...m, loading: false, success: "Stock added successfully!" }));
+      setTimeout(() => {
+        setStockInModal({ open: false, product: null, variantId: "", quantity: "10", note: "", loading: false, error: "", success: "" });
+      }, 1000);
+    } catch (err) {
+      setStockInModal((m) => ({ ...m, loading: false, error: err.message }));
+    }
+  }
+
+  // Handle Stock Adjustment Submit
+  async function submitStockAdjustment(e) {
+    e.preventDefault();
+    const qty = parseInt(adjustModal.quantity, 10);
+    if (isNaN(qty) || qty <= 0) {
+      setAdjustModal((m) => ({ ...m, error: "Please enter a valid quantity greater than 0." }));
+      return;
+    }
+
+    if (!adjustModal.reason.trim()) {
+      setAdjustModal((m) => ({ ...m, error: "Reason is required for inventory adjustment (e.g., Damage, Audit correction, Spoilage)." }));
+      return;
+    }
+
+    const currentStock = getProductTotalStock(adjustModal.product);
+    if (adjustModal.type === "ADJUSTMENT_DECREASE" && qty > currentStock) {
+      setAdjustModal((m) => ({ ...m, error: `Cannot decrease more than available stock (${currentStock}).` }));
+      return;
+    }
+
+    setAdjustModal((m) => ({ ...m, loading: true, error: "" }));
+
+    try {
+      const response = await fetch("/api/inventory/adjust", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: adjustModal.type,
+          variantId: adjustModal.variantId || undefined,
+          productId: !adjustModal.variantId ? adjustModal.product?.id : undefined,
+          quantity: qty,
+          note: adjustModal.reason.trim(),
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to adjust inventory.");
+      }
+
+      // Update local store
+      const delta = adjustModal.type === "ADJUSTMENT_INCREASE" ? qty : -qty;
+      store.restockProduct(adjustModal.product.id, delta);
+      loadMovements();
+
+      setAdjustModal((m) => ({ ...m, loading: false, success: "Inventory adjusted successfully!" }));
+      setTimeout(() => {
+        setAdjustModal({ open: false, product: null, variantId: "", type: "ADJUSTMENT_INCREASE", quantity: "1", reason: "", loading: false, error: "", success: "" });
+      }, 1000);
+    } catch (err) {
+      setAdjustModal((m) => ({ ...m, loading: false, error: err.message }));
+    }
+  }
+
+  const filteredMovements = useMemo(() => {
+    if (movementFilter === "ALL") return movements;
+    if (movementFilter === "STOCK_IN") return movements.filter((m) => m.type === "STOCK_IN" || m.type === "PURCHASE_RECEIPT");
+    if (movementFilter === "ADJUSTMENT") return movements.filter((m) => m.type.startsWith("ADJUSTMENT") || m.type.startsWith("STOCK_COUNT"));
+    if (movementFilter === "SALE") return movements.filter((m) => m.type === "SALE" || m.type === "STOCK_OUT");
+    if (movementFilter === "RESERVATION") return movements.filter((m) => m.type.startsWith("RESERVATION"));
+    return movements;
+  }, [movements, movementFilter]);
+
   return (
     <div className="space-y-6">
-      <Card>
-        <div className="flex flex-wrap items-center justify-between gap-4">
+      {/* Overview Header Cards */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <Card className="p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Total Products</span>
+            <PackageSearch className="size-4 text-[var(--action)]" />
+          </div>
+          <div className="mt-2 text-2xl font-bold text-[var(--foreground)]">{metrics.totalProducts}</div>
+          <div className="mt-1 text-xs text-[var(--muted-foreground)]">{metrics.totalUnits} units on hand</div>
+        </Card>
+        <Card className="p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Low Stock</span>
+            <AlertTriangle className="size-4 text-amber-500" />
+          </div>
+          <div className="mt-2 text-2xl font-bold text-amber-600 dark:text-amber-400">{metrics.lowStockCount}</div>
+          <div className="mt-1 text-xs text-[var(--muted-foreground)]">&le; min stock threshold</div>
+        </Card>
+        <Card className="p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Out of Stock</span>
+            <ShieldAlert className="size-4 text-rose-500" />
+          </div>
+          <div className="mt-2 text-2xl font-bold text-rose-600 dark:text-rose-400">{metrics.outOfStockCount}</div>
+          <div className="mt-1 text-xs text-[var(--muted-foreground)]">Requires immediate restock</div>
+        </Card>
+        <Card className="p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Movements Logged</span>
+            <ClipboardCheck className="size-4 text-emerald-500" />
+          </div>
+          <div className="mt-2 text-2xl font-bold text-emerald-600 dark:text-emerald-400">{movements.length}</div>
+          <div className="mt-1 text-xs text-[var(--muted-foreground)]">Audit trails recorded</div>
+        </Card>
+      </div>
+
+      {/* Product Stock Table & Quick Actions */}
+      <Card className="space-y-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted-foreground)]">Inventory</p>
-            <h1 className="mt-2 text-4xl font-semibold tracking-tight text-[var(--foreground)]">Restock critical products and track availability.</h1>
+            <h2 className="text-xl font-bold text-[var(--foreground)]">Product Stock & Restock</h2>
+            <p className="text-xs text-[var(--muted-foreground)]">View product stock levels, add stock in, or record adjustments with reasons.</p>
           </div>
-          <Link
-            href="/admin/procurement"
-            className="inline-flex items-center justify-center rounded-xl bg-[var(--action)] px-6 py-3 text-sm font-semibold text-[var(--action-foreground)]"
-          >
-            Manage Purchase Orders
-          </Link>
-        </div>
-      </Card>
-      <Card>
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-xl font-semibold text-[var(--foreground)]">Inventory CSV import</h2>
-              <p className="mt-1 text-sm text-[var(--muted-foreground)]">Use `productId,quantity` or `name,quantity` rows to bulk restock items.</p>
-            </div>
-            <label className="inline-flex cursor-pointer items-center justify-center rounded-full bg-[var(--surface)] px-4 py-2 text-sm font-semibold text-[var(--foreground)]">
-              Load CSV
-              <input type="file" accept=".csv,text/csv" onChange={handleCsvFile} className="hidden" />
-            </label>
-          </div>
-          <textarea value={csvText} onChange={(event) => setCsvText(event.target.value)} placeholder="Paste restock CSV here" className="min-h-32 w-full rounded-[1.2rem] bg-[var(--surface)] px-4 py-3 text-sm outline-none" />
-          <div className="flex flex-wrap items-center gap-3">
-            <Button onClick={handleImport}>Import Inventory</Button>
-            {csvMessage ? <p className="text-sm text-[var(--muted-foreground)]">{csvMessage}</p> : null}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setStatusFilter("all")}
+              className={cn("rounded-full px-3 py-1 text-xs font-semibold transition", statusFilter === "all" ? "bg-[var(--action)] text-white" : "bg-[var(--surface-quiet)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]")}
+            >
+              All ({store.products.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter("lowStock")}
+              className={cn("rounded-full px-3 py-1 text-xs font-semibold transition", statusFilter === "lowStock" ? "bg-amber-500 text-white" : "bg-[var(--surface-quiet)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]")}
+            >
+              Low Stock ({metrics.lowStockCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter("outOfStock")}
+              className={cn("rounded-full px-3 py-1 text-xs font-semibold transition", statusFilter === "outOfStock" ? "bg-rose-600 text-white" : "bg-[var(--surface-quiet)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]")}
+            >
+              Out of Stock ({metrics.outOfStockCount})
+            </button>
           </div>
         </div>
-      </Card>
-      <Card>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-xl font-semibold text-[var(--foreground)]">Recent stock movements</h2>
-            <p className="mt-1 text-sm text-[var(--muted-foreground)]">POS sales, online reservations, and admin stock changes share this history.</p>
-          </div>
-          <Button variant="secondary" onClick={loadMovements}>Refresh</Button>
+
+        <div className="relative">
+          <Search className="absolute left-3.5 top-3 size-4 text-[var(--muted-foreground)]" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by product name, SKU, or category..."
+            className="app-input w-full pl-10 pr-4 py-2 text-sm"
+          />
         </div>
-        <div className="mt-4 overflow-x-auto">
-          {movements.length ? (
-            <table className="w-full min-w-[44rem] text-left text-sm">
-              <thead className="text-xs uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
+
+        <div className="overflow-x-auto rounded-xl border border-[var(--border-soft)]">
+          <table className="w-full min-w-[48rem] text-left text-sm">
+            <thead className="bg-[var(--surface-quiet)] text-xs uppercase tracking-wider text-[var(--muted-foreground)]">
+              <tr>
+                <th className="px-4 py-3 font-semibold">Product</th>
+                <th className="px-4 py-3 font-semibold">Category</th>
+                <th className="px-4 py-3 font-semibold text-center">Current Stock</th>
+                <th className="px-4 py-3 font-semibold text-center">Min Alert</th>
+                <th className="px-4 py-3 font-semibold text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[var(--border-soft)]">
+              {productsList.length ? (
+                productsList.map((product) => {
+                  const stock = getProductTotalStock(product);
+                  const min = product.minStockAlert || 5;
+                  const isLow = stock <= min && stock > 0;
+                  const isOut = stock === 0;
+
+                  return (
+                    <tr key={product.id} className="transition-colors hover:bg-[var(--surface-quiet)]/50">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          {product.image ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={product.image} alt={product.name} className="size-10 rounded-lg object-cover border border-[var(--border-soft)]" />
+                          ) : (
+                            <div className="flex size-10 items-center justify-center rounded-lg bg-[var(--surface-quiet)] text-xs font-bold text-[var(--muted-foreground)]">
+                              {product.name.slice(0, 2).toUpperCase()}
+                            </div>
+                          )}
+                          <div>
+                            <p className="font-semibold text-[var(--foreground)]">{product.name}</p>
+                            <p className="text-xs text-[var(--muted-foreground)]">{product.sku || "No SKU"}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-xs font-medium text-[var(--muted-foreground)]">
+                        {product.category || "General"}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold", isOut ? "bg-rose-500/15 text-rose-600 dark:text-rose-400" : isLow ? "bg-amber-500/15 text-amber-600 dark:text-amber-400" : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400")}>
+                          {stock} {product.unit || "units"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center text-xs text-[var(--muted-foreground)]">
+                        {min}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const firstVariant = Array.isArray(product.variants) && product.variants.length ? product.variants[0].id : "";
+                              setStockInModal({
+                                open: true,
+                                product,
+                                variantId: firstVariant,
+                                quantity: "10",
+                                note: "Restock replenishment",
+                                loading: false,
+                                error: "",
+                                success: "",
+                              });
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--action)] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:brightness-95"
+                          >
+                            <PlusCircle className="size-3.5" />
+                            Stock In
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const firstVariant = Array.isArray(product.variants) && product.variants.length ? product.variants[0].id : "";
+                              setAdjustModal({
+                                open: true,
+                                product,
+                                variantId: firstVariant,
+                                type: "ADJUSTMENT_INCREASE",
+                                quantity: "1",
+                                reason: "",
+                                loading: false,
+                                error: "",
+                                success: "",
+                              });
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-soft)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] transition hover:bg-[var(--surface-quiet)]"
+                          >
+                            <ArrowUpDown className="size-3.5 text-[var(--muted-foreground)]" />
+                            Adjust
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
                 <tr>
-                  <th className="px-3 py-2">Product</th>
-                  <th className="px-3 py-2">Channel</th>
-                  <th className="px-3 py-2">Type</th>
-                  <th className="px-3 py-2">Qty</th>
-                  <th className="px-3 py-2">Stock</th>
-                  <th className="px-3 py-2">Time</th>
+                  <td colSpan={5} className="px-4 py-8 text-center text-sm text-[var(--muted-foreground)]">
+                    No products matched your search or filter.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {/* Real-time Movement Logs */}
+      <Card className="space-y-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-[var(--foreground)]">Stock Movement & Audit Log</h2>
+            <p className="text-xs text-[var(--muted-foreground)]">Complete history of online reservations, POS sales, and inventory adjustments.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {["ALL", "STOCK_IN", "ADJUSTMENT", "SALE", "RESERVATION"].map((filterKey) => (
+              <button
+                key={filterKey}
+                type="button"
+                onClick={() => setMovementFilter(filterKey)}
+                className={cn("rounded-full px-3 py-1 text-xs font-semibold transition", movementFilter === filterKey ? "bg-[var(--action)] text-white" : "bg-[var(--surface-quiet)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]")}
+              >
+                {filterKey.replace(/_/g, " ")}
+              </button>
+            ))}
+            <Button variant="secondary" size="sm" onClick={loadMovements} disabled={movementLoading} className="gap-1.5">
+              <RefreshCw className={cn("size-3.5", movementLoading && "animate-spin")} />
+              Refresh
+            </Button>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto rounded-xl border border-[var(--border-soft)]">
+          {filteredMovements.length ? (
+            <table className="w-full min-w-[50rem] text-left text-sm">
+              <thead className="bg-[var(--surface-quiet)] text-xs uppercase tracking-wider text-[var(--muted-foreground)]">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">Product / Item</th>
+                  <th className="px-4 py-3 font-semibold">Channel</th>
+                  <th className="px-4 py-3 font-semibold">Type</th>
+                  <th className="px-4 py-3 font-semibold text-center">Change</th>
+                  <th className="px-4 py-3 font-semibold text-center">Stock Level</th>
+                  <th className="px-4 py-3 font-semibold">Note / Reason</th>
+                  <th className="px-4 py-3 font-semibold text-right">Time</th>
                 </tr>
               </thead>
-              <tbody>
-                {movements.map((movement) => (
-                  <tr key={movement.id} className="border-t border-[var(--border-soft)]">
-                    <td className="px-3 py-3">
-                      <p className="font-semibold text-[var(--foreground)]">{movement.productName}</p>
-                      <p className="mt-1 text-xs text-[var(--muted-foreground)]">{movement.sku}</p>
-                    </td>
-                    <td className="px-3 py-3 font-semibold uppercase text-[var(--foreground)]">{movement.channel}</td>
-                    <td className="px-3 py-3 capitalize text-[var(--muted-foreground)]">{movement.type.replace(/_/g, " ")}</td>
-                    <td className="px-3 py-3 font-semibold text-[var(--foreground)]">{movement.quantity}</td>
-                    <td className="px-3 py-3 text-[var(--muted-foreground)]">{movement.previousStock} &gt; {movement.nextStock}</td>
-                    <td className="px-3 py-3 text-[var(--muted-foreground)]">{new Date(movement.createdAt).toLocaleString()}</td>
-                  </tr>
-                ))}
+              <tbody className="divide-y divide-[var(--border-soft)]">
+                {filteredMovements.map((m) => {
+                  const isPositive = m.type === "STOCK_IN" || m.type === "ADJUSTMENT_INCREASE" || m.type === "PURCHASE_RECEIPT" || m.type === "RESERVATION_RELEASE";
+                  return (
+                    <tr key={m.id} className="transition-colors hover:bg-[var(--surface-quiet)]/50">
+                      <td className="px-4 py-3">
+                        <p className="font-semibold text-[var(--foreground)]">{m.productName || "Item"}</p>
+                        {m.sku ? <p className="text-xs text-[var(--muted-foreground)]">SKU: {m.sku}</p> : null}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="rounded-md bg-[var(--surface-quiet)] px-2 py-0.5 text-xs font-semibold uppercase text-[var(--foreground)]">
+                          {m.channel || "SYSTEM"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={cn("rounded-md px-2 py-0.5 text-xs font-medium", isPositive ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-400")}>
+                          {m.type?.replace(/_/g, " ")}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={cn("font-bold", isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
+                          {isPositive ? `+${m.quantity}` : `-${m.quantity}`}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center text-xs text-[var(--muted-foreground)]">
+                        {m.previousStock} &rarr; <strong className="text-[var(--foreground)]">{m.nextStock}</strong>
+                      </td>
+                      <td className="px-4 py-3 text-xs italic text-[var(--muted-foreground)] max-w-xs truncate" title={m.note}>
+                        {m.note || "-"}
+                      </td>
+                      <td className="px-4 py-3 text-right text-xs text-[var(--muted-foreground)]">
+                        {new Date(m.createdAt).toLocaleString()}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           ) : (
-            <div className="rounded-[1.2rem] border border-dashed border-[var(--border-soft)] p-6 text-sm text-[var(--muted-foreground)]">
-              {movementMessage || "No stock movements yet."}
+            <div className="p-8 text-center text-sm text-[var(--muted-foreground)]">
+              {movementMessage || "No movement logs match this filter."}
             </div>
           )}
         </div>
       </Card>
-      <div className="grid gap-5 md:grid-cols-2">
-        {lowStock.map((product) => (
-          <div key={product.id} className="rounded-[1.6rem] border border-[var(--border-soft)] bg-[var(--surface-strong)] p-5">
-            <h2 className="text-xl font-semibold text-[var(--foreground)]">{product.name}</h2>
-            <p className="mt-2 text-sm text-[var(--muted-foreground)]">Current stock {product.stock}</p>
-            <div className="mt-4 flex gap-2">
-              {[5, 10, 20].map((amount) => (
-                <button key={amount} type="button" onClick={() => store.restockProduct(product.id, amount)} className="rounded-full bg-[var(--surface)] px-4 py-2 text-sm font-semibold">
-                  +{amount}
-                </button>
-              ))}
-            </div>
+
+      {/* CSV Bulk Section */}
+      <Card className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-bold text-[var(--foreground)]">Bulk CSV Inventory Import</h2>
+            <p className="text-xs text-[var(--muted-foreground)]">Restock multiple items quickly using `productId,quantity` or `name,quantity` lines.</p>
           </div>
-        ))}
-      </div>
+          <label className="inline-flex cursor-pointer items-center justify-center rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-2 text-xs font-semibold text-[var(--foreground)] shadow-sm hover:bg-[var(--surface-quiet)]">
+            Load CSV File
+            <input type="file" accept=".csv,text/csv" onChange={handleCsvFile} className="hidden" />
+          </label>
+        </div>
+        <textarea
+          value={csvText}
+          onChange={(e) => setCsvText(e.target.value)}
+          placeholder="e.g.&#10;Angkor Beer Can,48&#10;Coca Cola 330ml,24"
+          className="app-input min-h-24 w-full px-4 py-2.5 text-xs font-mono"
+        />
+        <div className="flex flex-wrap items-center gap-3">
+          <Button size="sm" onClick={handleImport}>Import Inventory</Button>
+          {csvMessage ? <span className="text-xs text-[var(--muted-foreground)]">{csvMessage}</span> : null}
+        </div>
+      </Card>
+
+      {/* Stock In Modal */}
+      <AnimatePresence>
+        {stockInModal.open && stockInModal.product ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm" onClick={() => setStockInModal((m) => ({ ...m, open: false }))}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-6 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-[var(--border-soft)] pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex size-8 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                    <PlusCircle className="size-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-[var(--foreground)]">Stock In (Restock)</h3>
+                    <p className="text-xs text-[var(--muted-foreground)]">{stockInModal.product.name}</p>
+                  </div>
+                </div>
+                <button type="button" onClick={() => setStockInModal((m) => ({ ...m, open: false }))} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+                  <X className="size-5" />
+                </button>
+              </div>
+
+              <form onSubmit={submitStockIn} className="mt-4 space-y-4">
+                {Array.isArray(stockInModal.product.variants) && stockInModal.product.variants.length > 0 ? (
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Select Variant</label>
+                    <select
+                      value={stockInModal.variantId}
+                      onChange={(e) => setStockInModal((m) => ({ ...m, variantId: e.target.value }))}
+                      className="app-select mt-1 w-full px-3 py-2 text-sm"
+                    >
+                      {stockInModal.product.variants.map((v) => (
+                        <option key={v.id} value={v.id}>{v.name} (Current: {v.stock || 0})</option>
+                      ))}
+                    </select>
+                  </div>
+                ) : null}
+
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Quantity to Add *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={stockInModal.quantity}
+                    onChange={(e) => setStockInModal((m) => ({ ...m, quantity: e.target.value }))}
+                    className="app-input mt-1 w-full px-3 py-2 text-sm"
+                    placeholder="e.g. 24"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Restock Note / Supplier Batch</label>
+                  <input
+                    type="text"
+                    value={stockInModal.note}
+                    onChange={(e) => setStockInModal((m) => ({ ...m, note: e.target.value }))}
+                    className="app-input mt-1 w-full px-3 py-2 text-sm"
+                    placeholder="e.g. Weekly wholesale restock shipment"
+                  />
+                </div>
+
+                {stockInModal.error ? <div className="rounded-xl bg-rose-500/10 p-3 text-xs text-rose-600 dark:text-rose-400">{stockInModal.error}</div> : null}
+                {stockInModal.success ? <div className="rounded-xl bg-emerald-500/10 p-3 text-xs text-emerald-600 dark:text-emerald-400">{stockInModal.success}</div> : null}
+
+                <div className="flex gap-3 pt-2">
+                  <Button type="button" variant="outline" onClick={() => setStockInModal((m) => ({ ...m, open: false }))} className="flex-1">
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={stockInModal.loading} className="flex-1">
+                    {stockInModal.loading ? "Adding..." : "Confirm Stock In"}
+                  </Button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        ) : null}
+      </AnimatePresence>
+
+      {/* Stock Adjustment Modal */}
+      <AnimatePresence>
+        {adjustModal.open && adjustModal.product ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm" onClick={() => setAdjustModal((m) => ({ ...m, open: false }))}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-6 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-[var(--border-soft)] pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex size-8 items-center justify-center rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                    <ArrowUpDown className="size-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-[var(--foreground)]">Inventory Adjustment</h3>
+                    <p className="text-xs text-[var(--muted-foreground)]">{adjustModal.product.name} (Current: {getProductTotalStock(adjustModal.product)})</p>
+                  </div>
+                </div>
+                <button type="button" onClick={() => setAdjustModal((m) => ({ ...m, open: false }))} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+                  <X className="size-5" />
+                </button>
+              </div>
+
+              <form onSubmit={submitStockAdjustment} className="mt-4 space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Adjustment Type *</label>
+                  <div className="mt-1 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setAdjustModal((m) => ({ ...m, type: "ADJUSTMENT_INCREASE" }))}
+                      className={cn("flex items-center justify-center gap-1.5 rounded-xl border py-2 text-xs font-bold transition", adjustModal.type === "ADJUSTMENT_INCREASE" ? "border-emerald-500 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" : "border-[var(--border-soft)] bg-[var(--surface)] text-[var(--muted-foreground)]")}
+                    >
+                      <PlusCircle className="size-4" />
+                      Increase Stock (+)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAdjustModal((m) => ({ ...m, type: "ADJUSTMENT_DECREASE" }))}
+                      className={cn("flex items-center justify-center gap-1.5 rounded-xl border py-2 text-xs font-bold transition", adjustModal.type === "ADJUSTMENT_DECREASE" ? "border-rose-500 bg-rose-500/15 text-rose-600 dark:text-rose-400" : "border-[var(--border-soft)] bg-[var(--surface)] text-[var(--muted-foreground)]")}
+                    >
+                      <MinusCircle className="size-4" />
+                      Decrease Stock (-)
+                    </button>
+                  </div>
+                </div>
+
+                {Array.isArray(adjustModal.product.variants) && adjustModal.product.variants.length > 0 ? (
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Select Variant</label>
+                    <select
+                      value={adjustModal.variantId}
+                      onChange={(e) => setAdjustModal((m) => ({ ...m, variantId: e.target.value }))}
+                      className="app-select mt-1 w-full px-3 py-2 text-sm"
+                    >
+                      {adjustModal.product.variants.map((v) => (
+                        <option key={v.id} value={v.id}>{v.name} (Stock: {v.stock || 0})</option>
+                      ))}
+                    </select>
+                  </div>
+                ) : null}
+
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Quantity *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={adjustModal.quantity}
+                    onChange={(e) => setAdjustModal((m) => ({ ...m, quantity: e.target.value }))}
+                    className="app-input mt-1 w-full px-3 py-2 text-sm"
+                    placeholder="Quantity to adjust"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--muted-foreground)]">
+                    Adjustment Reason * <span className="font-normal text-rose-500">(Required)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={adjustModal.reason}
+                    onChange={(e) => setAdjustModal((m) => ({ ...m, reason: e.target.value }))}
+                    className="app-input mt-1 w-full px-3 py-2 text-sm"
+                    placeholder="e.g. Broken packaging, Found inventory, Audit shrinkage"
+                    required
+                  />
+                </div>
+
+                {adjustModal.error ? <div className="rounded-xl bg-rose-500/10 p-3 text-xs text-rose-600 dark:text-rose-400">{adjustModal.error}</div> : null}
+                {adjustModal.success ? <div className="rounded-xl bg-emerald-500/10 p-3 text-xs text-emerald-600 dark:text-emerald-400">{adjustModal.success}</div> : null}
+
+                <div className="flex gap-3 pt-2">
+                  <Button type="button" variant="outline" onClick={() => setAdjustModal((m) => ({ ...m, open: false }))} className="flex-1">
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={adjustModal.loading} className="flex-1">
+                    {adjustModal.loading ? "Adjusting..." : "Apply Adjustment"}
+                  </Button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        ) : null}
+      </AnimatePresence>
     </div>
   );
 }
 
 export function AdminOrderManagementPageView() {
   const store = useAppStore();
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [statusUpdating, setStatusUpdating] = useState(false);
+
+  // Edit Carrier/Tracking modal state
+  const [trackingModal, setTrackingModal] = useState({
+    open: false,
+    order: null,
+    carrier: "",
+    trackingNumber: "",
+    driverName: "",
+    driverPhone: "",
+    deliveryNote: "",
+    scheduledAt: "",
+    deliveryStatus: "PENDING",
+    loading: false,
+    error: "",
+    success: "",
+  });
+
+  const ordersList = useMemo(() => {
+    const lower = query.trim().toLowerCase();
+    return store.orders.filter((order) => {
+      if (statusFilter !== "all" && String(order.status).toLowerCase() !== statusFilter.toLowerCase()) {
+        return false;
+      }
+      if (lower) {
+        const matchId = String(order.orderNumber || order.id).toLowerCase().includes(lower);
+        const matchCustomer = String(order.customer?.name || order.user?.name || "").toLowerCase().includes(lower);
+        const matchPhone = String(order.customer?.phone || order.user?.phone || "").toLowerCase().includes(lower);
+        const matchAddress = String(order.shippingAddress || order.delivery?.address || "").toLowerCase().includes(lower);
+        if (!matchId && !matchCustomer && !matchPhone && !matchAddress) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [store.orders, query, statusFilter]);
+
+  const statusCounts = useMemo(() => {
+    const counts = { all: store.orders.length, pending: 0, confirmed: 0, preparing: 0, ready: 0, shipped: 0, delivered: 0, cancelled: 0 };
+    store.orders.forEach((o) => {
+      const s = String(o.status).toLowerCase();
+      if (counts[s] !== undefined) counts[s]++;
+    });
+    return counts;
+  }, [store.orders]);
+
+  async function updateOrderStatus(orderId, newStatus) {
+    setStatusUpdating(true);
+    try {
+      const res = await fetch(`/api/orders/${orderId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || "Status update failed");
+
+      store.updateOrder(orderId, { status: newStatus.toLowerCase() });
+      if (selectedOrder && selectedOrder.id === orderId) {
+        setSelectedOrder((o) => ({ ...o, status: newStatus.toLowerCase() }));
+      }
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setStatusUpdating(false);
+    }
+  }
+
+  async function saveTrackingInfo(e) {
+    e.preventDefault();
+    if (!trackingModal.order) return;
+
+    setTrackingModal((m) => ({ ...m, loading: true, error: "" }));
+    try {
+      const res = await fetch(`/api/orders/${trackingModal.order.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          trackingCarrier: trackingModal.carrier.trim() || null,
+          trackingNumber: trackingModal.trackingNumber.trim() || null,
+          driverName: trackingModal.driverName.trim() || null,
+          driverPhone: trackingModal.driverPhone.trim() || null,
+          deliveryNote: trackingModal.deliveryNote.trim() || null,
+          scheduledAt: trackingModal.scheduledAt || null,
+          deliveryStatus: trackingModal.deliveryStatus || undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || "Failed to update tracking");
+
+      const updated = data.data || data.order;
+      store.updateOrder(trackingModal.order.id, {
+        trackingCarrier: trackingModal.carrier.trim() || "",
+        trackingNumber: trackingModal.trackingNumber.trim() || "",
+        delivery: {
+          ...(trackingModal.order.delivery || {}),
+          note: trackingModal.deliveryNote.trim(),
+          driver: trackingModal.driverName || trackingModal.driverPhone ? { name: trackingModal.driverName, phone: trackingModal.driverPhone } : trackingModal.order.delivery?.driver,
+        },
+      });
+
+      if (selectedOrder && selectedOrder.id === trackingModal.order.id) {
+        setSelectedOrder((prev) => ({
+          ...prev,
+          trackingCarrier: trackingModal.carrier.trim() || "",
+          trackingNumber: trackingModal.trackingNumber.trim() || "",
+          delivery: {
+            ...(prev.delivery || {}),
+            note: trackingModal.deliveryNote.trim(),
+            driver: trackingModal.driverName || trackingModal.driverPhone ? { name: trackingModal.driverName, phone: trackingModal.driverPhone } : prev.delivery?.driver,
+          },
+        }));
+      }
+
+      setTrackingModal((m) => ({ ...m, loading: false, success: "Carrier & tracking updated!" }));
+      setTimeout(() => {
+        setTrackingModal({ open: false, order: null, carrier: "", trackingNumber: "", driverName: "", driverPhone: "", deliveryNote: "", scheduledAt: "", deliveryStatus: "PENDING", loading: false, error: "", success: "" });
+      }, 1000);
+    } catch (err) {
+      setTrackingModal((m) => ({ ...m, loading: false, error: err.message }));
+    }
+  }
 
   return (
     <div className="space-y-6">
-      <Card>
-        <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted-foreground)]">Order Management</p>
-        <h1 className="mt-2 text-4xl font-semibold tracking-tight text-[var(--foreground)]">Update order status and tracking.</h1>
-      </Card>
-      <div className="space-y-4">
-        {store.orders.map((order) => (
-          <div key={order.id} className="rounded-[1.6rem] border border-[var(--border-soft)] bg-[var(--surface-strong)] p-5">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-              <div>
-                <h2 className="text-xl font-semibold text-[var(--foreground)]">{order.orderNumber || order.id}</h2>
-                <p className="mt-2 text-sm text-[var(--muted-foreground)]">{order.shippingAddress}</p>
-              </div>
-              <div className="grid gap-3 md:grid-cols-3">
-                <select value={order.status} onChange={(event) => store.updateOrder(order.id, { status: event.target.value })} className="rounded-[1rem] bg-[var(--surface)] px-3 py-2 text-sm outline-none">
-                  <option value="pending">Pending</option>
-                  <option value="processing">Processing</option>
-                  <option value="shipped">Shipped</option>
-                  <option value="delivered">Delivered</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
-                <input value={order.trackingCarrier || ""} onChange={(event) => store.updateOrder(order.id, { trackingCarrier: event.target.value })} placeholder="Carrier" className="rounded-[1rem] bg-[var(--surface)] px-3 py-2 text-sm outline-none" />
-                <input value={order.trackingStatus || ""} onChange={(event) => store.updateOrder(order.id, { trackingStatus: event.target.value })} placeholder="Tracking status" className="rounded-[1rem] bg-[var(--surface)] px-3 py-2 text-sm outline-none" />
-              </div>
-            </div>
+      <Card className="space-y-4">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-wider text-[var(--muted-foreground)]">Operations & Logistics</p>
+            <h1 className="text-3xl font-bold tracking-tight text-[var(--foreground)]">Admin Order Management</h1>
+            <p className="mt-1 text-xs text-[var(--muted-foreground)]">Manage workflow status, driver/carrier assignments, and view interactive customer delivery maps.</p>
           </div>
-        ))}
+        </div>
+
+        {/* Status Filter Tabs */}
+        <div className="flex flex-wrap gap-2 pt-2">
+          {[
+            { key: "all", label: "All Orders", count: statusCounts.all },
+            { key: "pending", label: "Pending", count: statusCounts.pending },
+            { key: "confirmed", label: "Confirmed", count: statusCounts.confirmed },
+            { key: "preparing", label: "Preparing", count: statusCounts.preparing },
+            { key: "ready", label: "Ready", count: statusCounts.ready },
+            { key: "shipped", label: "Shipped", count: statusCounts.shipped },
+            { key: "delivered", label: "Delivered", count: statusCounts.delivered },
+            { key: "cancelled", label: "Cancelled", count: statusCounts.cancelled },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setStatusFilter(tab.key)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition",
+                statusFilter === tab.key
+                  ? "bg-[var(--action)] text-white shadow-sm"
+                  : "bg-[var(--surface-quiet)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+              )}
+            >
+              <span>{tab.label}</span>
+              <span className={cn("rounded-full px-1.5 py-0.2 text-[10px]", statusFilter === tab.key ? "bg-white/20 text-white" : "bg-[var(--surface-hover)] text-[var(--foreground)]")}>
+                {tab.count}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <div className="relative">
+          <Search className="absolute left-3.5 top-3 size-4 text-[var(--muted-foreground)]" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by order number, customer name, phone number, or address..."
+            className="app-input w-full pl-10 pr-4 py-2.5 text-sm"
+          />
+        </div>
+      </Card>
+
+      {/* Orders Grid/List */}
+      <div className="space-y-3">
+        {ordersList.length ? (
+          ordersList.map((order) => {
+            const customerName = order.customer?.name || order.user?.name || "Customer";
+            const customerPhone = order.customer?.phone || order.user?.phone || "";
+            const itemCount = (order.items || order.lines || []).reduce((sum, item) => sum + (item.quantity || 1), 0);
+
+            return (
+              <div key={order.id} className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-5 shadow-sm transition hover:border-[var(--action)]">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                  <div className="space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-base font-bold text-[var(--foreground)]">{order.orderNumber || order.id}</span>
+                      <StatusPill status={order.status} />
+                      <span className="rounded-md bg-[var(--surface-quiet)] px-2 py-0.5 text-[10px] font-bold uppercase text-[var(--muted-foreground)]">
+                        {order.channel || "ONLINE"}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--muted-foreground)]">
+                      <span className="flex items-center gap-1">
+                        <User className="size-3.5 text-[var(--action)]" />
+                        <strong className="text-[var(--foreground)]">{customerName}</strong>
+                      </span>
+                      {customerPhone ? (
+                        <a href={`tel:${customerPhone}`} className="flex items-center gap-1 hover:text-[var(--action)]">
+                          <Phone className="size-3 text-[var(--action)]" />
+                          <span>{customerPhone}</span>
+                        </a>
+                      ) : null}
+                      <span className="flex items-center gap-1">
+                        <Clock className="size-3 text-[var(--action)]" />
+                        <span>{new Date(order.createdAt).toLocaleString()}</span>
+                      </span>
+                    </div>
+
+                    <div className="flex items-start gap-1 text-xs text-[var(--muted-foreground)]">
+                      <MapPin className="size-3.5 shrink-0 text-[var(--muted-foreground)] mt-0.5" />
+                      <span className="line-clamp-1">{order.shippingAddress || order.delivery?.address || "Store Pickup"}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-4 border-t border-[var(--border-soft)] pt-3 xl:border-0 xl:pt-0">
+                    <div className="text-left xl:text-right">
+                      <p className="text-lg font-bold text-[var(--foreground)]">{formatCurrency(order.total)}</p>
+                      <p className="text-xs text-[var(--muted-foreground)]">{itemCount} items &bull; {order.paymentMethod || "COD"}</p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <OrderPrintView order={order} />
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => setSelectedOrder(order)}
+                        className="gap-1.5"
+                      >
+                        <FileText className="size-3.5" />
+                        Details & Map
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        ) : (
+          <div className="rounded-2xl border border-dashed border-[var(--border-soft)] p-12 text-center text-sm text-[var(--muted-foreground)]">
+            No orders found matching the filter.
+          </div>
+        )}
       </div>
+
+      {/* Order Detail Drawer / Modal */}
+      <AnimatePresence>
+        {selectedOrder ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6 backdrop-blur-sm" onClick={() => setSelectedOrder(null)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              className="relative flex max-h-[92vh] w-full max-w-3xl flex-col rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] shadow-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Drawer Header */}
+              <div className="flex items-center justify-between border-b border-[var(--border-soft)] bg-[var(--surface)] px-6 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--action-subtle)] text-[var(--action)]">
+                    <ReceiptText className="size-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-bold text-[var(--foreground)]">{selectedOrder.orderNumber || selectedOrder.id}</h2>
+                      <StatusPill status={selectedOrder.status} />
+                    </div>
+                    <p className="text-xs text-[var(--muted-foreground)]">Placed on {new Date(selectedOrder.createdAt).toLocaleString()}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <OrderPrintView order={selectedOrder} />
+                  <button type="button" onClick={() => setSelectedOrder(null)} className="rounded-lg p-1.5 text-[var(--muted-foreground)] hover:bg-[var(--surface-quiet)] hover:text-[var(--foreground)]">
+                    <X className="size-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Drawer Content */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                {/* Status Workflow Action Bar */}
+                <div className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-quiet)] p-4 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Status Workflow</span>
+                    <span className="text-xs text-[var(--muted-foreground)]">Update customer progress</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {[
+                      { status: "CONFIRMED", label: "Confirm Order" },
+                      { status: "PREPARING", label: "Preparing" },
+                      { status: "READY", label: "Ready / Packed" },
+                      { status: "SHIPPED", label: "Ship Order" },
+                      { status: "DELIVERED", label: "Mark Delivered" },
+                      { status: "CANCELLED", label: "Cancel Order" },
+                    ].map((step) => (
+                      <button
+                        key={step.status}
+                        type="button"
+                        disabled={statusUpdating || String(selectedOrder.status).toUpperCase() === step.status}
+                        onClick={() => updateOrderStatus(selectedOrder.id, step.status)}
+                        className={cn(
+                          "rounded-lg px-3 py-1.5 text-xs font-semibold transition disabled:opacity-40",
+                          step.status === "DELIVERED"
+                            ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                            : step.status === "CANCELLED"
+                            ? "bg-rose-600 text-white hover:bg-rose-700"
+                            : "border border-[var(--border-soft)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
+                        )}
+                      >
+                        {step.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Customer & Carrier Information Grid */}
+                <div className="grid gap-4 md:grid-cols-2">
+                  {/* Customer Card */}
+                  <div className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] p-4 space-y-2">
+                    <div className="flex items-center gap-2 text-xs font-bold uppercase text-[var(--muted-foreground)]">
+                      <User className="size-3.5 text-[var(--action)]" />
+                      <span>Customer Details</span>
+                    </div>
+                    <div className="space-y-1 text-sm">
+                      <p className="font-semibold text-[var(--foreground)]">{selectedOrder.customer?.name || selectedOrder.user?.name || "Customer"}</p>
+                      {selectedOrder.customer?.phone || selectedOrder.user?.phone ? (
+                        <p className="text-xs text-[var(--muted-foreground)]">
+                          Phone:{" "}
+                          <a href={`tel:${selectedOrder.customer?.phone || selectedOrder.user?.phone}`} className="font-medium text-[var(--action)] hover:underline">
+                            {selectedOrder.customer?.phone || selectedOrder.user?.phone}
+                          </a>
+                        </p>
+                      ) : null}
+                      <p className="text-xs text-[var(--muted-foreground)]">
+                        Payment: <strong>{selectedOrder.paymentMethod || "COD"}</strong> ({String(selectedOrder.paymentStatus || "PENDING").toUpperCase()})
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Carrier Tracking Card */}
+                  <div className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs font-bold uppercase text-[var(--muted-foreground)]">
+                        <Truck className="size-3.5 text-[var(--action)]" />
+                        <span>Carrier & Delivery</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTrackingModal({
+                            open: true,
+                            order: selectedOrder,
+                            carrier: selectedOrder.trackingCarrier || "",
+                            trackingNumber: selectedOrder.trackingNumber || "",
+                            driverName: selectedOrder.delivery?.driver?.name || "",
+                            driverPhone: selectedOrder.delivery?.driver?.phone || "",
+                            deliveryNote: selectedOrder.note || selectedOrder.delivery?.note || "",
+                            scheduledAt: selectedOrder.delivery?.scheduledAt ? new Date(selectedOrder.delivery.scheduledAt).toISOString().slice(0, 10) : "",
+                            deliveryStatus: selectedOrder.delivery?.status || "PENDING",
+                            loading: false,
+                            error: "",
+                            success: "",
+                          });
+                        }}
+                        className="text-xs font-bold text-[var(--action)] hover:underline"
+                      >
+                        Edit Tracking
+                      </button>
+                    </div>
+                    <div className="space-y-1 text-xs text-[var(--muted-foreground)]">
+                      <p>Carrier: <strong className="text-[var(--foreground)]">{selectedOrder.trackingCarrier || "Standard"}</strong></p>
+                      <p>Tracking #: <strong className="text-[var(--foreground)]">{selectedOrder.trackingNumber || "None"}</strong></p>
+                      {selectedOrder.delivery?.driver ? (
+                        <p>Driver: <strong className="text-[var(--foreground)]">{selectedOrder.delivery.driver.name}</strong> ({selectedOrder.delivery.driver.phone})</p>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Delivery Map */}
+                <div>
+                  <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Delivery Location</h3>
+                  <OrderDeliveryMap
+                    lat={selectedOrder.delivery?.lat}
+                    lng={selectedOrder.delivery?.lng}
+                    address={selectedOrder.shippingAddress || selectedOrder.delivery?.address}
+                    deliveryNote={selectedOrder.note || selectedOrder.delivery?.note}
+                    driver={selectedOrder.delivery?.driver}
+                    status={selectedOrder.status}
+                  />
+                </div>
+
+                {/* Ordered Items Table */}
+                <div>
+                  <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Ordered Items</h3>
+                  <div className="overflow-hidden rounded-xl border border-[var(--border-soft)]">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-[var(--surface-quiet)] uppercase text-[var(--muted-foreground)]">
+                        <tr>
+                          <th className="px-4 py-2.5 font-semibold">Item</th>
+                          <th className="px-4 py-2.5 font-semibold text-center">Qty</th>
+                          <th className="px-4 py-2.5 font-semibold text-right">Unit Price</th>
+                          <th className="px-4 py-2.5 font-semibold text-right">Line Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[var(--border-soft)]">
+                        {(selectedOrder.items || selectedOrder.lines || []).map((item, i) => (
+                          <tr key={item.id || i}>
+                            <td className="px-4 py-2.5">
+                              <p className="font-semibold text-[var(--foreground)]">{item.productName || item.variantName || "Product"}</p>
+                              {item.variantName && item.variantName !== "Default" && item.variantName !== item.productName ? (
+                                <p className="text-[11px] text-[var(--muted-foreground)]">{item.variantName}</p>
+                              ) : null}
+                            </td>
+                            <td className="px-4 py-2.5 text-center font-bold text-[var(--foreground)]">{item.quantity}</td>
+                            <td className="px-4 py-2.5 text-right text-[var(--muted-foreground)]">{formatCurrency(item.unitPrice)}</td>
+                            <td className="px-4 py-2.5 text-right font-bold text-[var(--foreground)]">
+                              {formatCurrency(item.lineTotal || item.quantity * item.unitPrice)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Financial Totals */}
+                <div className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-quiet)] p-4 space-y-2 text-xs">
+                  <div className="flex justify-between text-[var(--muted-foreground)]">
+                    <span>Subtotal:</span>
+                    <span className="font-semibold text-[var(--foreground)]">{formatCurrency(selectedOrder.subtotal || selectedOrder.total)}</span>
+                  </div>
+                  {selectedOrder.shippingFee ? (
+                    <div className="flex justify-between text-[var(--muted-foreground)]">
+                      <span>Shipping Fee:</span>
+                      <span className="font-semibold text-[var(--foreground)]">{formatCurrency(selectedOrder.shippingFee)}</span>
+                    </div>
+                  ) : null}
+                  {selectedOrder.couponDiscount ? (
+                    <div className="flex justify-between text-rose-600 dark:text-rose-400">
+                      <span>Discount ({selectedOrder.couponCode || "Promo"}):</span>
+                      <span className="font-semibold">-{formatCurrency(selectedOrder.couponDiscount)}</span>
+                    </div>
+                  ) : null}
+                  <div className="border-t border-[var(--border-soft)] pt-2 flex justify-between text-sm font-bold text-[var(--foreground)]">
+                    <span>Grand Total:</span>
+                    <span className="text-base text-[var(--action)]">{formatCurrency(selectedOrder.total)}</span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        ) : null}
+      </AnimatePresence>
+
+      {/* Edit Carrier / Driver Tracking Modal */}
+      <AnimatePresence>
+        {trackingModal.open && trackingModal.order ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm" onClick={() => setTrackingModal((m) => ({ ...m, open: false }))}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-6 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-[var(--border-soft)] pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex size-8 items-center justify-center rounded-lg bg-[var(--action-subtle)] text-[var(--action)]">
+                    <Truck className="size-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-[var(--foreground)]">Carrier & Delivery Info</h3>
+                    <p className="text-xs text-[var(--muted-foreground)]">Order {trackingModal.order.orderNumber || trackingModal.order.id}</p>
+                  </div>
+                </div>
+                <button type="button" onClick={() => setTrackingModal((m) => ({ ...m, open: false }))} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+                  <X className="size-5" />
+                </button>
+              </div>
+
+              <form onSubmit={saveTrackingInfo} className="mt-4 space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Carrier Name</label>
+                  <input
+                    type="text"
+                    value={trackingModal.carrier}
+                    onChange={(e) => setTrackingModal((m) => ({ ...m, carrier: e.target.value }))}
+                    className="app-input mt-1 w-full px-3 py-2 text-sm"
+                    placeholder="e.g. Standard, J&T Express, Virak Buntham, In-House"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Tracking Number</label>
+                  <input
+                    type="text"
+                    value={trackingModal.trackingNumber}
+                    onChange={(e) => setTrackingModal((m) => ({ ...m, trackingNumber: e.target.value }))}
+                    className="app-input mt-1 w-full px-3 py-2 text-sm"
+                    placeholder="e.g. VET-SR-998234"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Driver Name</label>
+                    <input
+                      type="text"
+                      value={trackingModal.driverName}
+                      onChange={(e) => setTrackingModal((m) => ({ ...m, driverName: e.target.value }))}
+                      className="app-input mt-1 w-full px-3 py-2 text-sm"
+                      placeholder="e.g. Sok Chea"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Driver Phone</label>
+                    <input
+                      type="tel"
+                      value={trackingModal.driverPhone}
+                      onChange={(e) => setTrackingModal((m) => ({ ...m, driverPhone: e.target.value }))}
+                      className="app-input mt-1 w-full px-3 py-2 text-sm"
+                      placeholder="e.g. 012 345 678"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Delivery Notes</label>
+                  <input
+                    type="text"
+                    value={trackingModal.deliveryNote}
+                    onChange={(e) => setTrackingModal((m) => ({ ...m, deliveryNote: e.target.value }))}
+                    className="app-input mt-1 w-full px-3 py-2 text-sm"
+                    placeholder="e.g. House near Wat Bo temple gate"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Estimated Delivery Date</label>
+                  <input
+                    type="date"
+                    value={trackingModal.scheduledAt}
+                    onChange={(e) => setTrackingModal((m) => ({ ...m, scheduledAt: e.target.value }))}
+                    className="app-input mt-1 w-full px-3 py-2 text-sm"
+                  />
+                </div>
+
+                {trackingModal.error ? <div className="rounded-xl bg-rose-500/10 p-3 text-xs text-rose-600 dark:text-rose-400">{trackingModal.error}</div> : null}
+                {trackingModal.success ? <div className="rounded-xl bg-emerald-500/10 p-3 text-xs text-emerald-600 dark:text-emerald-400">{trackingModal.success}</div> : null}
+
+                <div className="flex gap-3 pt-2">
+                  <Button type="button" variant="outline" onClick={() => setTrackingModal((m) => ({ ...m, open: false }))} className="flex-1">
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={trackingModal.loading} className="flex-1">
+                    {trackingModal.loading ? "Saving..." : "Save Tracking"}
+                  </Button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        ) : null}
+      </AnimatePresence>
     </div>
   );
 }

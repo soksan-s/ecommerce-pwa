@@ -520,7 +520,7 @@ useEffect(() => {
           ratingCount: nextCount,
         });
       },
-      async placeOrder({ shippingAddress, paymentMethod, couponCode }) {
+      async placeOrder({ shippingAddress, paymentMethod, couponCode, deliveryLatitude, deliveryLongitude, deliveryNote }) {
         const currentCart = state.cart;
         if (!currentCart.length) {
           return { success: false, message: "Your cart is empty.", order: null };
@@ -535,6 +535,9 @@ useEffect(() => {
               shippingAddress,
               paymentMethod,
               couponCode,
+              deliveryLatitude: deliveryLatitude !== undefined ? deliveryLatitude : null,
+              deliveryLongitude: deliveryLongitude !== undefined ? deliveryLongitude : null,
+              deliveryNote: deliveryNote || null,
               lines: currentCart.map((item) => ({
                 productId: item.productId,
                 variantId: item.variantId || undefined,

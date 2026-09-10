@@ -72,13 +72,27 @@ export function PosLayoutShell({ children }) {
   const lang = settings?.appearance?.defaultLanguage || "en";
   const { t } = useTranslation(lang);
 
+  // Apply posLayout data-attribute globally so all POS pages can respond to compact/comfortable.
+  useEffect(() => {
+    const layout = settings?.appearance?.posLayout || "comfortable";
+    document.documentElement.dataset.posLayout = layout;
+    document.body.dataset.posLayout = layout;
+  }, [settings?.appearance?.posLayout]);
+
+  // Sync document language attribute so Khmer Content font and :lang(km) rules apply.
+  useEffect(() => {
+    if (typeof document !== "undefined" && lang) {
+      document.documentElement.lang = lang;
+      document.documentElement.setAttribute("data-lang", lang);
+    }
+  }, [lang]);
+
   async function handleLogout() {
     try {
-      await authClient.signOut();
       await fetch("/api/auth/logout", { method: "POST" });
+      await authClient.signOut().catch(() => {});
     } catch {}
-    router.push("/login");
-    router.refresh();
+    window.location.href = "/login";
   }
 
   function renderStatusBadge() {

@@ -1,4 +1,4 @@
-const CACHE_NAME = "myshop-cache-v4";
+const CACHE_NAME = "myshop-cache-v5";
 const STATIC_CACHE_EXTENSIONS = [
   ".js",
   ".css",

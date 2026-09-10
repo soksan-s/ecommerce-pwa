@@ -1,16 +1,32 @@
 import { ok } from "@/lib/api-response";
 import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 
-export async function POST() {
+async function doLogout() {
   try {
-    // Sign out via Better Auth
+    const reqHeaders = await headers();
     await auth.api.signOut({
-      headers: await headers(),
+      headers: reqHeaders,
     });
   } catch {
-    // Ignore - may already be signed out
+    // Ignore - fallback to cookie clearing
   }
 
+  try {
+    const cookieStore = await cookies();
+    cookieStore.delete("better-auth.session_token");
+    cookieStore.delete("better-auth.session_data");
+    cookieStore.delete("__Secure-better-auth.session_token");
+    cookieStore.delete("better-auth.csrf_token");
+  } catch {}
+
   return ok({ message: "Logged out." });
+}
+
+export async function POST() {
+  return doLogout();
+}
+
+export async function GET() {
+  return doLogout();
 }

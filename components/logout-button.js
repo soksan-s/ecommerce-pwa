@@ -19,19 +19,11 @@ export function LogoutButton({ variant = "outline", className = "", children }) 
     setLoading(true);
 
     try {
-      // Only use Better Auth's signOut — it handles all cookie/session cleanup.
-      // Do NOT call the custom /api/auth/logout endpoint as well, since that races.
-      await authClient.signOut();
-
-      // Navigate after a small delay to let session cleanup propagate
-      await new Promise((r) => setTimeout(r, 100));
-
-      // Use replace instead of push to avoid stacking history entries
-      router.replace("/");
+      await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+      await authClient.signOut().catch(() => {});
+      window.location.href = "/login";
     } catch (error) {
-      console.error("Logout failed", error);
-      // Even on error, try to navigate home so the user isn't stuck
-      router.replace("/");
+      window.location.href = "/login";
     } finally {
       setLoading(false);
       cancellingRef.current = false;

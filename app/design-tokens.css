@@ -69,7 +69,8 @@
   --shadow-glow: 0 8px 32px rgb(5 150 105 / 0.14);
 
   /* Typography */
-  --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-sans: "Content", "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Content", "Space Grotesk", "Plus Jakarta Sans", system-ui, sans-serif;
 
   /* Spacing */
   --unit: 8px;

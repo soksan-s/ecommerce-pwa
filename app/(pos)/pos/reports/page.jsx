@@ -10,6 +10,7 @@ import {
   FileText,
   Filter,
   Loader2,
+  RefreshCw,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -243,13 +244,20 @@ function ReportPagination({ pagination, onPage, onPageSize }) {
 
 const moneyFormatter = (value) => formatPrimaryMoney(value, {}, false);
 
+function getLocalDateString(d = new Date()) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export default function PosReportsPage() {
   const { settings } = usePOSSettings();
   const [tab, setTab] = useState("overview");
 
-  // Shared date range (Overview + all report tabs)
-  const [startDate, setStartDate] = useState(() => new Date().toISOString().split("T")[0]);
-  const [endDate, setEndDate] = useState(() => new Date().toISOString().split("T")[0]);
+  // Shared date range (Overview + all report tabs) defaults to local current date
+  const [startDate, setStartDate] = useState(() => getLocalDateString());
+  const [endDate, setEndDate] = useState(() => getLocalDateString());
 
   const [report, setReport] = useState(null);
   const [message, setMessage] = useState("");
@@ -266,7 +274,7 @@ export default function PosReportsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
-  async function loadReport() {
+  const loadReport = useCallback(async () => {
     try {
       const response = await fetch(`/api/pos/reports?startDate=${startDate}&endDate=${endDate}`, { cache: "no-store" });
       const payload = await response.json();
@@ -281,15 +289,27 @@ export default function PosReportsPage() {
     } catch {
       setMessage("Unable to load POS reports.");
     }
-  }
+  }, [startDate, endDate]);
 
+  // Auto-reload when user switches back to this browser tab (e.g., after completing a sale)
+  useEffect(() => {
+    function onVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        loadReport();
+      }
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, [loadReport]);
+
+  // Load on mount and whenever the date range changes
   useEffect(() => {
     const timer = window.setTimeout(() => {
       loadReport();
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [startDate, endDate]);
+  }, [loadReport]);
 
   const activeReport = useMemo(() => REPORT_TABS.find((entry) => entry.key === tab) || REPORT_TABS[0], [tab]);
 
@@ -425,6 +445,15 @@ export default function PosReportsPage() {
           >
             <Filter className="size-3.5" />
             Apply
+          </button>
+          <button
+            type="button"
+            onClick={loadReport}
+            title="Refresh report data"
+            className="inline-flex items-center gap-1 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-strong)] hover:bg-[var(--surface-soft)] px-3 py-2 text-xs font-bold text-[var(--foreground)] shadow-xs transition-all active:scale-[0.98]"
+          >
+            <RefreshCw className="size-3.5" />
+            Refresh
           </button>
         </div>
       </div>

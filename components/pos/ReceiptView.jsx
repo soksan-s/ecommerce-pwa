@@ -15,7 +15,7 @@ export function ReceiptView({ transaction, settings, onNewSale }) {
       <style>
         {`@media print {
           body * { visibility: hidden; }
-          #receipt-print, #receipt-print * { visibility: visible; color: #000 !important; background: #fff !important; }
+          #receipt-print, #receipt-print * { visibility: visible; color: #000 !important; background: #fff !important; font-family: "Content", "Plus Jakarta Sans", system-ui, sans-serif !important; }
           #receipt-print { position: absolute; inset: 0; width: 100%; padding: 24px; }
           .no-print { display: none !important; }
         }`}

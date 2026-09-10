@@ -59,12 +59,16 @@ h2 {
   letter-spacing: -0.015em;
 }
 
+button, input, optgroup, select, textarea {
+  font-family: inherit;
+}
+
 /* ── Khmer language explicit scoping ───────────────────────────────────────
-   When the <html> or any ancestor has lang="km" (set via JS), ALL descendant
-   text switches to the Content font family. This is a safety net in addition
-   to the unicode-range @font-face above.                                    */
+   When the <html> or any ancestor has lang="km" or data-lang="km", ALL descendant
+   text switches to the Content font family.                                   */
 :lang(km),
 [lang="km"],
+[data-lang="km"],
 .lang-km {
   font-family: "Content", system-ui, sans-serif !important;
   line-height: 1.8;
@@ -73,7 +77,7 @@ h2 {
 
 /* ── Utility class for explicit Khmer text nodes ───────────────────────── */
 .font-khmer {
-  font-family: "Content", system-ui, sans-serif;
+  font-family: "Content", system-ui, sans-serif !important;
   line-height: 1.8;
   letter-spacing: 0;
 }

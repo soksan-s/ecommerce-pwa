@@ -13,30 +13,35 @@ function parseDateRange(searchParams) {
   let end = new Date();
 
   if (startParam && endParam) {
-    start = new Date(startParam);
-    start.setHours(0, 0, 0, 0);
-    end = new Date(endParam);
-    end.setHours(23, 59, 59, 999);
+    start = new Date(`${startParam}T00:00:00`);
+    end = new Date(`${endParam}T23:59:59.999`);
   } else {
     start.setHours(0, 0, 0, 0);
     switch (range) {
+      case "yesterday": {
+        start.setDate(start.getDate() - 1);
+        start.setHours(0, 0, 0, 0);
+        end = new Date(start);
+        end.setHours(23, 59, 59, 999);
+        break;
+      }
       case "week":
         start.setDate(start.getDate() - 6);
+        end.setHours(23, 59, 59, 999);
         break;
       case "month":
         start.setDate(1);
+        end.setHours(23, 59, 59, 999);
         break;
       default:
+        end.setHours(23, 59, 59, 999);
         break;
     }
-    end.setHours(23, 59, 59, 999);
   }
 
   const diffDays = Math.max(1, Math.ceil(Math.abs(end - start) / (1000 * 60 * 60 * 24)));
-  const previousStart = new Date(start);
-  previousStart.setDate(previousStart.getDate() - diffDays);
-  const previousEnd = new Date(start);
-  previousEnd.setMilliseconds(previousEnd.getMilliseconds() - 1);
+  const previousStart = new Date(start.getTime() - diffDays * 24 * 60 * 60 * 1000);
+  const previousEnd = new Date(start.getTime() - 1);
 
   return { start, end, previousStart, previousEnd };
 }
@@ -520,8 +525,9 @@ export async function GET(request) {
     const reportType = searchParams.get("reportType") || "overview";
     const { start, end, previousStart, previousEnd } = parseDateRange(searchParams);
 
-    const branchFilter = user.branchId ? { branchId: user.branchId } : {};
-    const cashierFilter = user.role === "CASHIER" ? { cashierUserId: user.id } : {};
+    const branchFilter = searchParams.get("branchId") ? { branchId: searchParams.get("branchId") } : {};
+    const cashierParam = searchParams.get("cashier") || searchParams.get("cashierName");
+    const cashierFilter = cashierParam ? { cashierName: cashierParam } : {};
 
     let data;
 

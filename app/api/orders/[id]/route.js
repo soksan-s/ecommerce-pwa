@@ -94,9 +94,45 @@ async function allocateFefoBatches(tx, { order, userId }) {
       remaining -= deductQty;
     }
 
-if (remaining > 0) {
+    if (remaining > 0) {
       throw new Error("INSUFFICIENT_BATCH_STOCK");
     }
+  }
+}
+
+export async function GET(request, { params }) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return fail("Not authenticated.", 401);
+    }
+
+    const { id } = await params;
+    const order = await prisma.order.findUnique({
+      where: { id },
+      include: {
+        items: true,
+        delivery: {
+          include: {
+            driver: true,
+          },
+        },
+        customer: true,
+        user: true,
+      },
+    });
+
+    if (!order) {
+      return fail("Order not found.", 404);
+    }
+
+    if (!canAccessPOS(user.role) && order.userId !== user.id) {
+      return fail("You do not have permission to view this order.", 403);
+    }
+
+    return ok({ data: serializeOrder(order) });
+  } catch (error) {
+    return handleRouteError(error, "Unable to load order details.");
   }
 }
 
@@ -136,14 +172,13 @@ export async function PATCH(request, { params }) {
           throw Object.assign(new Error("INVALID_STATUS"), { code: "P2025" });
         }
 
-// Cancel reservations for each item in the order
+        // Cancel reservations for each item in the order
         if (existing.branchId) {
           for (const line of existing.items || []) {
             if (!line.variantId) continue;
 
             // Atomically release reservation — decrement reservedQuantity, increment availableQuantity
-            // Using updateMany with gte condition on reservedQuantity prevents race conditions
-            const releaseResult = await tx.inventory.updateMany({
+            await tx.inventory.updateMany({
               where: {
                 variantId: line.variantId,
                 branchId: existing.branchId,
@@ -172,7 +207,16 @@ export async function PATCH(request, { params }) {
         const next = await tx.order.update({
           where: { id },
           data: { status: "CANCELLED" },
-          include: { items: true },
+          include: {
+            items: true,
+            delivery: {
+              include: {
+                driver: true,
+              },
+            },
+            customer: true,
+            user: true,
+          },
         });
 
         await createAuditLog(tx, {
@@ -201,8 +245,8 @@ export async function PATCH(request, { params }) {
     }
   }
 
-// ════════════════════════════════════════════════════════════════
-  // POS / ADMIN STATUS UPDATE PATH (existing logic preserved)
+  // ════════════════════════════════════════════════════════════════
+  // POS / ADMIN STATUS & CARRIER UPDATE PATH
   // ════════════════════════════════════════════════════════════════
   if (!user || !canAccessPOS(user.role)) {
     return fail("POS access required.", 403);
@@ -216,6 +260,7 @@ export async function PATCH(request, { params }) {
         },
         include: {
           items: true,
+          delivery: true,
         },
       });
 
@@ -227,6 +272,45 @@ export async function PATCH(request, { params }) {
         await allocateFefoBatches(tx, {
           order: existing,
           userId: user.id,
+        });
+      }
+
+      // Handle driver upsert if driverName or driverPhone provided
+      let driverId = undefined;
+      if (body.driverPhone || body.driverName) {
+        const phone = body.driverPhone?.trim() || `driver-${Date.now()}`;
+        const name = body.driverName?.trim() || "Delivery Driver";
+        const driver = await tx.driver.upsert({
+          where: { phoneNumber: phone },
+          update: { name, isActive: true },
+          create: { phoneNumber: phone, name, isActive: true },
+        });
+        driverId = driver.id;
+      }
+
+      // Handle Delivery record update or create
+      if (existing.delivery) {
+        await tx.delivery.update({
+          where: { orderId: id },
+          data: {
+            ...(driverId ? { driverId } : {}),
+            ...(body.deliveryNote !== undefined ? { note: body.deliveryNote } : {}),
+            ...(body.scheduledAt ? { scheduledAt: new Date(body.scheduledAt) } : {}),
+            ...(body.deliveryStatus ? { status: body.deliveryStatus } : {}),
+            ...(nextStatus === "DELIVERED" ? { deliveredAt: new Date(), status: "DELIVERED" } : {}),
+          },
+        });
+      } else if (driverId || body.deliveryNote || body.scheduledAt) {
+        await tx.delivery.create({
+          data: {
+            orderId: id,
+            address: existing.shippingAddress || "Store Delivery",
+            driverId: driverId || null,
+            note: body.deliveryNote || null,
+            scheduledAt: body.scheduledAt ? new Date(body.scheduledAt) : null,
+            status: nextStatus === "DELIVERED" ? "DELIVERED" : "PENDING",
+            deliveredAt: nextStatus === "DELIVERED" ? new Date() : null,
+          },
         });
       }
 
@@ -245,6 +329,13 @@ export async function PATCH(request, { params }) {
         },
         include: {
           items: true,
+          delivery: {
+            include: {
+              driver: true,
+            },
+          },
+          customer: true,
+          user: true,
         },
       });
 
