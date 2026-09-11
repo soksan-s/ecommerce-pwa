@@ -20,14 +20,16 @@ function parseNumber(value) {
 }
 
 function buildVariantSku(productName, productSku, variantName) {
-  const base = String(productSku || productName || "PRODUCT")
-    .replace(/\s+/g, "-")
-    .toUpperCase()
-    .slice(0, 32);
-  const suffix = String(variantName || "DEFAULT")
-    .replace(/\s+/g, "-")
-    .toUpperCase()
-    .slice(0, 16);
+  // Strip to ASCII-safe characters; Khmer/non-Latin names fall back to
+  // a timestamp so the SKU stays unique and CSV/URL friendly.
+  const slug = (value, max) =>
+    String(value || "")
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, max);
+  const base = slug(productSku || productName, 32) || `IMP-${Date.now().toString(36).toUpperCase()}`;
+  const suffix = slug(variantName, 16) || "DEFAULT";
   return `${base}-${suffix}`;
 }
 

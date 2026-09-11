@@ -8,12 +8,15 @@ import { prisma } from "@/lib/prisma";
 import { findCodeConflict } from "@/lib/server/services/product-codes";
 import { productSchema } from "@/lib/validations";
 
-function buildVariantSku(productName, productSku) {
-  const base = String(productSku || productName || "PRODUCT")
-    .replace(/\s+/g, "-")
+// Keep SKUs ASCII-safe: names in Khmer or other non-Latin scripts strip down
+// to nothing, so fall back to the product id to stay unique.
+function buildVariantSku(productName, productSku, productSkuFallback) {
+  const base = String(productSku || productName || "")
     .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
     .slice(0, 32);
-  return `${base}-DEFAULT`;
+  return `${base || productSkuFallback || "PRODUCT"}-DEFAULT`;
 }
 
 
@@ -76,7 +79,7 @@ export async function POST(request) {
       const variantSku =
         (result.data.sku && String(result.data.sku).trim()
           ? `${String(result.data.sku).trim()}-DEFAULT`
-          : buildVariantSku(result.data.name, result.data.sku)) || `PROD-${product.id}-DEFAULT`;
+          : buildVariantSku(result.data.name, result.data.sku, product.id)) || `PROD-${product.id}-DEFAULT`;
 
       const variant = await tx.productVariant.create({
         data: {

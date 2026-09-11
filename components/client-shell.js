@@ -142,16 +142,6 @@ export function ClientShell({ user, initialTab = "home", orderDetailId = "" }) {
     router.push(clientTabHref(nextTab));
   }
 
-  /** Called from Homepage category cards — navigate to Shop with category pre-selected */
-  function handleSelectCategory(catKey) {
-    setSelectedCategory(catKey);
-    setQuery("");
-    const nextTab = "shop";
-    setSelectedTab(nextTab);
-    setDrawerOpen(false);
-    router.push(clientTabHref(nextTab));
-  }
-
   function handleLogoClick() {
     setSelectedCategory("All");
     setQuery("");
@@ -170,7 +160,6 @@ export function ClientShell({ user, initialTab = "home", orderDetailId = "" }) {
             store={store}
             requireAuth={requireAuth}
             onNavigateToShop={() => openTab("shop")}
-            onSelectCategory={handleSelectCategory}
           />
         );
       case "favorites":
@@ -470,7 +459,7 @@ export function ClientShell({ user, initialTab = "home", orderDetailId = "" }) {
       {/* TIER 3: Main Tab Navigation Bar                                     */}
       {/* ─────────────────────────────────────────────────────────────────── */}
       <nav className="w-full bg-[var(--surface-strong)]/95 backdrop-blur-md border-b border-[var(--border-soft)] px-4 sm:px-6 lg:px-8 sticky top-0 z-30 transition-colors hidden md:block">
-        <div className="max-w-7xl mx-auto flex items-center gap-1 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden py-0.5">
+        <div className="no-scrollbar max-w-7xl mx-auto flex items-center gap-1 overflow-x-auto py-0.5">
           {clientTabs.map((tab) => {
             const isActive = activeTab === tab.key;
             const Icon = tab.icon;

@@ -491,6 +491,26 @@ select:-webkit-autofill {
   transition: background-color 9999s ease-in-out 0s;
 }
 
+/* ── Utilities ──────────────────────────────────────────────────────────── */
+
+.no-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.line-clamp-2 {
+  display: -webkit-box !important;
+  -webkit-box-orient: vertical !important;
+  -webkit-line-clamp: 2 !important;
+  overflow: hidden !important;
+}
+
 /* ── Sharp edges: no rounded corners anywhere (90° design) ─────────────── */
 
 *,
@@ -498,3 +518,4 @@ select:-webkit-autofill {
 *::after {
   border-radius: 0 !important;
 }
+

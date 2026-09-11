@@ -693,6 +693,22 @@ function ToggleSwitch({ checked, onChange, label }) {
   );
 }
 
+// Build a SKU-safe slug from product/variant names. Names written in Khmer
+// (or any non-Latin script) leave no ASCII characters after stripping, so fall
+// back to a timestamp to keep the SKU unique and URL/CSV safe.
+function buildVariantSkuFromNames(productName, variantName) {
+  const slug = (value) =>
+    String(value || "")
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 32);
+
+  const parts = [slug(productName), slug(variantName)].filter(Boolean);
+  const base = parts.join("-").replace(/^-+|-+$/g, "").slice(0, 48);
+  return `${base || "VARIANT"}-${Date.now().toString(36).toUpperCase()}`;
+}
+
 export function AdminAddProductPageView() {
   const store = useAppStore();
   const router = useRouter();
@@ -812,7 +828,7 @@ export function AdminAddProductPageView() {
           const priceAdj = Number(row.priceAdjustment) || 0;
           const payload = {
             name: row.name,
-            sku: row.sku || `${String(form.name || "PRODUCT").replace(/\s+/g, "-").toUpperCase()}-${row.name.replace(/\s+/g, "-").toUpperCase()}`,
+            sku: row.sku || buildVariantSkuFromNames(form.name, row.name),
             price: Math.max(0, basePrice + priceAdj),
             costPrice: basePrice,
             discountPercent: Number(form.discountPercent) || 0,
@@ -1715,11 +1731,11 @@ export function AdminInventoryPageView() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          type: "STOCK_IN",
+          action: "STOCK_IN",
+          productId: stockInModal.product?.id,
           variantId: stockInModal.variantId || undefined,
-          productId: !stockInModal.variantId ? stockInModal.product?.id : undefined,
           quantity: qty,
-          note: stockInModal.note.trim() || "Stock In / Restock",
+          reason: stockInModal.note.trim() || "Stock In / Restock",
         }),
       });
 
@@ -1768,11 +1784,11 @@ export function AdminInventoryPageView() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          type: adjustModal.type,
+          action: adjustModal.type,
+          productId: adjustModal.product?.id,
           variantId: adjustModal.variantId || undefined,
-          productId: !adjustModal.variantId ? adjustModal.product?.id : undefined,
           quantity: qty,
-          note: adjustModal.reason.trim(),
+          reason: adjustModal.reason.trim(),
         }),
       });
 

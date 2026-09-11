@@ -61,7 +61,7 @@ export function AuthModal({ isOpen, onClose, hint = "", initialView = "login" })
                 <div className="flex size-8 items-center justify-center rounded-xl bg-[var(--action)] text-[var(--action-foreground)]">
                   <Store className="size-4" />
                 </div>
-                <span className="text-sm font-bold tracking-tight text-[var(--foreground)]">SOKSAN Store</span>
+                <span className="text-sm font-bold tracking-tight text-[var(--foreground)]">Soeum Savet Store</span>
               </div>
               <button
                 type="button"

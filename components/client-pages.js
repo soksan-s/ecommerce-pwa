@@ -548,6 +548,18 @@ export function ProductCard({ product, store, requireAuth = null }) {
           {product.name}
         </Link>
 
+        <p
+          className={cn(
+            "line-clamp-2 h-10 overflow-hidden text-xs leading-5",
+            product.description?.trim()
+              ? "text-[var(--muted-foreground)]"
+              : "italic text-[var(--muted-foreground)]/70"
+          )}
+          title={product.description?.trim() || t("no_description")}
+        >
+          {product.description?.trim() || t("no_description")}
+        </p>
+
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
           {priceRange ? (
             <span className="font-display text-[0.95rem] font-semibold tabular-nums text-[var(--action-on-muted)]">
@@ -670,6 +682,21 @@ function ClientHeroCarousel({ products, reverse = false, language = "en" }) {
     return () => clearInterval(interval);
   }, [reverse, shouldAutoScroll]);
 
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const handleWheel = (e) => {
+      if (e.deltaY !== 0 && el.scrollWidth > el.clientWidth) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+      }
+    };
+
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, []);
+
   if (!shouldAutoScroll) {
     return (
       <div className="overflow-hidden pb-1">
@@ -699,7 +726,7 @@ function ClientHeroCarousel({ products, reverse = false, language = "en" }) {
     >
       <div
         ref={scrollRef}
-        className="flex gap-4 overflow-x-auto pb-1 snap-x snap-mandatory [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        className="no-scrollbar flex gap-4 overflow-x-auto py-1 snap-x snap-mandatory scroll-smooth"
       >
         {visibleProducts.map((product) => (
           <div key={product.id} className="snap-start">
@@ -803,6 +830,22 @@ export function ClientProductListPageView({
   const [visibleGridCounts, setVisibleGridCounts] = useState({});
   const [revealState, setRevealState] = useState(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const categoriesScrollRef = useRef(null);
+
+  useEffect(() => {
+    const el = categoriesScrollRef.current;
+    if (!el) return;
+
+    const handleWheel = (e) => {
+      if (e.deltaY !== 0 && el.scrollWidth > el.clientWidth) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+      }
+    };
+
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, []);
   const sourceProducts = productsOverride || store.activeProducts;
   const sourceCategories = useMemo(() => [...new Set(sourceProducts.map((product) => product.category))], [sourceProducts]);
   const categoryChips = useMemo(() => ["All", ...sourceCategories], [sourceCategories]);
@@ -997,7 +1040,10 @@ export function ClientProductListPageView({
     <div className="mx-auto max-w-[72rem] space-y-6">
       {/* Category row — like the reference: chips inline, filters at the end */}
       <div className="flex items-center gap-2">
-        <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <div
+          ref={categoriesScrollRef}
+          className="no-scrollbar flex min-w-0 flex-1 items-center gap-2 overflow-x-auto py-0.5 scroll-smooth"
+        >
           {categoryChips.map((category) => {
             const isActive =
               category === "All" ? selectedCategories.length === 0 : selectedCategories.includes(category);
@@ -1027,18 +1073,17 @@ export function ClientProductListPageView({
         <button
           type="button"
           onClick={() => setFiltersOpen((state) => !state)}
-          aria-label="Filters"
+          aria-label={t("filters")}
           aria-expanded={filtersOpen}
-          className={
-            "app-icon-button relative shrink-0 " +
-            (filtersOpen
-              ? "border-[color-mix(in_srgb,var(--action)_45%,transparent)] text-[var(--action-on-muted)]"
-              : "")
-          }
+          title={t("filters")}
+          className={cn(
+            "relative inline-flex h-[38px] w-[38px] shrink-0 items-center justify-center border border-[color-mix(in_srgb,var(--action)_36%,transparent)] bg-[var(--action)] text-[var(--action-foreground)] shadow-xs transition hover:brightness-110 active:scale-95 cursor-pointer",
+            filtersOpen && "brightness-95 ring-2 ring-[var(--action)] ring-offset-2 ring-offset-[var(--background)]"
+          )}
         >
           <SlidersHorizontal className="size-4" />
           {activeFilterCount ? (
-            <span className="absolute -right-1.5 -top-1.5 grid min-w-4 place-items-center bg-[var(--action)] px-1 text-[10px] font-black text-[var(--action-foreground)]">
+            <span className="absolute -right-1.5 -top-1.5 grid min-w-4.5 h-4.5 px-1 place-items-center bg-rose-500 text-[10px] font-black text-white shadow-xs">
               {activeFilterCount}
             </span>
           ) : null}
