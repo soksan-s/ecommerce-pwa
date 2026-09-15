@@ -430,7 +430,7 @@ const CLIENT_REVEAL_DURATION_MS = 900;
 function isMultiVariantProduct(product) {
   return Boolean(
     product &&
-      (product.hasVariants || (product.isVariant && product.variants && product.variants.length > 0)),
+    (product.hasVariants || (product.isVariant && product.variants && product.variants.length > 0)),
   );
 }
 
@@ -811,7 +811,7 @@ export function ClientProductListPageView({
   const store = useAppStore();
   const { t } = useTranslation(store.language);
   const isCustomCollection = Boolean(productsOverride);
-  const setQuery = onQueryChange || (() => {});
+  const setQuery = onQueryChange || (() => { });
   const [selectedCategories, setSelectedCategories] = useState(() =>
     selectedCategory && selectedCategory !== "All" ? [selectedCategory] : []
   );
@@ -1157,64 +1157,64 @@ export function ClientProductListPageView({
 
       <div className="min-w-0 space-y-4">
 
-          {products.length ? (
-            isCustomCollection ? (
-              <ClientProductGrid key={productGridKey} products={products} store={store} requireAuth={requireAuth} />
-            ) : (
-              <div className="space-y-6">
-                <ClientHeroCarousel products={products.slice(0, 5)} language={store.language || "en"} />
-
-                {groupedProducts.map((group) => (
-                  <section key={group.category} className="space-y-4">
-                    <h2 className="font-display px-1 text-xl font-semibold tracking-tight text-[var(--foreground)]">{group.category}</h2>
-
-                    <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
-                      {group.products
-                        .slice(0, resolvedVisibleGridCounts[group.category] ?? CLIENT_VISIBLE_COUNT)
-                        .map((product, index) => {
-                          const isRevealed =
-                            revealState?.category === group.category &&
-                            index >= revealState.start;
-
-                          return (
-                            <motion.div
-                              key={`${group.category}-${product.id}-grid`}
-                              initial={isRevealed ? { opacity: 0, x: 36 } : false}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{
-                                duration: isRevealed ? 0.38 : 0.22,
-                                delay: isRevealed ? (index - revealState.start) * 0.055 : 0,
-                                ease: easeInOutCubic,
-                              }}
-                            >
-                              <ProductCard product={product} store={store} requireAuth={requireAuth} />
-                            </motion.div>
-                          );
-                        })}
-                    </div>
-
-                    {group.products.length > (resolvedVisibleGridCounts[group.category] ?? CLIENT_VISIBLE_COUNT) ? (
-                      <div className="flex justify-center pt-1">
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          className="rounded-full border-2 border-[color-mix(in_srgb,var(--foreground)_24%,transparent)] px-5 py-2.5 text-sm shadow-none hover:border-[color-mix(in_srgb,var(--foreground)_36%,transparent)]"
-                          onClick={() => showMoreProducts(group.category)}
-                        >
-                          {t("show_more")}
-                        </Button>
-                      </div>
-                    ) : null}
-                  </section>
-                ))}
-              </div>
-            )
+        {products.length ? (
+          isCustomCollection ? (
+            <ClientProductGrid key={productGridKey} products={products} store={store} requireAuth={requireAuth} />
           ) : (
-            <div className="rounded-[1.25rem] border border-[var(--border-soft)] bg-[color-mix(in_srgb,var(--surface)_82%,var(--background-start))] px-4 py-8 text-center text-sm text-[var(--muted-foreground)]">
-              {t("no_matching_products")}
+            <div className="space-y-6">
+              <ClientHeroCarousel products={products.slice(0, 5)} language={store.language || "en"} />
+
+              {groupedProducts.map((group) => (
+                <section key={group.category} className="space-y-4">
+                  <h2 className="font-display px-1 text-xl font-semibold tracking-tight text-[var(--foreground)]">{group.category}</h2>
+
+                  <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+                    {group.products
+                      .slice(0, resolvedVisibleGridCounts[group.category] ?? CLIENT_VISIBLE_COUNT)
+                      .map((product, index) => {
+                        const isRevealed =
+                          revealState?.category === group.category &&
+                          index >= revealState.start;
+
+                        return (
+                          <motion.div
+                            key={`${group.category}-${product.id}-grid`}
+                            initial={isRevealed ? { opacity: 0, x: 36 } : false}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{
+                              duration: isRevealed ? 0.38 : 0.22,
+                              delay: isRevealed ? (index - revealState.start) * 0.055 : 0,
+                              ease: easeInOutCubic,
+                            }}
+                          >
+                            <ProductCard product={product} store={store} requireAuth={requireAuth} />
+                          </motion.div>
+                        );
+                      })}
+                  </div>
+
+                  {group.products.length > (resolvedVisibleGridCounts[group.category] ?? CLIENT_VISIBLE_COUNT) ? (
+                    <div className="flex justify-center pt-1">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="rounded-full border-2 border-[color-mix(in_srgb,var(--foreground)_24%,transparent)] px-5 py-2.5 text-sm shadow-none hover:border-[color-mix(in_srgb,var(--foreground)_36%,transparent)]"
+                        onClick={() => showMoreProducts(group.category)}
+                      >
+                        {t("show_more")}
+                      </Button>
+                    </div>
+                  ) : null}
+                </section>
+              ))}
             </div>
-          )}
-        </div>
+          )
+        ) : (
+          <div className="rounded-[1.25rem] border border-[var(--border-soft)] bg-[color-mix(in_srgb,var(--surface)_82%,var(--background-start))] px-4 py-8 text-center text-sm text-[var(--muted-foreground)]">
+            {t("no_matching_products")}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1240,84 +1240,147 @@ export function ClientFavoritesPageView() {
   return <ClientProductListPageView productsOverride={store.favoriteProducts} />;
 }
 
+
+
 export function ClientCartPageView() {
   const store = useAppStore();
   const { t } = useTranslation(store.language);
 
   return (
-    <div className="space-y-4">
-      {store.cartItems.length ? (
-        <>
-          <div className="space-y-3 px-4">
-            {store.cartItems.map((item) => (
-              <Card key={item.cartKey || item.productId} className="p-3">
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <div
-                    className="h-[5.25rem] w-[5.25rem] rounded-xl bg-cover bg-center"
-                    style={{ backgroundImage: item.product.image ? `url(${item.product.image})` : undefined }}
-                  />
-                  <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <h2 className="text-lg font-semibold text-[var(--foreground)]">{item.product.name}</h2>
-                      {item.variantName ? (
-                        <p className="mt-0.5 text-xs font-medium text-[var(--action)]">{item.variantName}</p>
-                      ) : null}
-                      <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-                        {formatCurrency(item.unitPrice)} {t("each")}
-                      </p>
-                      <p className="mt-1 text-sm font-semibold text-[var(--foreground)]">{t("subtotal")}: {formatCurrency(item.subtotal)}</p>
-                    </div>
-                    <div className="flex flex-col items-start gap-2 sm:items-center">
-                      <div className="flex items-center border border-[var(--border-strong)] bg-[var(--surface-strong)]">
-                        <button
-                          type="button"
-                          onClick={() => store.decreaseCart(item.productId, item.variantId)}
-                          aria-label="Decrease quantity"
-                          className="grid size-8 place-items-center text-sm font-bold text-[var(--foreground)] transition-colors hover:bg-[var(--action-surface)] hover:text-[var(--action-on-muted)]"
-                        >
-                          -
-                        </button>
-                        <span className="min-w-9 text-center text-sm font-extrabold tabular-nums text-[var(--foreground)]">{item.quantity}</span>
-                        <button
-                          type="button"
-                          onClick={() => store.addToCart(item.productId, 1, item.variantId)}
-                          aria-label="Increase quantity"
-                          className="grid size-8 place-items-center text-sm font-bold text-[var(--foreground)] transition-colors hover:bg-[var(--action-surface)] hover:text-[var(--action-on-muted)]"
-                        >
-                          +
-                        </button>
+    <>
+      <div className="space-y-4">
+        {store.cartItems.length ? (
+          <>
+            <div className="space-y-3 px-4">
+              {store.cartItems.map((item) => (
+                <Card key={item.cartKey || item.productId} className="p-3">
+                  <div className="flex min-w-0 gap-3">
+                    <div
+                      className="h-[5.25rem] w-[5.25rem] shrink-0 rounded-xl bg-cover bg-center"
+                      style={{
+                        backgroundImage: item.product.image
+                          ? `url(${item.product.image})`
+                          : undefined,
+                      }}
+                    />
+
+                    <div className="flex min-w-0 flex-1 items-stretch justify-between gap-2">
+                      <div className="min-w-0 flex-1 overflow-hidden">
+                        <h2 className="truncate text-lg font-semibold text-[var(--foreground)]">
+                          {item.product.name}
+                        </h2>
+
+                        {item.variantName ? (
+                          <p className="mt-0.5 truncate text-xs font-medium text-[var(--action)]">
+                            {item.variantName}
+                          </p>
+                        ) : null}
+
+                        <p className="mt-1 truncate text-sm text-[var(--muted-foreground)]">
+                          {formatCurrency(item.unitPrice)} {t("each")}
+                        </p>
+
+                        <p className="mt-1 truncate text-sm font-semibold text-[var(--foreground)]">
+                          {t("subtotal")}: {formatCurrency(item.subtotal)}
+                        </p>
                       </div>
-                      <button type="button" onClick={() => store.removeFromCart(item.productId, item.variantId)} className="text-sm font-medium text-[var(--action)]">
-                        {t("remove")}
-                      </button>
+
+                      <div className="flex h-[5.25rem] shrink-0 flex-col items-end justify-between">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            store.removeFromCart(
+                              item.productId,
+                              item.variantId
+                            )
+                          }
+                          aria-label={t("remove")}
+                          title={t("remove")}
+                          className="grid size-8 shrink-0 place-items-center rounded-full text-red-500 transition-colors hover:bg-red-50 hover:text-red-600"
+                        >
+                          <X size={20} strokeWidth={2.5} />
+                        </button>
+
+                        <div className="flex shrink-0 items-center border border-[var(--border-strong)] bg-[var(--surface-strong)]">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              store.decreaseCart(
+                                item.productId,
+                                item.variantId
+                              )
+                            }
+                            aria-label="Decrease quantity"
+                            className="grid size-8 place-items-center text-sm font-bold text-[var(--foreground)] transition-colors hover:bg-[var(--action-surface)] hover:text-[var(--action-on-muted)]"
+                          >
+                            -
+                          </button>
+
+                          <span className="min-w-9 text-center text-sm font-extrabold tabular-nums text-[var(--foreground)]">
+                            {item.quantity}
+                          </span>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              store.addToCart(
+                                item.productId,
+                                1,
+                                item.variantId
+                              )
+                            }
+                            aria-label="Increase quantity"
+                            className="grid size-8 place-items-center text-sm font-bold text-[var(--foreground)] transition-colors hover:bg-[var(--action-surface)] hover:text-[var(--action-on-muted)]"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
+                </Card>
+              ))}
+            </div>
+
+            <div className="rounded-t-[1.5rem] border-t border-[var(--border-soft)] bg-[linear-gradient(135deg,var(--surface-quiet),var(--surface),color-mix(in_srgb,var(--action)_12%,var(--surface)))] px-4 pb-4 pt-3 shadow-[0_-4px_16px_rgba(15,24,35,0.06)]">
+              <div className="flex items-center gap-4">
+                <div className="min-w-0">
+                  <p className="text-lg font-bold text-[var(--foreground)]">
+                    {t("total")}
+                  </p>
+
+                  <p className="mt-1 text-2xl font-extrabold text-[var(--foreground)]">
+                    {formatCurrency(store.cartTotal)}
+                  </p>
                 </div>
-              </Card>
-            ))}
-          </div>
-          <div className="rounded-t-[1.5rem] border-t border-[var(--border-soft)] bg-[linear-gradient(135deg,var(--surface-quiet),var(--surface),color-mix(in_srgb,var(--action)_12%,var(--surface)))] px-4 pb-4 pt-3 shadow-[0_-4px_16px_rgba(15,24,35,0.06)]">
-            <div className="flex items-center gap-4">
-              <div>
-                <p className="text-lg font-bold text-[var(--foreground)]">{t("total")}</p>
-                <p className="mt-1 text-2xl font-extrabold text-[var(--foreground)]">{formatCurrency(store.cartTotal)}</p>
-              </div>
-              <div className="ml-auto">
-                <Link href="/client/checkout" prefetch={false} className="inline-flex items-center justify-center rounded-xl bg-[var(--action)] px-[1.125rem] py-[0.875rem] text-sm font-semibold text-[var(--action-foreground)] shadow-[var(--shadow-soft)]">
-                  {t("proceed_to_checkout")}
-                </Link>
+
+                <div className="ml-auto shrink-0">
+                  <Link
+                    href="/client/checkout"
+                    prefetch={false}
+                    className="inline-flex items-center justify-center rounded-xl bg-[var(--action)] px-[1.125rem] py-[0.875rem] text-sm font-semibold text-[var(--action-foreground)] shadow-[var(--shadow-soft)]"
+                  >
+                    {t("proceed_to_checkout")}
+                  </Link>
+                </div>
               </div>
             </div>
+          </>
+        ) : (
+          <div className="flex min-h-[14rem] items-center justify-center px-4 text-center text-[var(--muted-foreground)]">
+            {t("cart_empty_hint")}
           </div>
-        </>
-      ) : (
-        <div className="flex min-h-[14rem] items-center justify-center px-4 text-center text-[var(--muted-foreground)]">
-          {t("cart_empty_hint")}
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </>
   );
 }
+
+
+
+
+
+
 
 export function ClientCheckoutPageView() {
   const store = useAppStore();
@@ -1399,7 +1462,7 @@ export function ClientCheckoutPageView() {
       <KhqrPaymentPanel
         payment={khqrPayment}
         onCancel={() => router.push("/client?tab=orders")}
-        onPaid={() => {}}
+        onPaid={() => { }}
       />
     );
   }
@@ -1523,6 +1586,7 @@ export function ClientOrderHistoryPageView() {
           return false;
         }
       }
+
       if (endDate) {
         const end = new Date(`${endDate}T23:59:59`);
         if (createdAt > end) {
@@ -1539,7 +1603,9 @@ export function ClientOrderHistoryPageView() {
         String(order.orderNumber || "").toLowerCase().includes(lower) ||
         String(order.shippingAddress || "").toLowerCase().includes(lower) ||
         String(order.paymentMethod || "").toLowerCase().includes(lower) ||
-        (order.lines || []).some((line) => String(line.productName || "").toLowerCase().includes(lower))
+        (order.lines || []).some((line) =>
+          String(line.productName || "").toLowerCase().includes(lower)
+        )
       );
     });
 
@@ -1560,19 +1626,38 @@ export function ClientOrderHistoryPageView() {
   const orderMetrics = useMemo(() => {
     return {
       total: store.orders.length,
-      active: store.orders.filter((order) => !["delivered", "cancelled"].includes(order.status)).length,
-      delivered: store.orders.filter((order) => order.status === "delivered").length,
-      spent: store.orders.reduce((sum, order) => sum + Number(order.total || 0), 0),
+      active: store.orders.filter(
+        (order) => !["delivered", "cancelled"].includes(order.status)
+      ).length,
+      delivered: store.orders.filter(
+        (order) => order.status === "delivered"
+      ).length,
+      spent: store.orders.reduce(
+        (sum, order) => sum + Number(order.total || 0),
+        0
+      ),
     };
   }, [store.orders]);
 
   const dateRangeLabel =
     startDate && endDate
-      ? `${new Date(`${startDate}T00:00:00`).toLocaleDateString("en-US", { month: "numeric", day: "numeric" })} - ${new Date(`${endDate}T00:00:00`).toLocaleDateString("en-US", { month: "numeric", day: "numeric" })}`
+      ? `${new Date(`${startDate}T00:00:00`).toLocaleDateString("en-US", {
+        month: "numeric",
+        day: "numeric",
+      })} - ${new Date(`${endDate}T00:00:00`).toLocaleDateString("en-US", {
+        month: "numeric",
+        day: "numeric",
+      })}`
       : startDate
-        ? `From ${new Date(`${startDate}T00:00:00`).toLocaleDateString("en-US", { month: "numeric", day: "numeric" })}`
+        ? `From ${new Date(`${startDate}T00:00:00`).toLocaleDateString(
+          "en-US",
+          { month: "numeric", day: "numeric" }
+        )}`
         : endDate
-          ? `Until ${new Date(`${endDate}T00:00:00`).toLocaleDateString("en-US", { month: "numeric", day: "numeric" })}`
+          ? `Until ${new Date(`${endDate}T00:00:00`).toLocaleDateString(
+            "en-US",
+            { month: "numeric", day: "numeric" }
+          )}`
           : "Date range";
 
   const statusOptions = [
@@ -1601,42 +1686,68 @@ export function ClientOrderHistoryPageView() {
   };
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <Link href="/client" className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--action)] transition hover:text-[var(--foreground)]">
+    <div className="min-w-0 space-y-5">
+      <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
+          <Link
+            href="/client"
+            className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--action)] transition hover:text-[var(--foreground)]"
+          >
             <ChevronRight className="size-3 rotate-180" />
             Back to shop
           </Link>
-          <h1 className="font-display mt-2 text-3xl font-bold tracking-tight text-[var(--foreground)] sm:text-4xl">Order History</h1>
+
+          <h1 className="font-display mt-2 text-3xl font-bold tracking-tight text-[var(--foreground)] sm:text-4xl">
+            Order History
+          </h1>
+
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
-            Review previous orders, delivery progress, payment method, and applied discounts.
+            Review previous orders, delivery progress, payment method, and
+            applied discounts.
           </p>
         </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:min-w-[31rem]">
+
+        <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 lg:min-w-[31rem]">
           {[
             { label: "Orders", value: orderMetrics.total, icon: ReceiptText },
             { label: "Active", value: orderMetrics.active, icon: PackageCheck },
-            { label: "Delivered", value: orderMetrics.delivered, icon: BadgeCheck },
-            { label: "Spent", value: formatCurrency(orderMetrics.spent), icon: CircleDollarSign },
+            {
+              label: "Delivered",
+              value: orderMetrics.delivered,
+              icon: BadgeCheck,
+            },
+            {
+              label: "Spent",
+              value: formatCurrency(orderMetrics.spent),
+              icon: CircleDollarSign,
+            },
           ].map(({ label, value, icon: Icon }) => (
-            <div key={label} className="rounded-[1.1rem] border border-[var(--border-soft)] bg-[var(--surface)] px-3 py-3 shadow-sm">
+            <div
+              key={label}
+              className="min-w-0 rounded-[1.1rem] border border-[var(--border-soft)] bg-[var(--surface)] px-3 py-3 shadow-sm"
+            >
               <div className="flex items-center justify-between gap-2 text-[var(--muted-foreground)]">
-                <span className="text-xs font-medium">{label}</span>
-                <Icon className="size-4 text-[var(--action)]" />
+                <span className="min-w-0 truncate text-xs font-medium">
+                  {label}
+                </span>
+                <Icon className="size-4 shrink-0 text-[var(--action)]" />
               </div>
-              <p className="mt-2 truncate text-lg font-semibold text-[var(--foreground)]">{value}</p>
+
+              <p className="mt-2 truncate text-lg font-semibold text-[var(--foreground)]">
+                {value}
+              </p>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_18rem]">
-        <div className="space-y-4">
-          <Card className="p-3 sm:p-4">
-            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_12rem_12rem]">
-              <label className="flex min-h-12 items-center gap-3 rounded-[1rem] border border-[var(--border-soft)] bg-[var(--surface)] px-4">
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_18rem]">
+        <div className="min-w-0 space-y-4">
+          <Card className="w-full min-w-0 max-w-full overflow-hidden p-3 sm:p-4">
+            <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_12rem_12rem]">
+              <label className="flex min-h-12 min-w-0 items-center gap-3 rounded-[1rem] border border-[var(--border-soft)] bg-[var(--surface)] px-4">
                 <Search className="size-4 shrink-0 text-[var(--action)]" />
+
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
@@ -1644,23 +1755,29 @@ export function ClientOrderHistoryPageView() {
                   className="w-full min-w-0 bg-transparent text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
                 />
               </label>
-              <select value={sort} onChange={(event) => setSort(event.target.value)} className="app-select min-h-12 px-4 text-sm">
+
+              <select
+                value={sort}
+                onChange={(event) => setSort(event.target.value)}
+                className="app-select min-h-12 w-full min-w-0"
+              >
                 <option value="newest">{t("newest")}</option>
                 <option value="oldest">{t("oldest")}</option>
                 <option value="total-high">{t("total_high")}</option>
                 <option value="total-low">{t("total_low")}</option>
               </select>
+
               <button
                 type="button"
                 onClick={resetFilters}
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[1rem] border border-[var(--border-soft)] bg-[var(--surface)] px-4 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--action)] hover:text-[var(--action)]"
+                className="inline-flex min-h-12 w-full min-w-0 items-center justify-center gap-2 rounded-[1rem] border border-[var(--border-soft)] bg-[var(--surface)] px-4 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--action)] hover:text-[var(--action)]"
               >
-                <RefreshCw className="size-4" />
+                <RefreshCw className="size-4 shrink-0" />
                 Reset
               </button>
             </div>
 
-            <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+            <div className="mt-3 flex min-w-0 max-w-full gap-2 overflow-x-auto pb-1">
               {statusOptions.map((option) => (
                 <button
                   key={option.value}
@@ -1680,59 +1797,85 @@ export function ClientOrderHistoryPageView() {
           </Card>
 
           {store.orders.length === 0 ? (
-            <div className="flex min-h-[18rem] flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-[var(--border-soft)] bg-[var(--surface)] px-6 text-center">
+            <div className="flex min-h-[18rem] min-w-0 flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-[var(--border-soft)] bg-[var(--surface)] px-6 text-center">
               <ReceiptText className="size-9 text-[var(--action)]" />
-              <p className="mt-4 text-lg font-semibold text-[var(--foreground)]">No orders yet</p>
-              <p className="mt-2 max-w-md text-sm leading-6 text-[var(--muted-foreground)]">Completed orders will show here after checkout.</p>
+
+              <p className="mt-4 text-lg font-semibold text-[var(--foreground)]">
+                No orders yet
+              </p>
+
+              <p className="mt-2 max-w-md text-sm leading-6 text-[var(--muted-foreground)]">
+                Completed orders will show here after checkout.
+              </p>
             </div>
           ) : orders.length ? (
-            <div className="grid gap-3">
+            <div className="grid min-w-0 gap-3">
               {orders.map((order) => {
                 const primaryLine = getPrimaryOrderLine(order);
-                const lineCount = order.lines?.length || order.items?.length || 0;
-                const productImage = getProductImageForLine(store, primaryLine);
+                const lineCount =
+                  order.lines?.length || order.items?.length || 0;
+                const productImage = getProductImageForLine(
+                  store,
+                  primaryLine
+                );
 
                 return (
                   <Link
                     key={order.id}
                     className={cn(
-                      "group grid w-full gap-4 rounded-[1.4rem] border bg-[var(--surface)] p-4 text-left shadow-sm transition sm:grid-cols-[4.75rem_minmax(0,1fr)_auto]",
+                      "group grid w-full min-w-0 gap-4 overflow-hidden rounded-[1.4rem] border bg-[var(--surface)] p-4 text-left shadow-sm transition sm:grid-cols-[4.75rem_minmax(0,1fr)_auto]",
                       "border-[var(--border-soft)] hover:border-[var(--action)] hover:shadow-[var(--shadow-card)]"
                     )}
-                    href={`/client/order-history/${encodeURIComponent(order.id)}`}
+                    href={`/client/order-history/${encodeURIComponent(
+                      order.id
+                    )}`}
                   >
                     {productImage ? (
                       <div
-                        className="size-[4.75rem] overflow-hidden rounded-[1.25rem] bg-[var(--surface-quiet)] bg-cover bg-center shadow-inner"
+                        className="size-[4.75rem] shrink-0 overflow-hidden rounded-[1.25rem] bg-[var(--surface-quiet)] bg-cover bg-center shadow-inner"
                         style={{ backgroundImage: `url(${productImage})` }}
                       />
                     ) : (
-                      <div className="flex size-[4.75rem] items-center justify-center rounded-[1.25rem] bg-[radial-gradient(circle_at_30%_25%,rgba(255,255,255,0.92),rgba(20,127,111,0.22)_34%,rgba(10,53,47,0.86)_100%)] text-lg font-semibold text-white shadow-inner">
+                      <div className="flex size-[4.75rem] shrink-0 items-center justify-center rounded-[1.25rem] bg-[radial-gradient(circle_at_30%_25%,rgba(255,255,255,0.92),rgba(20,127,111,0.22)_34%,rgba(10,53,47,0.86)_100%)] text-lg font-semibold text-white shadow-inner">
                         {getProductInitials(getOrderLineLabel(primaryLine))}
                       </div>
                     )}
+
                     <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="truncate text-base font-semibold text-[var(--foreground)]">{getOrderLineLabel(primaryLine)}</p>
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <p className="min-w-0 truncate text-base font-semibold text-[var(--foreground)]">
+                          {getOrderLineLabel(primaryLine)}
+                        </p>
+
                         <StatusPill status={order.status} />
                       </div>
-                      <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-                        Order {order.orderNumber || order.id} · {formatDate(order.createdAt)}
+
+                      <p className="mt-1 min-w-0 truncate text-xs text-[var(--muted-foreground)]">
+                        Order {order.orderNumber || order.id} ·{" "}
+                        {formatDate(order.createdAt)}
                       </p>
-                      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[var(--muted-foreground)]">
-                        <span className="inline-flex items-center gap-1.5">
-                          <PackageCheck className="size-3.5 text-[var(--action)]" />
+
+                      <div className="mt-3 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[var(--muted-foreground)]">
+                        <span className="inline-flex min-w-0 items-center gap-1.5">
+                          <PackageCheck className="size-3.5 shrink-0 text-[var(--action)]" />
                           {lineCount} item{lineCount === 1 ? "" : "s"}
                         </span>
-                        <span className="inline-flex items-center gap-1.5">
-                          <CreditCard className="size-3.5 text-[var(--action)]" />
-                          {getPaymentMethodLabel(order.paymentMethod, t)}
+
+                        <span className="inline-flex min-w-0 items-center gap-1.5">
+                          <CreditCard className="size-3.5 shrink-0 text-[var(--action)]" />
+                          <span className="min-w-0 truncate">
+                            {getPaymentMethodLabel(order.paymentMethod, t)}
+                          </span>
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between gap-3 sm:min-w-[8.5rem] sm:flex-col sm:items-end">
-                      <p className="text-xl font-semibold text-[var(--foreground)]">{formatCurrency(order.total)}</p>
-                      <span className="inline-flex min-h-9 items-center gap-2 rounded-full bg-[var(--action)] px-4 text-xs font-semibold text-[var(--action-foreground)] transition group-hover:brightness-95">
+
+                    <div className="flex min-w-0 items-center justify-between gap-3 sm:min-w-[8.5rem] sm:flex-col sm:items-end">
+                      <p className="truncate text-xl font-semibold text-[var(--foreground)]">
+                        {formatCurrency(order.total)}
+                      </p>
+
+                      <span className="inline-flex shrink-0 min-h-9 items-center gap-2 rounded-full bg-[var(--action)] px-4 text-xs font-semibold text-[var(--action-foreground)] transition group-hover:brightness-95">
                         Details
                         <ChevronRight className="size-3.5" />
                       </span>
@@ -1742,53 +1885,96 @@ export function ClientOrderHistoryPageView() {
               })}
             </div>
           ) : (
-            <div className="flex min-h-[18rem] flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-[var(--border-soft)] bg-[var(--surface)] px-6 text-center">
+            <div className="flex min-h-[18rem] min-w-0 flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-[var(--border-soft)] bg-[var(--surface)] px-6 text-center">
               <SlidersHorizontal className="size-9 text-[var(--action)]" />
-              <p className="mt-4 text-lg font-semibold text-[var(--foreground)]">No orders for this filter</p>
-              <p className="mt-2 text-sm text-[var(--muted-foreground)]">Adjust status, date, search, or sorting to find the order.</p>
+
+              <p className="mt-4 text-lg font-semibold text-[var(--foreground)]">
+                No orders for this filter
+              </p>
+
+              <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+                Adjust status, date, search, or sorting to find the order.
+              </p>
             </div>
           )}
         </div>
 
-        <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start">
-          <Card className="p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Filter className="size-4 text-[var(--action)]" />
-                <p className="font-semibold text-[var(--foreground)]">Filters</p>
+        <aside className="min-w-0 space-y-4 xl:sticky xl:top-24 xl:self-start">
+          <Card className="w-full min-w-0 max-w-full overflow-hidden p-4">
+            <div className="flex min-w-0 items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <Filter className="size-4 shrink-0 text-[var(--action)]" />
+
+                <p className="truncate font-semibold text-[var(--foreground)]">
+                  Filters
+                </p>
               </div>
-              <button type="button" onClick={resetFilters} className="text-xs font-semibold text-[var(--action)]">
+
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="shrink-0 text-xs font-semibold text-[var(--action)]"
+              >
                 Reset all
               </button>
             </div>
 
-            <div className="mt-5 space-y-4">
-              <div>
-                <p className="text-xs font-semibold text-[var(--muted-foreground)]">Date range</p>
-                <div className="mt-2 grid gap-2">
-                  <input type="date" value={startDate} max={endDate || undefined} onChange={(event) => setStartDate(event.target.value)} className="app-input min-h-11 px-3 text-sm" />
-                  <input type="date" value={endDate} min={startDate || undefined} onChange={(event) => setEndDate(event.target.value)} className="app-input min-h-11 px-3 text-sm" />
+            <div className="mt-5 min-w-0 space-y-4">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-[var(--muted-foreground)]">
+                  Date range
+                </p>
+
+                <div className="mt-2 grid min-w-0 gap-2">
+                  <input
+                    type="date"
+                    value={startDate}
+                    max={endDate || undefined}
+                    onChange={(event) => setStartDate(event.target.value)}
+                    className="app-input min-h-11 w-full min-w-0 max-w-full px-3 text-sm"
+                  />
+
+                  <input
+                    type="date"
+                    value={endDate}
+                    min={startDate || undefined}
+                    onChange={(event) => setEndDate(event.target.value)}
+                    className="app-input min-h-11 w-full min-w-0 max-w-full px-3 text-sm"
+                  />
                 </div>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <button type="button" onClick={() => setRecentRange(30)} className="rounded-full bg-[var(--surface-quiet)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)]">
+
+                <div className="mt-2 flex min-w-0 flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setRecentRange(30)}
+                    className="rounded-full bg-[var(--surface-quiet)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)]"
+                  >
                     Last 30 days
                   </button>
-                  <button type="button" onClick={() => setRecentRange(180)} className="rounded-full bg-[var(--surface-quiet)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)]">
+
+                  <button
+                    type="button"
+                    onClick={() => setRecentRange(180)}
+                    className="rounded-full bg-[var(--surface-quiet)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)]"
+                  >
                     Last 6 months
                   </button>
                 </div>
               </div>
 
-              <div className="rounded-[1rem] border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3 py-3">
-                <div className="flex items-center gap-2 text-sm font-semibold text-[var(--foreground)]">
-                  <CalendarRange className="size-4 text-[var(--action)]" />
-                  {dateRangeLabel}
+              <div className="min-w-0 rounded-[1rem] border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3 py-3">
+                <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-[var(--foreground)]">
+                  <CalendarRange className="size-4 shrink-0 text-[var(--action)]" />
+
+                  <span className="min-w-0 truncate">{dateRangeLabel}</span>
                 </div>
-                <p className="mt-2 text-xs leading-5 text-[var(--muted-foreground)]">Showing {orders.length} of {store.orders.length} orders.</p>
+
+                <p className="mt-2 text-xs leading-5 text-[var(--muted-foreground)]">
+                  Showing {orders.length} of {store.orders.length} orders.
+                </p>
               </div>
             </div>
           </Card>
-
         </aside>
       </div>
     </div>
@@ -2538,251 +2724,251 @@ export function ClientProductDetailPageView({ productId, user }) {
 
   return (
     <>
-    <div className="space-y-4 pb-28">
-      <div className="sticky top-0 z-30 bg-[var(--background-start)]/90 backdrop-blur-md py-2 -mx-5 px-5">
-        <Link href="/client" className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--action)] transition hover:text-[var(--foreground)]">
-          <CircleArrowLeft className="size-5" />
-          Back to shop
-        </Link>
-      </div>
-      <div className="overflow-hidden rounded-[1.75rem] border border-[var(--border-soft)] bg-[var(--surface-strong)] shadow-[var(--shadow-card)]">
-        <div className="min-h-80 bg-cover bg-center" style={{ backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.06), rgba(0,0,0,0.48)), url(${product.image})` }} />
-      </div>
-
-      <Card>
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex flex-wrap gap-2">
-            <span className="app-chip px-3 py-1.5 text-sm" data-active="true">{product.category}</span>
-            <span className="app-chip px-3 py-1.5 text-sm" data-active="true">
-              {effectiveStock > 0 ? `${effectiveStock} available` : "Out of stock"}
-            </span>
-            <span className="app-chip px-3 py-1.5 text-sm" data-active="true">
-              {product.rating.toFixed(1)} * ({product.ratingCount})
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              if (!requireAuth("Sign in to save this product to favorites")) return;
-              store.toggleFavorite(product.id);
-            }}
-            className={cn(
-              "rounded-full p-3",
-              store.isFavorite(product.id) ? "bg-rose-100 text-rose-600" : "bg-[var(--surface)] text-[var(--muted-foreground)]",
-            )}
-          >
-            <Heart className={cn("size-5", store.isFavorite(product.id) && "fill-current")} />
-          </button>
+      <div className="space-y-4 pb-28">
+        <div className="sticky top-0 z-30 bg-[var(--background-start)]/90 backdrop-blur-md py-2 -mx-5 px-5">
+          <Link href="/client" className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--action)] transition hover:text-[var(--foreground)]">
+            <CircleArrowLeft className="size-5" />
+            Back to shop
+          </Link>
+        </div>
+        <div className="overflow-hidden rounded-[1.75rem] border border-[var(--border-soft)] bg-[var(--surface-strong)] shadow-[var(--shadow-card)]">
+          <div className="min-h-80 bg-cover bg-center" style={{ backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.06), rgba(0,0,0,0.48)), url(${product.image})` }} />
         </div>
 
-        <h1 className="mt-4 text-3xl font-semibold text-[var(--foreground)]">{product.name}</h1>
-        <p className="mt-3 text-3xl font-bold text-[var(--foreground)]">
-          {formatCurrency(effectivePrice)}
-        </p>
-        {effectiveDiscountPercent > 0 ? <p className="mt-1 text-sm font-semibold text-green-700">{effectiveDiscountPercent}% off</p> : null}
-
-        {/* Variant Selector */}
-        {isVariantProduct && product.variants.length > 0 ? (
-          <div className="mt-6">
-            <h3 className="text-sm font-semibold text-[var(--foreground)] mb-3">Choose option:</h3>
+        <Card>
+          <div className="flex items-start justify-between gap-4">
             <div className="flex flex-wrap gap-2">
-              {product.variants.map((variant) => {
-                const isSelected = selectedVariantId === variant.id;
-                const variantPrice = variant.price * (1 - (variant.discountPercent || 0) / 100);
-                return (
-                  <button
-                    key={variant.id}
-                    type="button"
-                    onClick={() => setSelectedVariantId(variant.id)}
-                    className={cn(
-                      "rounded-xl border px-4 py-3 text-sm font-semibold transition text-left",
-                      isSelected
-                        ? "border-[var(--action)] bg-[color-mix(in_srgb,var(--action)_14%,var(--surface))] text-[var(--foreground)]"
-                        : "border-[var(--border-soft)] bg-[var(--surface)] text-[var(--muted-foreground)] hover:border-[var(--action)]",
-                    )}
-                  >
-                    <span className="block">{variant.name}</span>
-                    <span className="block mt-1 text-xs opacity-80">{formatCurrency(variantPrice)}</span>
-                    {variant.stock <= 0 ? (
-                      <span className="block mt-1 text-[10px] text-red-400">Out of stock</span>
-                    ) : null}
-                  </button>
-                );
-              })}
+              <span className="app-chip px-3 py-1.5 text-sm" data-active="true">{product.category}</span>
+              <span className="app-chip px-3 py-1.5 text-sm" data-active="true">
+                {effectiveStock > 0 ? `${effectiveStock} available` : "Out of stock"}
+              </span>
+              <span className="app-chip px-3 py-1.5 text-sm" data-active="true">
+                {product.rating.toFixed(1)} * ({product.ratingCount})
+              </span>
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (!requireAuth("Sign in to save this product to favorites")) return;
+                store.toggleFavorite(product.id);
+              }}
+              className={cn(
+                "rounded-full p-3",
+                store.isFavorite(product.id) ? "bg-rose-100 text-rose-600" : "bg-[var(--surface)] text-[var(--muted-foreground)]",
+              )}
+            >
+              <Heart className={cn("size-5", store.isFavorite(product.id) && "fill-current")} />
+            </button>
           </div>
-        ) : null}
 
-        <p className="mt-5 text-base leading-8 text-[var(--muted-foreground)]">{product.description}</p>
+          <h1 className="mt-4 text-3xl font-semibold text-[var(--foreground)]">{product.name}</h1>
+          <p className="mt-3 text-3xl font-bold text-[var(--foreground)]">
+            {formatCurrency(effectivePrice)}
+          </p>
+          {effectiveDiscountPercent > 0 ? <p className="mt-1 text-sm font-semibold text-green-700">{effectiveDiscountPercent}% off</p> : null}
 
-        <div className="mt-6 rounded-[1.4rem] bg-[linear-gradient(135deg,color-mix(in_srgb,var(--action)_18%,white),color-mix(in_srgb,var(--accent-secondary)_25%,white))] p-4">
-          <div className="flex items-start gap-3">
-            <div className="rounded-2xl bg-white/35 p-3 text-[var(--foreground)]">
-              <Truck className="size-5" />
-            </div>
-            <div>
-              <p className="font-semibold text-[var(--foreground)]">Free delivery over $50</p>
-              <p className="mt-1 text-sm leading-6 text-[var(--foreground)]/82">
-                Same-day pickup available for essentials and fresh items.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-6">
-          <h2 className="text-lg font-semibold text-[var(--foreground)]">Rate this product</h2>
-          <div className="mt-2 flex">
-            {Array.from({ length: 5 }, (_, index) => index + 1).map((ratingValue) => (
-              <button
-                key={ratingValue}
-                type="button"
-                onClick={() => {
-                  if (!user?.email) {
-                    return;
-                  }
-                  store.submitRating?.(product.id, ratingValue);
-                }}
-                className="rounded-full p-1"
-                aria-label={`Rate ${ratingValue} stars`}
-              >
-                <Star className={cn("size-6", product.rating >= ratingValue ? "fill-amber-400 text-amber-400" : "text-amber-400")} />
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-6">
-          <div className="flex items-center gap-3">
-            <MessageCircle className="size-5 text-[var(--action)]" />
-            <h2 className="text-xl font-semibold text-[var(--foreground)]">Customer comments</h2>
-          </div>
-          <div className="mt-4 space-y-3">
-            {(product.comments || []).length ? (
-              product.comments.map((entry) => {
-                const canEdit = Boolean(user?.email) && (user.role === "ADMIN" || user.email === entry.userEmail);
-                const isEditing = editingId === entry.id;
-
-                return (
-                  <div key={entry.id} className="rounded-[1.2rem] bg-[var(--surface)] px-4 py-4 text-sm">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-semibold text-[var(--foreground)]">{entry.userEmail}</p>
-                        <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-                          {entry.isEdited ? `Edited | ${formatDate(entry.updatedAt || entry.createdAt)}` : formatDate(entry.createdAt)}
-                        </p>
-                      </div>
-                      {canEdit ? (
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingId(entry.id);
-                              setEditingMessage(entry.message);
-                            }}
-                            className="app-icon-button p-2"
-                            aria-label="Edit comment"
-                          >
-                            <Edit3 className="size-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => store.deleteComment?.(product.id, entry.id)}
-                            className="app-icon-button p-2"
-                            aria-label="Delete comment"
-                          >
-                            <Trash2 className="size-4" />
-                          </button>
-                        </div>
+          {/* Variant Selector */}
+          {isVariantProduct && product.variants.length > 0 ? (
+            <div className="mt-6">
+              <h3 className="text-sm font-semibold text-[var(--foreground)] mb-3">Choose option:</h3>
+              <div className="flex flex-wrap gap-2">
+                {product.variants.map((variant) => {
+                  const isSelected = selectedVariantId === variant.id;
+                  const variantPrice = variant.price * (1 - (variant.discountPercent || 0) / 100);
+                  return (
+                    <button
+                      key={variant.id}
+                      type="button"
+                      onClick={() => setSelectedVariantId(variant.id)}
+                      className={cn(
+                        "rounded-xl border px-4 py-3 text-sm font-semibold transition text-left",
+                        isSelected
+                          ? "border-[var(--action)] bg-[color-mix(in_srgb,var(--action)_14%,var(--surface))] text-[var(--foreground)]"
+                          : "border-[var(--border-soft)] bg-[var(--surface)] text-[var(--muted-foreground)] hover:border-[var(--action)]",
+                      )}
+                    >
+                      <span className="block">{variant.name}</span>
+                      <span className="block mt-1 text-xs opacity-80">{formatCurrency(variantPrice)}</span>
+                      {variant.stock <= 0 ? (
+                        <span className="block mt-1 text-[10px] text-red-400">Out of stock</span>
                       ) : null}
-                    </div>
-                    {isEditing ? (
-                      <div className="mt-3 space-y-3">
-                        <textarea value={editingMessage} onChange={(event) => setEditingMessage(event.target.value)} className="app-input min-h-24 w-full px-4 py-3 text-sm" />
-                        <div className="flex gap-2">
-                          <Button
-                            onClick={() => {
-                              if (editingMessage.trim().length < 3) {
-                                return;
-                              }
-                              store.updateComment?.(product.id, entry.id, editingMessage.trim());
-                              setEditingId("");
-                              setEditingMessage("");
-                            }}
-                          >
-                            Save
-                          </Button>
-                          <Button variant="secondary" onClick={() => {
-                            setEditingId("");
-                            setEditingMessage("");
-                          }}>
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="mt-3 leading-7 text-[var(--muted-foreground)]">{entry.message}</p>
-                    )}
-                  </div>
-                );
-              })
-            ) : (
-              <p className="text-sm text-[var(--muted-foreground)]">No comments yet. Be the first to comment.</p>
-            )}
-          </div>
-
-          {!user?.email ? (
-            <div className="mt-4">
-              <Link href="/?auth=login" className="inline-flex items-center justify-center rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold text-[var(--foreground)]">
-                Login to comment
-              </Link>
-            </div>
-          ) : (
-            <div className="mt-4 space-y-3">
-              <textarea value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Write a comment" className="app-input min-h-24 w-full px-4 py-3 text-sm" />
-              <div className="flex justify-end">
-                <Button
-                  onClick={() => {
-                    if (comment.trim().length < 3) {
-                      return;
-                    }
-                    store.addComment(product.id, comment.trim());
-                    setComment("");
-                  }}
-                >
-                  Post comment
-                </Button>
+                    </button>
+                  );
+                })}
               </div>
             </div>
-          )}
-        </div>
-      </Card>
+          ) : null}
 
-      <div className="sticky bottom-4 rounded-[1.5rem] border border-[var(--border-soft)] bg-[linear-gradient(135deg,var(--surface-quiet),var(--surface),color-mix(in_srgb,var(--action)_12%,var(--surface)))] px-4 py-4 shadow-[0_-4px_16px_rgba(15,24,35,0.06)]">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm text-[var(--muted-foreground)]">Total</p>
-            <p className="mt-1 text-2xl font-bold text-[var(--foreground)]">
-              {formatCurrency(effectivePrice)}
-            </p>
+          <p className="mt-5 text-base leading-8 text-[var(--muted-foreground)]">{product.description}</p>
+
+          <div className="mt-6 rounded-[1.4rem] bg-[linear-gradient(135deg,color-mix(in_srgb,var(--action)_18%,white),color-mix(in_srgb,var(--accent-secondary)_25%,white))] p-4">
+            <div className="flex items-start gap-3">
+              <div className="rounded-2xl bg-white/35 p-3 text-[var(--foreground)]">
+                <Truck className="size-5" />
+              </div>
+              <div>
+                <p className="font-semibold text-[var(--foreground)]">Free delivery over $50</p>
+                <p className="mt-1 text-sm leading-6 text-[var(--foreground)]/82">
+                  Same-day pickup available for essentials and fresh items.
+                </p>
+              </div>
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            {selectedCartQuantity ? (
-              <span className="text-sm font-medium text-[var(--muted-foreground)]">{selectedCartQuantity} in cart</span>
-            ) : null}
-            <Button onClick={handleAddToCart} disabled={effectiveStock <= 0}>
-              {effectiveStock > 0 ? (isVariantProduct && !selectedVariantId ? "Select option" : "Add to cart") : "Out of stock"}
-            </Button>
+
+          <div className="mt-6">
+            <h2 className="text-lg font-semibold text-[var(--foreground)]">Rate this product</h2>
+            <div className="mt-2 flex">
+              {Array.from({ length: 5 }, (_, index) => index + 1).map((ratingValue) => (
+                <button
+                  key={ratingValue}
+                  type="button"
+                  onClick={() => {
+                    if (!user?.email) {
+                      return;
+                    }
+                    store.submitRating?.(product.id, ratingValue);
+                  }}
+                  className="rounded-full p-1"
+                  aria-label={`Rate ${ratingValue} stars`}
+                >
+                  <Star className={cn("size-6", product.rating >= ratingValue ? "fill-amber-400 text-amber-400" : "text-amber-400")} />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <div className="flex items-center gap-3">
+              <MessageCircle className="size-5 text-[var(--action)]" />
+              <h2 className="text-xl font-semibold text-[var(--foreground)]">Customer comments</h2>
+            </div>
+            <div className="mt-4 space-y-3">
+              {(product.comments || []).length ? (
+                product.comments.map((entry) => {
+                  const canEdit = Boolean(user?.email) && (user.role === "ADMIN" || user.email === entry.userEmail);
+                  const isEditing = editingId === entry.id;
+
+                  return (
+                    <div key={entry.id} className="rounded-[1.2rem] bg-[var(--surface)] px-4 py-4 text-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-[var(--foreground)]">{entry.userEmail}</p>
+                          <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                            {entry.isEdited ? `Edited | ${formatDate(entry.updatedAt || entry.createdAt)}` : formatDate(entry.createdAt)}
+                          </p>
+                        </div>
+                        {canEdit ? (
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingId(entry.id);
+                                setEditingMessage(entry.message);
+                              }}
+                              className="app-icon-button p-2"
+                              aria-label="Edit comment"
+                            >
+                              <Edit3 className="size-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => store.deleteComment?.(product.id, entry.id)}
+                              className="app-icon-button p-2"
+                              aria-label="Delete comment"
+                            >
+                              <Trash2 className="size-4" />
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                      {isEditing ? (
+                        <div className="mt-3 space-y-3">
+                          <textarea value={editingMessage} onChange={(event) => setEditingMessage(event.target.value)} className="app-input min-h-24 w-full px-4 py-3 text-sm" />
+                          <div className="flex gap-2">
+                            <Button
+                              onClick={() => {
+                                if (editingMessage.trim().length < 3) {
+                                  return;
+                                }
+                                store.updateComment?.(product.id, entry.id, editingMessage.trim());
+                                setEditingId("");
+                                setEditingMessage("");
+                              }}
+                            >
+                              Save
+                            </Button>
+                            <Button variant="secondary" onClick={() => {
+                              setEditingId("");
+                              setEditingMessage("");
+                            }}>
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="mt-3 leading-7 text-[var(--muted-foreground)]">{entry.message}</p>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="text-sm text-[var(--muted-foreground)]">No comments yet. Be the first to comment.</p>
+              )}
+            </div>
+
+            {!user?.email ? (
+              <div className="mt-4">
+                <Link href="/?auth=login" className="inline-flex items-center justify-center rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold text-[var(--foreground)]">
+                  Login to comment
+                </Link>
+              </div>
+            ) : (
+              <div className="mt-4 space-y-3">
+                <textarea value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Write a comment" className="app-input min-h-24 w-full px-4 py-3 text-sm" />
+                <div className="flex justify-end">
+                  <Button
+                    onClick={() => {
+                      if (comment.trim().length < 3) {
+                        return;
+                      }
+                      store.addComment(product.id, comment.trim());
+                      setComment("");
+                    }}
+                  >
+                    Post comment
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </Card>
+
+        <div className="sticky bottom-4 rounded-[1.5rem] border border-[var(--border-soft)] bg-[linear-gradient(135deg,var(--surface-quiet),var(--surface),color-mix(in_srgb,var(--action)_12%,var(--surface)))] px-4 py-4 shadow-[0_-4px_16px_rgba(15,24,35,0.06)]">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm text-[var(--muted-foreground)]">Total</p>
+              <p className="mt-1 text-2xl font-bold text-[var(--foreground)]">
+                {formatCurrency(effectivePrice)}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              {selectedCartQuantity ? (
+                <span className="text-sm font-medium text-[var(--muted-foreground)]">{selectedCartQuantity} in cart</span>
+              ) : null}
+              <Button onClick={handleAddToCart} disabled={effectiveStock <= 0}>
+                {effectiveStock > 0 ? (isVariantProduct && !selectedVariantId ? "Select option" : "Add to cart") : "Out of stock"}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    {/* Auth modal — shown to guests when they attempt a protected action */}
-    <AuthModal
-      isOpen={authModal.isOpen}
-      onClose={() => setAuthModal({ isOpen: false, hint: "" })}
-      hint={authModal.hint}
-    />
+      {/* Auth modal — shown to guests when they attempt a protected action */}
+      <AuthModal
+        isOpen={authModal.isOpen}
+        onClose={() => setAuthModal({ isOpen: false, hint: "" })}
+        hint={authModal.hint}
+      />
     </>
   );
 }

@@ -331,7 +331,7 @@ export function ClientShell({ user, initialTab = "home", orderDetailId = "" }) {
           </div>
 
           {/* Center: Search Box */}
-          <div className="flex-1 max-w-2xl w-full mx-auto md:mx-6">
+          <div className={cn("flex-1 max-w-2xl w-full mx-auto md:mx-6", activeTab !== "home" && activeTab !== "shop" && "hidden md:flex")}>
             <div className="flex items-center w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface-quiet)]/40 focus-within:border-[var(--action)] focus-within:ring-2 focus-within:ring-[var(--action)]/15 focus-within:bg-[var(--surface-strong)] transition-all relative">
               {/* Search Input Field */}
               <input
