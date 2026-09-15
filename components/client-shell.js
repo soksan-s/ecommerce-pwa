@@ -369,7 +369,7 @@ export function ClientShell({ user, initialTab = "home", orderDetailId = "" }) {
                   aria-label="Voice search"
                   title="Voice search"
                 >
-                  <Mic className="size-4" />
+
                 </button>
                 <button
                   type="button"
