@@ -66,81 +66,84 @@ export function PublicAuthGate({ initialAuthView = "" }) {
   }
 
   return (
-    <div className="relative flex min-h-dvh w-full items-center justify-center overflow-hidden bg-[var(--background)] px-4 py-8 sm:px-6 lg:px-8">
-      {/* Background ambient lighting blobs */}
-      <div className="pointer-events-none absolute -left-20 -top-20 size-96 rounded-full bg-[var(--accent)]/15 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-20 -right-20 size-96 rounded-full bg-[var(--action)]/15 blur-3xl" />
+    <>
+      <div className="relative flex min-h-dvh w-full items-center justify-center overflow-hidden bg-[var(--background)] px-4 py-8 sm:px-6 lg:px-8">
+        {/* Background ambient lighting blobs */}
+        <div className="pointer-events-none absolute -left-20 -top-20 size-96 rounded-full bg-[var(--accent)]/15 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-20 -right-20 size-96 rounded-full bg-[var(--action)]/15 blur-3xl" />
 
-      {/* Main Container - Centered Login Card */}
-      <div className="relative z-10 w-full max-w-md">
-        {/* Header directly above the login card with branding on left and theme toggle on right */}
-        <div className="mb-5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex size-11 items-center justify-center rounded-2xl bg-[var(--action)] text-[var(--action-foreground)] shadow-md transition-transform hover:scale-105">
-              <Store className="size-6" />
+        {/* Main Container - Centered Login Card */}
+        <div className="relative z-10 w-full max-w-md">
+          {/* Header directly above the login card with branding on left and theme toggle on right */}
+          <div className="mb-5 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+
+              <div className="flex size-11 items-center justify-center rounded-2xl bg-[var(--action)] text-[var(--action-foreground)] shadow-md transition-transform hover:scale-105">
+                <Store className="size-6" />
+              </div>
+              <div>
+                <h1 className="font-display text-base font-bold tracking-tight text-[var(--foreground)] sm:text-lg">
+                  Soeum Savet Store
+                </h1>
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-[var(--muted-foreground)]">
+                  Wholesale & Retail POS
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="font-display text-base font-bold tracking-tight text-[var(--foreground)] sm:text-lg">
-                Soeum Savet Store
-              </h1>
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-[var(--muted-foreground)]">
-                Wholesale & Retail POS
-              </p>
+
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <ThemeToggle />
-          </div>
+          {/* Auth Glass Card */}
+          <SurfaceCard className="w-full">
+            {notice ? <AuthNotice>{notice}</AuthNotice> : null}
+
+            <AnimatePresence mode="wait">
+              {authViewMode === "login" && (
+                <motion.div
+                  key="login"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                >
+                  <ClientLoginForm
+                    onSwitchToRegister={() => syncAuthView("register")}
+                    onSwitchToForgot={() => syncAuthView("forgot")}
+                  />
+                </motion.div>
+              )}
+
+              {authViewMode === "register" && (
+                <motion.div
+                  key="register"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                >
+                  <RegisterForm onSwitchToLogin={() => syncAuthView("login")} />
+                </motion.div>
+              )}
+
+              {authViewMode === "forgot" && (
+                <motion.div
+                  key="forgot"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                >
+                  <ForgotPasswordFlow onSwitchToLogin={() => syncAuthView("login")} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </SurfaceCard>
         </div>
-
-        {/* Auth Glass Card */}
-        <SurfaceCard className="w-full">
-          {notice ? <AuthNotice>{notice}</AuthNotice> : null}
-
-          <AnimatePresence mode="wait">
-            {authViewMode === "login" && (
-              <motion.div
-                key="login"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-              >
-                <ClientLoginForm
-                  onSwitchToRegister={() => syncAuthView("register")}
-                  onSwitchToForgot={() => syncAuthView("forgot")}
-                />
-              </motion.div>
-            )}
-
-            {authViewMode === "register" && (
-              <motion.div
-                key="register"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-              >
-                <RegisterForm onSwitchToLogin={() => syncAuthView("login")} />
-              </motion.div>
-            )}
-
-            {authViewMode === "forgot" && (
-              <motion.div
-                key="forgot"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-              >
-                <ForgotPasswordFlow onSwitchToLogin={() => syncAuthView("login")} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </SurfaceCard>
       </div>
-    </div>
+    </>
   );
 }
 
