@@ -107,6 +107,8 @@ function getPaymentMethodLabel(method, t) {
   }
 }
 
+
+
 function KhqrPaymentPanel({ payment, onCancel, onPaid }) {
   const [currentPayment, setCurrentPayment] = useState(payment);
   const [message, setMessage] = useState("Checking payment...");
@@ -131,15 +133,21 @@ function KhqrPaymentPanel({ payment, onCancel, onPaid }) {
     async function poll() {
       if (cancelled || Date.now() - startedAt > maxPollingMs) {
         if (!cancelled) {
-          setMessage("Still waiting for payment. You can check your order again after reconnecting.");
+          setMessage(
+            "Still waiting for payment. You can check your order again after reconnecting."
+          );
         }
         return;
       }
 
       try {
-        const response = await fetch(`/api/ecommerce/payments/${encodeURIComponent(payment.id)}/status`, {
-          cache: "no-store",
-        });
+        const response = await fetch(
+          `/api/ecommerce/payments/${encodeURIComponent(payment.id)}/status`,
+          {
+            cache: "no-store",
+          }
+        );
+
         const data = await response.json();
 
         if (!response.ok || !data.payment) {
@@ -157,6 +165,7 @@ function KhqrPaymentPanel({ payment, onCancel, onPaid }) {
           qrImage: data.payment.qrImage || latestPayment?.qrImage,
           deeplink: data.payment.deeplink || latestPayment?.deeplink,
         };
+
         setCurrentPayment(latestPayment);
 
         if (latestPayment.status === "PAID") {
@@ -183,13 +192,17 @@ function KhqrPaymentPanel({ payment, onCancel, onPaid }) {
       }
 
       attempt += 1;
-      timeoutId = window.setTimeout(poll, Math.min(attempt * 3000, 15000));
+      timeoutId = window.setTimeout(
+        poll,
+        Math.min(attempt * 3000, 15000)
+      );
     }
 
     poll();
 
     return () => {
       cancelled = true;
+
       if (timeoutId) {
         window.clearTimeout(timeoutId);
       }
@@ -199,75 +212,174 @@ function KhqrPaymentPanel({ payment, onCancel, onPaid }) {
   const isPaid = currentPayment?.status === "PAID";
   const isFailed = currentPayment?.status === "FAILED";
   const isExpired = currentPayment?.status === "EXPIRED";
-  const orderNumber = currentPayment?.orderNumber || currentPayment?.orderId;
+  const orderNumber =
+    currentPayment?.orderNumber || currentPayment?.orderId;
 
   return (
-    <Card className="mx-auto max-w-2xl">
-      {isPaid ? (
-        <div className="py-6 text-center">
-          <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
-            <CheckCircle2 className="size-7" />
-          </div>
-          <h2 className="mt-4 text-2xl font-semibold text-[var(--foreground)]">Payment Successful</h2>
-          <p className="mt-2 text-sm text-[var(--muted-foreground)]">Your payment has been verified.</p>
-          <p className="mt-4 text-sm font-semibold text-[var(--foreground)]">Order #{orderNumber}</p>
-          <Button type="button" className="mt-6" onClick={onCancel}>
-            View Order
-          </Button>
-        </div>
-      ) : (
-        <div className="space-y-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-bold uppercase text-[var(--muted-foreground)]">Payment</p>
-              <h2 className="mt-1 text-2xl font-semibold text-[var(--foreground)]">Order #{orderNumber}</h2>
+    <div className="flex min-h-[calc(100vh-4rem)] w-full items-center justify-center px-3 py-6 sm:px-6 sm:py-8 lg:px-8">
+      <Card className="mx-auto w-full max-w-xl overflow-hidden rounded-none border border-[var(--border-soft)] bg-[var(--surface)] p-0 shadow-[var(--shadow-soft)]">
+        {isPaid ? (
+          /* PAYMENT SUCCESS */
+          <div className="w-full">
+            <div className="flex items-start justify-between gap-4 border-b border-[var(--border-soft)] bg-[var(--surface-quiet)] px-4 py-4 sm:px-6 sm:py-5">
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+                  Payment
+                </p>
+
+                <h2 className="mt-1 truncate text-lg font-bold tracking-tight text-[var(--foreground)] sm:text-xl">
+                  Order #{orderNumber}
+                </h2>
+              </div>
+
+              <div className="shrink-0 text-right">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+                  Amount
+                </p>
+
+                <p className="mt-1 text-lg font-extrabold leading-none text-[var(--action)] sm:text-2xl">
+                  {currentPayment?.currency === "KHR"
+                    ? `${Math.round(
+                      currentPayment.amount
+                    ).toLocaleString()} KHR`
+                    : formatCurrency(currentPayment?.amount || 0)}
+                </p>
+              </div>
             </div>
-            <div className="text-right">
-              <p className="text-xs text-[var(--muted-foreground)]">Amount</p>
-              <p className="text-2xl font-semibold text-[var(--foreground)]">
-                {currentPayment?.currency === "KHR"
-                  ? `${Math.round(currentPayment.amount).toLocaleString()} KHR`
-                  : formatCurrency(currentPayment?.amount || 0)}
+
+            <div className="flex flex-col items-center px-4 py-8 text-center sm:px-8 sm:py-10">
+              <div className="flex size-16 items-center justify-center border border-[var(--border-soft)] bg-[var(--surface-quiet)] text-emerald-600 dark:text-emerald-400">
+                <CheckCircle2 className="size-8" />
+              </div>
+
+              <h2 className="mt-5 text-xl font-bold tracking-tight text-[var(--foreground)] sm:text-2xl">
+                Payment Successful
+              </h2>
+
+              <p className="mt-2 max-w-sm text-sm leading-6 text-[var(--muted-foreground)]">
+                Your payment has been verified.
               </p>
+
+              <p className="mt-4 text-sm font-semibold text-[var(--foreground)]">
+                Order #{orderNumber}
+              </p>
+
+              <Button
+                type="button"
+                className="mt-6 h-11 w-full rounded-none sm:w-auto sm:min-w-40"
+                onClick={onCancel}
+              >
+                View Order
+              </Button>
             </div>
           </div>
+        ) : (
+          /* PAYMENT WAITING / FAILED / EXPIRED */
+          <div className="w-full">
+            {/* Header */}
+            <div className="flex items-start justify-between gap-4 border-b border-[var(--border-soft)] bg-[var(--surface-quiet)] px-4 py-4 sm:px-6 sm:py-5">
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+                  Payment
+                </p>
 
-          <div className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-quiet)] p-4 text-center">
-            {currentPayment?.qrImage ? (
-              <Image
-                src={currentPayment.qrImage}
-                alt={`KHQR payment for order ${orderNumber}`}
-                width={288}
-                height={288}
-                unoptimized
-                className="mx-auto aspect-square w-full max-w-72 rounded-xl bg-white p-3 shadow-sm"
-              />
-            ) : null}
-            <p className="mt-4 text-sm leading-6 text-[var(--muted-foreground)]">Scan this QR using your banking application.</p>
+                <h2 className="mt-1 truncate text-lg font-bold tracking-tight text-[var(--foreground)] sm:text-xl">
+                  Order #{orderNumber}
+                </h2>
+              </div>
+
+              <div className="shrink-0 text-right">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+                  Amount
+                </p>
+
+                <p className="mt-1 text-lg font-extrabold leading-none text-[var(--action)] sm:text-2xl">
+                  {currentPayment?.currency === "KHR"
+                    ? `${Math.round(
+                      currentPayment.amount
+                    ).toLocaleString()} KHR`
+                    : formatCurrency(currentPayment?.amount || 0)}
+                </p>
+              </div>
+            </div>
+
+            {/* QR + payment content */}
+            <div className="p-4 sm:p-6 lg:p-8">
+              <div className="relative flex flex-col items-center justify-center border border-[var(--border-soft)] bg-[var(--surface-quiet)] p-4 sm:p-6">
+                <div className="mb-4 self-start text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+                  KHQR Payment
+                </div>
+
+                {currentPayment?.qrImage ? (
+                  <div className="w-full max-w-[280px] border border-[var(--border-soft)] bg-white p-3 shadow-sm sm:max-w-[320px]">
+                    <Image
+                      src={currentPayment.qrImage}
+                      alt={`KHQR payment for order ${orderNumber}`}
+                      width={320}
+                      height={320}
+                      unoptimized
+                      className="mx-auto aspect-square w-full rounded-none bg-white object-contain"
+                    />
+                  </div>
+                ) : null}
+
+                <p className="mt-4 max-w-sm text-center text-xs leading-6 text-[var(--muted-foreground)] sm:text-sm">
+                  Scan this QR using your banking application.
+                </p>
+              </div>
+
+              {/* Status */}
+              <div
+                className={cn(
+                  "mt-4 flex items-center justify-between gap-3 border border-[var(--border-soft)] px-4 py-3",
+                  isFailed || isExpired
+                    ? "bg-rose-500/10 text-rose-600 dark:text-rose-300"
+                    : "bg-[var(--surface-quiet)] text-[var(--muted-foreground)]"
+                )}
+              >
+                <span className="min-w-0 text-xs leading-5">
+                  {message}
+                </span>
+
+                <span className="hidden shrink-0 text-[10px] font-semibold uppercase tracking-wider text-[var(--action)] sm:block">
+                  Payment
+                </span>
+              </div>
+
+              {/* Two buttons side by side */}
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                {currentPayment?.deeplink ? (
+                  <a
+                    href={currentPayment.deeplink}
+                    className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-none bg-[var(--action)] px-3 text-xs font-bold !text-white transition hover:opacity-90 active:scale-[0.99] sm:px-5 sm:text-sm"
+                  >
+                    <CreditCard className="size-4 shrink-0" />
+                    <span className="truncate">Save QR</span>
+                  </a>
+                ) : (
+                  <div />
+                )}
+
+                <Button
+                  type="button"
+                  className="h-12 w-full rounded-none border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3 text-xs font-semibold text-[var(--foreground)] shadow-none transition hover:bg-[var(--surface)] sm:px-5 sm:text-sm"
+                  onClick={onCancel}
+                >
+                  {isFailed || isExpired
+                    ? "Back to Orders"
+                    : "Cancel"}
+                </Button>
+              </div>
+            </div>
           </div>
-
-          {currentPayment?.deeplink ? (
-            <a
-              href={currentPayment.deeplink}
-              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--action)] px-4 text-sm font-semibold text-[var(--action-foreground)] transition hover:opacity-90"
-            >
-              <CreditCard className="size-4" />
-              Open Payment App
-            </a>
-          ) : null}
-
-          <div className={cn("rounded-2xl px-4 py-3 text-sm", isFailed || isExpired ? "bg-rose-500/10 text-rose-600 dark:text-rose-300" : "bg-[var(--surface-quiet)] text-[var(--muted-foreground)]")}>
-            {message}
-          </div>
-
-          <Button type="button" className="w-full" onClick={onCancel}>
-            {isFailed || isExpired ? "Back to Orders" : "Cancel"}
-          </Button>
-        </div>
-      )}
-    </Card>
+        )}
+      </Card>
+    </div>
   );
 }
+
+
+
 
 const ORDER_PROGRESS_STEPS = [
   { key: "pending", label: "Ordered", icon: ReceiptText },
