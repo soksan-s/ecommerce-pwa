@@ -4,7 +4,6 @@ import { useMemo } from "react";
 import {
   ArrowRight,
   Clock,
-  Coffee,
   CreditCard,
   HeartHandshake,
   MapPin,
@@ -12,53 +11,17 @@ import {
   Phone,
   QrCode,
   ShieldCheck,
-  ShoppingBag,
   Sparkles,
-  Store,
   Truck,
-  Utensils,
   Zap,
 } from "lucide-react";
 
 import { ProductCard } from "@/components/client-pages";
 import { useTranslation } from "@/lib/translations";
 
-export function ClientHomePageView({ store, requireAuth, onNavigateToShop, onSelectCategory }) {
+export function ClientHomePageView({ store, requireAuth, onNavigateToShop }) {
   const lang = store?.language || "en";
   const { t } = useTranslation(lang);
-
-  // Derive dynamic category list from active products
-  const categoryStats = useMemo(() => {
-    const products = store?.activeProducts || [];
-    const map = new Map();
-
-    for (const p of products) {
-      const cat = p.category?.trim();
-      if (cat) {
-        map.set(cat, (map.get(cat) || 0) + 1);
-      }
-    }
-
-    // Default fallback categories if empty
-    if (map.size === 0) {
-      return [
-        { name: "Beverages", count: 0, icon: Coffee },
-        { name: "Snacks", count: 0, icon: Utensils },
-        { name: "Daily Goods", count: 0, icon: ShoppingBag },
-      ];
-    }
-
-    return Array.from(map.entries()).map(([name, count]) => {
-      let icon = ShoppingBag;
-      const lower = name.toLowerCase();
-      if (lower.includes("beverage") || lower.includes("drink") || lower.includes("beer") || lower.includes("water") || lower.includes("coffee")) {
-        icon = Coffee;
-      } else if (lower.includes("snack") || lower.includes("food") || lower.includes("candy") || lower.includes("noodle") || lower.includes("rice")) {
-        icon = Utensils;
-      }
-      return { name, count, icon };
-    });
-  }, [store?.activeProducts]);
 
   // Featured / Popular products
   const featuredProducts = useMemo(() => {
@@ -109,21 +72,6 @@ export function ClientHomePageView({ store, requireAuth, onNavigateToShop, onSel
               <span>{t("shop_now")}</span>
               <ArrowRight className="size-4" />
             </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                const el = document.getElementById("categories-section");
-                if (el) {
-                  el.scrollIntoView({ behavior: "smooth" });
-                } else {
-                  onNavigateToShop();
-                }
-              }}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[var(--border-strong)] bg-[var(--surface-strong)]/80 px-5 py-3.5 text-sm font-bold text-[var(--foreground)] backdrop-blur-md transition-all hover:bg-[var(--surface-quiet)] active:scale-98 cursor-pointer"
-            >
-              <span>{t("view_categories")}</span>
-            </button>
           </div>
 
           {/* Quick Pillars */}
@@ -149,79 +97,7 @@ export function ClientHomePageView({ store, requireAuth, onNavigateToShop, onSel
       </section>
 
       {/* ─────────────────────────────────────────────────────────────────── */}
-      {/* 2. PRODUCT CATEGORIES DISCOVERY                                     */}
-      {/* ─────────────────────────────────────────────────────────────────── */}
-      <section id="categories-section" className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2">
-          <div>
-            <h2 className="font-display text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">
-              {t("explore_categories")}
-            </h2>
-            <p className="mt-1 text-xs sm:text-sm text-[var(--muted-foreground)]">
-              {t("explore_categories_sub")}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onNavigateToShop}
-            className="inline-flex items-center gap-1.5 text-xs font-bold text-[var(--action)] hover:underline self-start sm:self-auto cursor-pointer"
-          >
-            <span>{t("view_all_products")}</span>
-            <ArrowRight className="size-3.5" />
-          </button>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 lg:grid-cols-4">
-          {/* 'All Products' card */}
-          <div
-            onClick={() => onSelectCategory("All")}
-            className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-5 shadow-sm transition-all hover:-translate-y-1 hover:border-[var(--action)] hover:shadow-md cursor-pointer"
-            role="button"
-            tabIndex={0}
-          >
-            <div className="flex size-11 items-center justify-center rounded-xl bg-[var(--action-surface)] text-[var(--action)] transition-transform group-hover:scale-105">
-              <Store className="size-5" />
-            </div>
-            <div className="mt-4">
-              <h3 className="text-sm font-bold text-[var(--foreground)] group-hover:text-[var(--action)] transition-colors">
-                {t("all_products")}
-              </h3>
-              <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">
-                {t("showing_products").replace("{count}", store?.activeProducts?.length || 0)}
-              </p>
-            </div>
-          </div>
-
-          {/* Dynamic Category Cards */}
-          {categoryStats.map((cat) => {
-            const Icon = cat.icon;
-            return (
-              <div
-                key={cat.name}
-                onClick={() => onSelectCategory(cat.name)}
-                className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-5 shadow-sm transition-all hover:-translate-y-1 hover:border-[var(--action)] hover:shadow-md cursor-pointer"
-                role="button"
-                tabIndex={0}
-              >
-                <div className="flex size-11 items-center justify-center rounded-xl bg-[var(--surface-quiet)] text-[var(--foreground)] transition-transform group-hover:scale-105 group-hover:bg-[var(--action-surface)] group-hover:text-[var(--action)]">
-                  <Icon className="size-5" />
-                </div>
-                <div className="mt-4">
-                  <h3 className="text-sm font-bold text-[var(--foreground)] group-hover:text-[var(--action)] transition-colors truncate">
-                    {cat.name}
-                  </h3>
-                  <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">
-                    {t("grocery_items").replace("{count}", cat.count)}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* ─────────────────────────────────────────────────────────────────── */}
-      {/* 3. FEATURED / POPULAR PRODUCTS                                      */}
+      {/* 2. FEATURED / POPULAR PRODUCTS                                      */}
       {/* ─────────────────────────────────────────────────────────────────── */}
       {featuredProducts.length > 0 && (
         <section className="space-y-6">

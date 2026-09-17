@@ -142,16 +142,6 @@ export function ClientShell({ user, initialTab = "home", orderDetailId = "" }) {
     router.push(clientTabHref(nextTab));
   }
 
-  /** Called from Homepage category cards — navigate to Shop with category pre-selected */
-  function handleSelectCategory(catKey) {
-    setSelectedCategory(catKey);
-    setQuery("");
-    const nextTab = "shop";
-    setSelectedTab(nextTab);
-    setDrawerOpen(false);
-    router.push(clientTabHref(nextTab));
-  }
-
   function handleLogoClick() {
     setSelectedCategory("All");
     setQuery("");
@@ -170,7 +160,6 @@ export function ClientShell({ user, initialTab = "home", orderDetailId = "" }) {
             store={store}
             requireAuth={requireAuth}
             onNavigateToShop={() => openTab("shop")}
-            onSelectCategory={handleSelectCategory}
           />
         );
       case "favorites":
@@ -342,7 +331,7 @@ export function ClientShell({ user, initialTab = "home", orderDetailId = "" }) {
           </div>
 
           {/* Center: Search Box */}
-          <div className="flex-1 max-w-2xl w-full mx-auto md:mx-6">
+          <div className={cn("flex-1 max-w-2xl w-full mx-auto md:mx-6", activeTab !== "home" && activeTab !== "shop" && "hidden md:flex")}>
             <div className="flex items-center w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface-quiet)]/40 focus-within:border-[var(--action)] focus-within:ring-2 focus-within:ring-[var(--action)]/15 focus-within:bg-[var(--surface-strong)] transition-all relative">
               {/* Search Input Field */}
               <input
@@ -380,7 +369,7 @@ export function ClientShell({ user, initialTab = "home", orderDetailId = "" }) {
                   aria-label="Voice search"
                   title="Voice search"
                 >
-                  <Mic className="size-4" />
+
                 </button>
                 <button
                   type="button"
@@ -470,7 +459,7 @@ export function ClientShell({ user, initialTab = "home", orderDetailId = "" }) {
       {/* TIER 3: Main Tab Navigation Bar                                     */}
       {/* ─────────────────────────────────────────────────────────────────── */}
       <nav className="w-full bg-[var(--surface-strong)]/95 backdrop-blur-md border-b border-[var(--border-soft)] px-4 sm:px-6 lg:px-8 sticky top-0 z-30 transition-colors hidden md:block">
-        <div className="max-w-7xl mx-auto flex items-center gap-1 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden py-0.5">
+        <div className="no-scrollbar max-w-7xl mx-auto flex items-center gap-1 overflow-x-auto py-0.5">
           {clientTabs.map((tab) => {
             const isActive = activeTab === tab.key;
             const Icon = tab.icon;

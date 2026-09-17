@@ -107,6 +107,8 @@ function getPaymentMethodLabel(method, t) {
   }
 }
 
+
+
 function KhqrPaymentPanel({ payment, onCancel, onPaid }) {
   const [currentPayment, setCurrentPayment] = useState(payment);
   const [message, setMessage] = useState("Checking payment...");
@@ -131,15 +133,21 @@ function KhqrPaymentPanel({ payment, onCancel, onPaid }) {
     async function poll() {
       if (cancelled || Date.now() - startedAt > maxPollingMs) {
         if (!cancelled) {
-          setMessage("Still waiting for payment. You can check your order again after reconnecting.");
+          setMessage(
+            "Still waiting for payment. You can check your order again after reconnecting."
+          );
         }
         return;
       }
 
       try {
-        const response = await fetch(`/api/ecommerce/payments/${encodeURIComponent(payment.id)}/status`, {
-          cache: "no-store",
-        });
+        const response = await fetch(
+          `/api/ecommerce/payments/${encodeURIComponent(payment.id)}/status`,
+          {
+            cache: "no-store",
+          }
+        );
+
         const data = await response.json();
 
         if (!response.ok || !data.payment) {
@@ -157,6 +165,7 @@ function KhqrPaymentPanel({ payment, onCancel, onPaid }) {
           qrImage: data.payment.qrImage || latestPayment?.qrImage,
           deeplink: data.payment.deeplink || latestPayment?.deeplink,
         };
+
         setCurrentPayment(latestPayment);
 
         if (latestPayment.status === "PAID") {
@@ -183,13 +192,17 @@ function KhqrPaymentPanel({ payment, onCancel, onPaid }) {
       }
 
       attempt += 1;
-      timeoutId = window.setTimeout(poll, Math.min(attempt * 3000, 15000));
+      timeoutId = window.setTimeout(
+        poll,
+        Math.min(attempt * 3000, 15000)
+      );
     }
 
     poll();
 
     return () => {
       cancelled = true;
+
       if (timeoutId) {
         window.clearTimeout(timeoutId);
       }
@@ -199,75 +212,174 @@ function KhqrPaymentPanel({ payment, onCancel, onPaid }) {
   const isPaid = currentPayment?.status === "PAID";
   const isFailed = currentPayment?.status === "FAILED";
   const isExpired = currentPayment?.status === "EXPIRED";
-  const orderNumber = currentPayment?.orderNumber || currentPayment?.orderId;
+  const orderNumber =
+    currentPayment?.orderNumber || currentPayment?.orderId;
 
   return (
-    <Card className="mx-auto max-w-2xl">
-      {isPaid ? (
-        <div className="py-6 text-center">
-          <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
-            <CheckCircle2 className="size-7" />
-          </div>
-          <h2 className="mt-4 text-2xl font-semibold text-[var(--foreground)]">Payment Successful</h2>
-          <p className="mt-2 text-sm text-[var(--muted-foreground)]">Your payment has been verified.</p>
-          <p className="mt-4 text-sm font-semibold text-[var(--foreground)]">Order #{orderNumber}</p>
-          <Button type="button" className="mt-6" onClick={onCancel}>
-            View Order
-          </Button>
-        </div>
-      ) : (
-        <div className="space-y-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-bold uppercase text-[var(--muted-foreground)]">Payment</p>
-              <h2 className="mt-1 text-2xl font-semibold text-[var(--foreground)]">Order #{orderNumber}</h2>
+    <div className="flex min-h-[calc(100vh-4rem)] w-full items-center justify-center px-3 py-6 sm:px-6 sm:py-8 lg:px-8">
+      <Card className="mx-auto w-full max-w-xl overflow-hidden rounded-none border border-[var(--border-soft)] bg-[var(--surface)] p-0 shadow-[var(--shadow-soft)]">
+        {isPaid ? (
+          /* PAYMENT SUCCESS */
+          <div className="w-full">
+            <div className="flex items-start justify-between gap-4 border-b border-[var(--border-soft)] bg-[var(--surface-quiet)] px-4 py-4 sm:px-6 sm:py-5">
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+                  Payment
+                </p>
+
+                <h2 className="mt-1 truncate text-lg font-bold tracking-tight text-[var(--foreground)] sm:text-xl">
+                  Order #{orderNumber}
+                </h2>
+              </div>
+
+              <div className="shrink-0 text-right">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+                  Amount
+                </p>
+
+                <p className="mt-1 text-lg font-extrabold leading-none text-[var(--action)] sm:text-2xl">
+                  {currentPayment?.currency === "KHR"
+                    ? `${Math.round(
+                      currentPayment.amount
+                    ).toLocaleString()} KHR`
+                    : formatCurrency(currentPayment?.amount || 0)}
+                </p>
+              </div>
             </div>
-            <div className="text-right">
-              <p className="text-xs text-[var(--muted-foreground)]">Amount</p>
-              <p className="text-2xl font-semibold text-[var(--foreground)]">
-                {currentPayment?.currency === "KHR"
-                  ? `${Math.round(currentPayment.amount).toLocaleString()} KHR`
-                  : formatCurrency(currentPayment?.amount || 0)}
+
+            <div className="flex flex-col items-center px-4 py-8 text-center sm:px-8 sm:py-10">
+              <div className="flex size-16 items-center justify-center border border-[var(--border-soft)] bg-[var(--surface-quiet)] text-emerald-600 dark:text-emerald-400">
+                <CheckCircle2 className="size-8" />
+              </div>
+
+              <h2 className="mt-5 text-xl font-bold tracking-tight text-[var(--foreground)] sm:text-2xl">
+                Payment Successful
+              </h2>
+
+              <p className="mt-2 max-w-sm text-sm leading-6 text-[var(--muted-foreground)]">
+                Your payment has been verified.
               </p>
+
+              <p className="mt-4 text-sm font-semibold text-[var(--foreground)]">
+                Order #{orderNumber}
+              </p>
+
+              <Button
+                type="button"
+                className="mt-6 h-11 w-full rounded-none sm:w-auto sm:min-w-40"
+                onClick={onCancel}
+              >
+                View Order
+              </Button>
             </div>
           </div>
+        ) : (
+          /* PAYMENT WAITING / FAILED / EXPIRED */
+          <div className="w-full">
+            {/* Header */}
+            <div className="flex items-start justify-between gap-4 border-b border-[var(--border-soft)] bg-[var(--surface-quiet)] px-4 py-4 sm:px-6 sm:py-5">
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+                  Payment
+                </p>
 
-          <div className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-quiet)] p-4 text-center">
-            {currentPayment?.qrImage ? (
-              <Image
-                src={currentPayment.qrImage}
-                alt={`KHQR payment for order ${orderNumber}`}
-                width={288}
-                height={288}
-                unoptimized
-                className="mx-auto aspect-square w-full max-w-72 rounded-xl bg-white p-3 shadow-sm"
-              />
-            ) : null}
-            <p className="mt-4 text-sm leading-6 text-[var(--muted-foreground)]">Scan this QR using your banking application.</p>
+                <h2 className="mt-1 truncate text-lg font-bold tracking-tight text-[var(--foreground)] sm:text-xl">
+                  Order #{orderNumber}
+                </h2>
+              </div>
+
+              <div className="shrink-0 text-right">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+                  Amount
+                </p>
+
+                <p className="mt-1 text-lg font-extrabold leading-none text-[var(--action)] sm:text-2xl">
+                  {currentPayment?.currency === "KHR"
+                    ? `${Math.round(
+                      currentPayment.amount
+                    ).toLocaleString()} KHR`
+                    : formatCurrency(currentPayment?.amount || 0)}
+                </p>
+              </div>
+            </div>
+
+            {/* QR + payment content */}
+            <div className="p-4 sm:p-6 lg:p-8">
+              <div className="relative flex flex-col items-center justify-center border border-[var(--border-soft)] bg-[var(--surface-quiet)] p-4 sm:p-6">
+                <div className="mb-4 self-start text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+                  KHQR Payment
+                </div>
+
+                {currentPayment?.qrImage ? (
+                  <div className="w-full max-w-[280px] border border-[var(--border-soft)] bg-white p-3 shadow-sm sm:max-w-[320px]">
+                    <Image
+                      src={currentPayment.qrImage}
+                      alt={`KHQR payment for order ${orderNumber}`}
+                      width={320}
+                      height={320}
+                      unoptimized
+                      className="mx-auto aspect-square w-full rounded-none bg-white object-contain"
+                    />
+                  </div>
+                ) : null}
+
+                <p className="mt-4 max-w-sm text-center text-xs leading-6 text-[var(--muted-foreground)] sm:text-sm">
+                  Scan this QR using your banking application.
+                </p>
+              </div>
+
+              {/* Status */}
+              <div
+                className={cn(
+                  "mt-4 flex items-center justify-between gap-3 border border-[var(--border-soft)] px-4 py-3",
+                  isFailed || isExpired
+                    ? "bg-rose-500/10 text-rose-600 dark:text-rose-300"
+                    : "bg-[var(--surface-quiet)] text-[var(--muted-foreground)]"
+                )}
+              >
+                <span className="min-w-0 text-xs leading-5">
+                  {message}
+                </span>
+
+                <span className="hidden shrink-0 text-[10px] font-semibold uppercase tracking-wider text-[var(--action)] sm:block">
+                  Payment
+                </span>
+              </div>
+
+              {/* Two buttons side by side */}
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                {currentPayment?.deeplink ? (
+                  <a
+                    href={currentPayment.deeplink}
+                    className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-none bg-[var(--action)] px-3 text-xs font-bold !text-white transition hover:opacity-90 active:scale-[0.99] sm:px-5 sm:text-sm"
+                  >
+                    <CreditCard className="size-4 shrink-0" />
+                    <span className="truncate">Save QR</span>
+                  </a>
+                ) : (
+                  <div />
+                )}
+
+                <Button
+                  type="button"
+                  className="h-12 w-full rounded-none border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3 text-xs font-semibold text-[var(--foreground)] shadow-none transition hover:bg-[var(--surface)] sm:px-5 sm:text-sm"
+                  onClick={onCancel}
+                >
+                  {isFailed || isExpired
+                    ? "Back to Orders"
+                    : "Cancel"}
+                </Button>
+              </div>
+            </div>
           </div>
-
-          {currentPayment?.deeplink ? (
-            <a
-              href={currentPayment.deeplink}
-              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--action)] px-4 text-sm font-semibold text-[var(--action-foreground)] transition hover:opacity-90"
-            >
-              <CreditCard className="size-4" />
-              Open Payment App
-            </a>
-          ) : null}
-
-          <div className={cn("rounded-2xl px-4 py-3 text-sm", isFailed || isExpired ? "bg-rose-500/10 text-rose-600 dark:text-rose-300" : "bg-[var(--surface-quiet)] text-[var(--muted-foreground)]")}>
-            {message}
-          </div>
-
-          <Button type="button" className="w-full" onClick={onCancel}>
-            {isFailed || isExpired ? "Back to Orders" : "Cancel"}
-          </Button>
-        </div>
-      )}
-    </Card>
+        )}
+      </Card>
+    </div>
   );
 }
+
+
+
 
 const ORDER_PROGRESS_STEPS = [
   { key: "pending", label: "Ordered", icon: ReceiptText },
@@ -430,7 +542,7 @@ const CLIENT_REVEAL_DURATION_MS = 900;
 function isMultiVariantProduct(product) {
   return Boolean(
     product &&
-      (product.hasVariants || (product.isVariant && product.variants && product.variants.length > 0)),
+    (product.hasVariants || (product.isVariant && product.variants && product.variants.length > 0)),
   );
 }
 
@@ -547,6 +659,18 @@ export function ProductCard({ product, store, requireAuth = null }) {
         >
           {product.name}
         </Link>
+
+        <p
+          className={cn(
+            "line-clamp-2 h-10 overflow-hidden text-xs leading-5",
+            product.description?.trim()
+              ? "text-[var(--muted-foreground)]"
+              : "italic text-[var(--muted-foreground)]/70"
+          )}
+          title={product.description?.trim() || t("no_description")}
+        >
+          {product.description?.trim() || t("no_description")}
+        </p>
 
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
           {priceRange ? (
@@ -670,6 +794,21 @@ function ClientHeroCarousel({ products, reverse = false, language = "en" }) {
     return () => clearInterval(interval);
   }, [reverse, shouldAutoScroll]);
 
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const handleWheel = (e) => {
+      if (e.deltaY !== 0 && el.scrollWidth > el.clientWidth) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+      }
+    };
+
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, []);
+
   if (!shouldAutoScroll) {
     return (
       <div className="overflow-hidden pb-1">
@@ -699,7 +838,7 @@ function ClientHeroCarousel({ products, reverse = false, language = "en" }) {
     >
       <div
         ref={scrollRef}
-        className="flex gap-4 overflow-x-auto pb-1 snap-x snap-mandatory [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        className="no-scrollbar flex gap-4 overflow-x-auto py-1 snap-x snap-mandatory scroll-smooth"
       >
         {visibleProducts.map((product) => (
           <div key={product.id} className="snap-start">
@@ -784,7 +923,7 @@ export function ClientProductListPageView({
   const store = useAppStore();
   const { t } = useTranslation(store.language);
   const isCustomCollection = Boolean(productsOverride);
-  const setQuery = onQueryChange || (() => {});
+  const setQuery = onQueryChange || (() => { });
   const [selectedCategories, setSelectedCategories] = useState(() =>
     selectedCategory && selectedCategory !== "All" ? [selectedCategory] : []
   );
@@ -803,6 +942,22 @@ export function ClientProductListPageView({
   const [visibleGridCounts, setVisibleGridCounts] = useState({});
   const [revealState, setRevealState] = useState(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const categoriesScrollRef = useRef(null);
+
+  useEffect(() => {
+    const el = categoriesScrollRef.current;
+    if (!el) return;
+
+    const handleWheel = (e) => {
+      if (e.deltaY !== 0 && el.scrollWidth > el.clientWidth) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+      }
+    };
+
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, []);
   const sourceProducts = productsOverride || store.activeProducts;
   const sourceCategories = useMemo(() => [...new Set(sourceProducts.map((product) => product.category))], [sourceProducts]);
   const categoryChips = useMemo(() => ["All", ...sourceCategories], [sourceCategories]);
@@ -997,7 +1152,10 @@ export function ClientProductListPageView({
     <div className="mx-auto max-w-[72rem] space-y-6">
       {/* Category row — like the reference: chips inline, filters at the end */}
       <div className="flex items-center gap-2">
-        <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <div
+          ref={categoriesScrollRef}
+          className="no-scrollbar flex min-w-0 flex-1 items-center gap-2 overflow-x-auto py-0.5 scroll-smooth"
+        >
           {categoryChips.map((category) => {
             const isActive =
               category === "All" ? selectedCategories.length === 0 : selectedCategories.includes(category);
@@ -1027,18 +1185,17 @@ export function ClientProductListPageView({
         <button
           type="button"
           onClick={() => setFiltersOpen((state) => !state)}
-          aria-label="Filters"
+          aria-label={t("filters")}
           aria-expanded={filtersOpen}
-          className={
-            "app-icon-button relative shrink-0 " +
-            (filtersOpen
-              ? "border-[color-mix(in_srgb,var(--action)_45%,transparent)] text-[var(--action-on-muted)]"
-              : "")
-          }
+          title={t("filters")}
+          className={cn(
+            "relative inline-flex h-[38px] w-[38px] shrink-0 items-center justify-center border border-[color-mix(in_srgb,var(--action)_36%,transparent)] bg-[var(--action)] text-[var(--action-foreground)] shadow-xs transition hover:brightness-110 active:scale-95 cursor-pointer",
+            filtersOpen && "brightness-95 ring-2 ring-[var(--action)] ring-offset-2 ring-offset-[var(--background)]"
+          )}
         >
           <SlidersHorizontal className="size-4" />
           {activeFilterCount ? (
-            <span className="absolute -right-1.5 -top-1.5 grid min-w-4 place-items-center bg-[var(--action)] px-1 text-[10px] font-black text-[var(--action-foreground)]">
+            <span className="absolute -right-1.5 -top-1.5 grid min-w-4.5 h-4.5 px-1 place-items-center bg-rose-500 text-[10px] font-black text-white shadow-xs">
               {activeFilterCount}
             </span>
           ) : null}
@@ -1111,65 +1268,64 @@ export function ClientProductListPageView({
       ) : null}
 
       <div className="min-w-0 space-y-4">
-
-          {products.length ? (
-            isCustomCollection ? (
-              <ClientProductGrid key={productGridKey} products={products} store={store} requireAuth={requireAuth} />
-            ) : (
-              <div className="space-y-6">
-                <ClientHeroCarousel products={products.slice(0, 5)} language={store.language || "en"} />
-
-                {groupedProducts.map((group) => (
-                  <section key={group.category} className="space-y-4">
-                    <h2 className="font-display px-1 text-xl font-semibold tracking-tight text-[var(--foreground)]">{group.category}</h2>
-
-                    <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
-                      {group.products
-                        .slice(0, resolvedVisibleGridCounts[group.category] ?? CLIENT_VISIBLE_COUNT)
-                        .map((product, index) => {
-                          const isRevealed =
-                            revealState?.category === group.category &&
-                            index >= revealState.start;
-
-                          return (
-                            <motion.div
-                              key={`${group.category}-${product.id}-grid`}
-                              initial={isRevealed ? { opacity: 0, x: 36 } : false}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{
-                                duration: isRevealed ? 0.38 : 0.22,
-                                delay: isRevealed ? (index - revealState.start) * 0.055 : 0,
-                                ease: easeInOutCubic,
-                              }}
-                            >
-                              <ProductCard product={product} store={store} requireAuth={requireAuth} />
-                            </motion.div>
-                          );
-                        })}
-                    </div>
-
-                    {group.products.length > (resolvedVisibleGridCounts[group.category] ?? CLIENT_VISIBLE_COUNT) ? (
-                      <div className="flex justify-center pt-1">
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          className="rounded-full border-2 border-[color-mix(in_srgb,var(--foreground)_24%,transparent)] px-5 py-2.5 text-sm shadow-none hover:border-[color-mix(in_srgb,var(--foreground)_36%,transparent)]"
-                          onClick={() => showMoreProducts(group.category)}
-                        >
-                          {t("show_more")}
-                        </Button>
-                      </div>
-                    ) : null}
-                  </section>
-                ))}
-              </div>
-            )
+        {products.length ? (
+          isCustomCollection ? (
+            <ClientProductGrid key={productGridKey} products={products} store={store} requireAuth={requireAuth} />
           ) : (
-            <div className="rounded-[1.25rem] border border-[var(--border-soft)] bg-[color-mix(in_srgb,var(--surface)_82%,var(--background-start))] px-4 py-8 text-center text-sm text-[var(--muted-foreground)]">
-              {t("no_matching_products")}
+            <div className="space-y-6">
+              <ClientHeroCarousel products={products.slice(0, 5)} language={store.language || "en"} />
+
+              {groupedProducts.map((group) => (
+                <section key={group.category} className="space-y-4">
+                  <h2 className="font-display px-1 text-xl font-semibold tracking-tight text-[var(--foreground)]">{group.category}</h2>
+
+                  <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+                    {group.products
+                      .slice(0, resolvedVisibleGridCounts[group.category] ?? CLIENT_VISIBLE_COUNT)
+                      .map((product, index) => {
+                        const isRevealed =
+                          revealState?.category === group.category &&
+                          index >= revealState.start;
+
+                        return (
+                          <motion.div
+                            key={`${group.category}-${product.id}-grid`}
+                            initial={isRevealed ? { opacity: 0, x: 36 } : false}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{
+                              duration: isRevealed ? 0.38 : 0.22,
+                              delay: isRevealed ? (index - revealState.start) * 0.055 : 0,
+                              ease: easeInOutCubic,
+                            }}
+                          >
+                            <ProductCard product={product} store={store} requireAuth={requireAuth} />
+                          </motion.div>
+                        );
+                      })}
+                  </div>
+
+                  {group.products.length > (resolvedVisibleGridCounts[group.category] ?? CLIENT_VISIBLE_COUNT) ? (
+                    <div className="flex justify-center pt-1">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="rounded-full border-2 border-[color-mix(in_srgb,var(--foreground)_24%,transparent)] px-5 py-2.5 text-sm shadow-none hover:border-[color-mix(in_srgb,var(--foreground)_36%,transparent)]"
+                        onClick={() => showMoreProducts(group.category)}
+                      >
+                        {t("show_more")}
+                      </Button>
+                    </div>
+                  ) : null}
+                </section>
+              ))}
             </div>
-          )}
-        </div>
+          )
+        ) : (
+          <div className="rounded-[1.25rem] border border-[var(--border-soft)] bg-[color-mix(in_srgb,var(--surface)_82%,var(--background-start))] px-4 py-8 text-center text-sm text-[var(--muted-foreground)]">
+            {t("no_matching_products")}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1195,89 +1351,246 @@ export function ClientFavoritesPageView() {
   return <ClientProductListPageView productsOverride={store.favoriteProducts} />;
 }
 
+
+
+
 export function ClientCartPageView() {
   const store = useAppStore();
   const { t } = useTranslation(store.language);
 
   return (
-    <div className="space-y-4">
-      {store.cartItems.length ? (
-        <>
-          <div className="space-y-3 px-4">
-            {store.cartItems.map((item) => (
-              <Card key={item.cartKey || item.productId} className="p-3">
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <div
-                    className="h-[5.25rem] w-[5.25rem] rounded-xl bg-cover bg-center"
-                    style={{ backgroundImage: item.product.image ? `url(${item.product.image})` : undefined }}
-                  />
-                  <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <h2 className="text-lg font-semibold text-[var(--foreground)]">{item.product.name}</h2>
-                      {item.variantName ? (
-                        <p className="mt-0.5 text-xs font-medium text-[var(--action)]">{item.variantName}</p>
-                      ) : null}
-                      <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-                        {formatCurrency(item.unitPrice)} {t("each")}
-                      </p>
-                      <p className="mt-1 text-sm font-semibold text-[var(--foreground)]">{t("subtotal")}: {formatCurrency(item.subtotal)}</p>
-                    </div>
-                    <div className="flex flex-col items-start gap-2 sm:items-center">
-                      <div className="flex items-center border border-[var(--border-strong)] bg-[var(--surface-strong)]">
+    <>
+      <div className="space-y-4 md:mx-auto md:max-w-[72rem] md:space-y-6">
+        {store.cartItems.length ? (
+          <>
+            <div className="space-y-3 px-4 md:grid md:grid-cols-2 md:gap-4 md:space-y-0 md:px-0 lg:grid-cols-3 xl:grid-cols-4">
+              {store.cartItems.map((item) => (
+                <Card
+                  key={item.cartKey || item.productId}
+                  className="relative h-full p-3 md:flex md:flex-col"
+                >
+                  {/* MOBILE — KEEP EXISTING DESIGN */}
+                  <div className="flex min-w-0 gap-3 md:hidden">
+                    <div
+                      className="h-[5.25rem] w-[5.25rem] shrink-0 rounded-xl bg-cover bg-center"
+                      style={{
+                        backgroundImage: item.product.image
+                          ? `url(${item.product.image})`
+                          : undefined,
+                      }}
+                    />
+
+                    <div className="flex min-w-0 flex-1 items-stretch justify-between gap-2">
+                      <div className="min-w-0 flex-1 overflow-hidden">
+                        <h2 className="truncate text-lg font-semibold text-[var(--foreground)]">
+                          {item.product.name}
+                        </h2>
+
+                        {item.variantName ? (
+                          <p className="mt-0.5 truncate text-xs font-medium text-[var(--action)]">
+                            {item.variantName}
+                          </p>
+                        ) : null}
+
+                        <p className="mt-1 truncate text-sm text-[var(--muted-foreground)]">
+                          {formatCurrency(item.unitPrice)} {t("each")}
+                        </p>
+
+                        <p className="mt-1 truncate text-sm font-semibold text-[var(--foreground)]">
+                          {formatCurrency(item.subtotal)}: {t("subtotal")}
+                        </p>
+                      </div>
+
+                      <div className="flex h-[5.25rem] shrink-0 flex-col items-end justify-between">
                         <button
                           type="button"
-                          onClick={() => store.decreaseCart(item.productId, item.variantId)}
+                          onClick={() =>
+                            store.removeFromCart(
+                              item.productId,
+                              item.variantId
+                            )
+                          }
+                          aria-label={t("remove")}
+                          title={t("remove")}
+                          className="grid size-8 shrink-0 place-items-center rounded-full text-red-500 transition-colors hover:bg-red-50 hover:text-red-600"
+                        >
+                          <X size={20} strokeWidth={2.5} />
+                        </button>
+
+                        <div className="flex shrink-0 items-center border border-[var(--border-strong)] bg-[var(--surface-strong)]">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              store.decreaseCart(
+                                item.productId,
+                                item.variantId
+                              )
+                            }
+                            aria-label="Decrease quantity"
+                            className="grid size-8 place-items-center text-sm font-bold text-[var(--foreground)] transition-colors hover:bg-[var(--action-surface)] hover:text-[var(--action-on-muted)]"
+                          >
+                            -
+                          </button>
+
+                          <span className="min-w-9 text-center text-sm font-extrabold tabular-nums text-[var(--foreground)]">
+                            {item.quantity}
+                          </span>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              store.addToCart(
+                                item.productId,
+                                1,
+                                item.variantId
+                              )
+                            }
+                            aria-label="Increase quantity"
+                            className="grid size-8 place-items-center text-sm font-bold text-[var(--foreground)] transition-colors hover:bg-[var(--action-surface)] hover:text-[var(--action-on-muted)]"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* IPAD + PC — VERTICAL DETAIL CARD */}
+                  <div className="hidden md:flex md:flex-col">
+                    <div
+                      className="relative h-48 w-full shrink-0 rounded-xl bg-cover bg-center lg:h-52 xl:h-56"
+                      style={{
+                        backgroundImage: item.product.image
+                          ? `url(${item.product.image})`
+                          : undefined,
+                      }}
+                    />
+
+                    {/* X — TOP RIGHT OF CARD */}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        store.removeFromCart(
+                          item.productId,
+                          item.variantId
+                        )
+                      }
+                      aria-label={t("remove")}
+                      title={t("remove")}
+                      className="absolute right-5 top-5 z-10 grid size-8 place-items-center rounded-full bg-[var(--surface)]/95 text-red-500 shadow-[var(--shadow-soft)] transition-colors hover:bg-red-50 hover:text-red-600"
+                    >
+                      <X size={20} strokeWidth={2.5} />
+                    </button>
+
+                    {/* DETAILS — VERTICAL LIST */}
+                    <div className="flex min-w-0 flex-1 flex-col pt-4">
+                      <div className="min-w-0">
+                        <h2 className="break-words text-lg font-semibold leading-snug text-[var(--foreground)]">
+                          {item.product.name}
+                        </h2>
+
+                        {item.variantName ? (
+                          <p className="mt-1 break-words text-xs font-medium text-[var(--action)]">
+                            {item.variantName}
+                          </p>
+                        ) : null}
+
+                        <p className="mt-2 break-words text-sm text-[var(--muted-foreground)]">
+                          {formatCurrency(item.unitPrice)} {t("each")}
+                        </p>
+
+                        <p className="mt-1 break-words text-sm font-semibold text-[var(--foreground)]">
+                          {t("subtotal")}: {formatCurrency(item.subtotal)}
+                        </p>
+                      </div>
+
+                      {/* QUANTITY — FULL WIDTH */}
+                      <div className="mt-4 flex w-full overflow-hidden rounded-xl border border-[var(--border-strong)] bg-[var(--surface-strong)]">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            store.decreaseCart(
+                              item.productId,
+                              item.variantId
+                            )
+                          }
                           aria-label="Decrease quantity"
-                          className="grid size-8 place-items-center text-sm font-bold text-[var(--foreground)] transition-colors hover:bg-[var(--action-surface)] hover:text-[var(--action-on-muted)]"
+                          className="grid h-10 flex-1 place-items-center bg-red-100 text-base font-bold text-red-600 transition-colors hover:bg-red-200"
                         >
                           -
                         </button>
-                        <span className="min-w-9 text-center text-sm font-extrabold tabular-nums text-[var(--foreground)]">{item.quantity}</span>
+
+                        <span className="grid h-10 flex-1 place-items-center text-sm font-extrabold tabular-nums text-[var(--foreground)]">
+                          {item.quantity}
+                        </span>
+
                         <button
                           type="button"
-                          onClick={() => store.addToCart(item.productId, 1, item.variantId)}
+                          onClick={() =>
+                            store.addToCart(
+                              item.productId,
+                              1,
+                              item.variantId
+                            )
+                          }
                           aria-label="Increase quantity"
-                          className="grid size-8 place-items-center text-sm font-bold text-[var(--foreground)] transition-colors hover:bg-[var(--action-surface)] hover:text-[var(--action-on-muted)]"
+                          className="grid h-10 flex-1 place-items-center bg-[var(--action)] text-base font-bold text-[var(--action-foreground)] transition-colors hover:opacity-90"
                         >
                           +
                         </button>
                       </div>
-                      <button type="button" onClick={() => store.removeFromCart(item.productId, item.variantId)} className="text-sm font-medium text-[var(--action)]">
-                        {t("remove")}
-                      </button>
                     </div>
                   </div>
+                </Card>
+              ))}
+            </div>
+
+            <div className="rounded-t-[1.5rem] border-t border-[var(--border-soft)] bg-[linear-gradient(135deg,var(--surface-quiet),var(--surface),color-mix(in_srgb,var(--action)_12%,var(--surface)))] px-4 pb-4 pt-3 shadow-[0_-4px_16px_rgba(15,24,35,0.06)] md:rounded-[1.5rem] md:border md:p-5">
+              <div className="flex items-center gap-4">
+                <div className="min-w-0">
+                  <p className="text-lg font-bold text-[var(--foreground)]">
+                    {t("total")}
+                  </p>
+
+                  <p className="mt-1 text-2xl font-extrabold text-[var(--foreground)]">
+                    {formatCurrency(store.cartTotal)}
+                  </p>
                 </div>
-              </Card>
-            ))}
-          </div>
-          <div className="rounded-t-[1.5rem] border-t border-[var(--border-soft)] bg-[linear-gradient(135deg,var(--surface-quiet),var(--surface),color-mix(in_srgb,var(--action)_12%,var(--surface)))] px-4 pb-4 pt-3 shadow-[0_-4px_16px_rgba(15,24,35,0.06)]">
-            <div className="flex items-center gap-4">
-              <div>
-                <p className="text-lg font-bold text-[var(--foreground)]">{t("total")}</p>
-                <p className="mt-1 text-2xl font-extrabold text-[var(--foreground)]">{formatCurrency(store.cartTotal)}</p>
-              </div>
-              <div className="ml-auto">
-                <Link href="/client/checkout" prefetch={false} className="inline-flex items-center justify-center rounded-xl bg-[var(--action)] px-[1.125rem] py-[0.875rem] text-sm font-semibold text-[var(--action-foreground)] shadow-[var(--shadow-soft)]">
-                  {t("proceed_to_checkout")}
-                </Link>
+
+                <div className="ml-auto shrink-0">
+                  <Link
+                    href="/client/checkout"
+                    prefetch={false}
+                    className="inline-flex items-center justify-center rounded-xl bg-[var(--action)] px-[1.125rem] py-[0.875rem] text-sm font-semibold !text-white shadow-[var(--shadow-soft)]"
+                  >
+                    {t("proceed_to_checkout")}
+                  </Link>
+                </div>
               </div>
             </div>
+          </>
+        ) : (
+          <div className="flex min-h-[14rem] items-center justify-center px-4 text-center text-[var(--muted-foreground)]">
+            {t("cart_empty_hint")}
           </div>
-        </>
-      ) : (
-        <div className="flex min-h-[14rem] items-center justify-center px-4 text-center text-[var(--muted-foreground)]">
-          {t("cart_empty_hint")}
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </>
   );
 }
+
+
+
+
+
+
+
 
 export function ClientCheckoutPageView() {
   const store = useAppStore();
   const { t } = useTranslation(store.language);
   const router = useRouter();
+
   const [shippingAddress, setShippingAddress] = useState("");
   const [deliveryCoords, setDeliveryCoords] = useState(null);
   const [deliveryNote, setDeliveryNote] = useState("");
@@ -1289,6 +1602,7 @@ export function ClientCheckoutPageView() {
 
   async function handleSubmit(event) {
     event.preventDefault();
+
     if (shippingAddress.trim().length < 8) {
       setMessage(t("shipping_address_hint"));
       return;
@@ -1326,12 +1640,17 @@ export function ClientCheckoutPageView() {
           },
           body: JSON.stringify({ orderId: result.order.id }),
         });
+
         const data = await response.json();
 
         setSubmitting(false);
 
         if (!response.ok || !data.payment) {
-          setMessage(data.error || `Order ${result.order.orderNumber || result.order.id} was created, but KHQR payment could not be prepared.`);
+          setMessage(
+            data.error ||
+            `Order ${result.order.orderNumber || result.order.id
+            } was created, but KHQR payment could not be prepared.`
+          );
           return;
         }
 
@@ -1339,13 +1658,20 @@ export function ClientCheckoutPageView() {
         return;
       } catch {
         setSubmitting(false);
-        setMessage(`Order ${result.order.orderNumber || result.order.id} was created, but payment setup is unavailable right now.`);
+        setMessage(
+          `Order ${result.order.orderNumber || result.order.id
+          } was created, but payment setup is unavailable right now.`
+        );
         return;
       }
     }
 
     setSubmitting(false);
-    setMessage(`Order ${result.order.orderNumber || result.order.id} placed successfully.`);
+    setMessage(
+      `Order ${result.order.orderNumber || result.order.id
+      } placed successfully.`
+    );
+
     router.push("/client?tab=orders");
   }
 
@@ -1354,102 +1680,313 @@ export function ClientCheckoutPageView() {
       <KhqrPaymentPanel
         payment={khqrPayment}
         onCancel={() => router.push("/client?tab=orders")}
-        onPaid={() => {}}
+        onPaid={() => { }}
       />
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <button
-          type="button"
-          onClick={() => router.push("/client?tab=cart")}
-          className="inline-flex items-center gap-2 rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-2.5 text-sm font-semibold text-[var(--foreground)] shadow-[var(--shadow-soft)] transition hover:bg-[var(--surface-quiet)] active:scale-95"
-        >
-          <CircleArrowLeft className="size-4 text-[var(--action)]" />
-          <span>{t("back_to_cart") || "Back to Cart"}</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => router.push("/client?tab=shop")}
-          className="text-sm font-semibold text-[var(--action)] transition hover:underline"
-        >
-          {t("continue_shopping") || "Continue Shopping"}
-        </button>
+    <div className="min-h-full space-y-5 bg-[var(--background)] text-[var(--foreground)]">
+      {/* Top navigation */}
+      <div className="border-b border-[var(--border-soft)]">
+        <div className="flex items-end justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => router.push("/client?tab=cart")}
+            className="inline-flex items-center gap-2 border-l border-r border-t border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold capitalize tracking-tight text-[var(--foreground)] transition hover:bg-[var(--surface-quiet)] active:scale-[0.98]"
+          >
+            <CircleArrowLeft className="size-4 text-[var(--action)]" />
+            <span>{t("Back to Cart") || "Back to Cart"}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => router.push("/client?tab=shop")}
+            className="border-l border-r border-t border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold capitalize text-[var(--action)] transition hover:bg-[var(--surface-quiet)] active:scale-[0.98]"
+          >
+            {t("Continue") || "Continue Shopping"}
+          </button>
+        </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
-        <Card>
-          <h2 className="text-xl font-semibold text-[var(--foreground)]">{t("order_summary")}</h2>
-          <div className="mt-4 space-y-3">
-            <div className="flex items-center justify-between gap-4 text-sm">
-              <span className="text-[var(--muted-foreground)]">{t("items")}</span>
-              <span className="font-semibold text-[var(--foreground)]">{store.cartItems.length}</span>
-            </div>
-            {store.cartItems.map((item) => (
-              <div key={item.cartKey || item.productId} className="flex items-center justify-between gap-4 text-sm">
-                <span className="text-[var(--muted-foreground)]">
-                  {item.product.name}{item.variantName ? ` (${item.variantName})` : ''} x {item.quantity}
-                </span>
-                <span className="font-semibold text-[var(--foreground)]">{formatCurrency(item.subtotal)}</span>
-              </div>
-            ))}
-          </div>
-          <div className="mt-5 border-t border-[var(--border-soft)] pt-4">
-            <p className="text-sm text-[var(--muted-foreground)]">{t("total")}</p>
-            <p className="mt-2 text-3xl font-semibold text-[var(--foreground)]">{formatCurrency(store.cartTotal)}</p>
-          </div>
-        </Card>
-        <Card>
-          <h2 className="text-xl font-semibold text-[var(--foreground)]">{t("delivery_details")}</h2>
-          <div className="mt-4 space-y-4">
-            <DeliveryLocationPicker
-              onAddressSelect={setShippingAddress}
-              onLocationSelect={(loc) => {
-                setShippingAddress(loc.address);
-                setDeliveryCoords({ lat: loc.lat, lng: loc.lng });
-              }}
-              locateLabel={t("use_current_location")}
-              pickLabel={t("pick_on_map")}
-              hint={t("map_location_hint")}
-            />
-            <textarea
-              value={shippingAddress}
-              onChange={(event) => setShippingAddress(event.target.value)}
-              placeholder={t("shipping_address")}
-              className="app-input min-h-24 px-4 py-3 text-sm"
-            />
-            <input
-              value={deliveryNote}
-              onChange={(event) => setDeliveryNote(event.target.value)}
-              placeholder="Delivery instructions / notes (e.g. Near Wat Bo, call when arrived)"
-              className="app-input px-4 py-2.5 text-sm"
-            />
-            <div className="rounded-[1.125rem] border border-[color:color-mix(in_srgb,var(--border-soft)_85%,transparent)] bg-[linear-gradient(135deg,color-mix(in_srgb,var(--action)_12%,var(--surface)),color-mix(in_srgb,var(--accent-secondary)_35%,var(--surface)))] p-4">
-              <div className="flex items-start gap-3">
-                <div className="rounded-xl bg-white/35 p-2 text-[var(--foreground)]">
-                  <Ticket className="size-5" />
+      <form
+        onSubmit={handleSubmit}
+        className="grid items-start gap-6 pb-24 lg:grid-cols-12 lg:gap-8 lg:pb-0"
+      >
+        {/* LEFT: DELIVERY + PAYMENT */}
+        <div className="space-y-6 lg:col-span-7 xl:col-span-8">
+          {/* Delivery */}
+          <Card>
+            <div className="flex items-center justify-between gap-4 border-b border-[var(--border-soft)] pb-4">
+              <div className="flex items-center gap-3">
+                <div className="flex size-9 shrink-0 items-center justify-center border border-[var(--border-soft)] bg-[var(--surface-quiet)] text-[var(--action)]">
+                  <CircleArrowLeft className="size-4 rotate-180" />
                 </div>
-                <p className="text-sm leading-6 text-[var(--foreground)]/88">
+
+                <div>
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--foreground)]">
+                    {t("delivery_details")}
+                  </h2>
+                  <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">
+                    {t("map_location_hint")}
+                  </p>
+                </div>
+              </div>
+
+              <span className="hidden border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--action)] sm:inline-flex">
+                Express
+              </span>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              {/* Existing map/location component */}
+              <div className="overflow-hidden border border-[var(--border-soft)] bg-[var(--surface-quiet)]">
+                <DeliveryLocationPicker
+                  onAddressSelect={setShippingAddress}
+                  onLocationSelect={(loc) => {
+                    setShippingAddress(loc.address);
+                    setDeliveryCoords({
+                      lat: loc.lat,
+                      lng: loc.lng,
+                    });
+                  }}
+                  locateLabel={t("use_current_location")}
+                  pickLabel={t("pick_on_map")}
+                  hint={t("map_location_hint")}
+                />
+              </div>
+
+              {/* Address */}
+              <div>
+                <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+                  {t("shipping_address")}
+                </label>
+
+                <textarea
+                  value={shippingAddress}
+                  onChange={(event) =>
+                    setShippingAddress(event.target.value)
+                  }
+                  placeholder={t("shipping_address")}
+                  className="app-input min-h-24 w-full rounded-none border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3 py-2.5 text-xs font-medium text-[var(--foreground)] outline-none transition focus:border-[var(--action)] focus:ring-1 focus:ring-[var(--action)]"
+                />
+              </div>
+
+              {/* Delivery note */}
+              <div>
+                <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+                  Rider Note / Instructions
+                </label>
+
+                <input
+                  value={deliveryNote}
+                  onChange={(event) =>
+                    setDeliveryNote(event.target.value)
+                  }
+                  placeholder="Delivery instructions / notes (e.g. Near Wat Bo, call when arrived)"
+                  className="app-input w-full rounded-none border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3 py-2.5 text-xs text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--action)] focus:ring-1 focus:ring-[var(--action)]"
+                />
+              </div>
+            </div>
+
+            {/* Payment inside same left-side flow */}
+            <div className="mt-6 border-t border-[var(--border-soft)] pt-5">
+              <div className="flex items-center justify-between gap-4 border-b border-[var(--border-soft)] pb-4">
+                <div>
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--foreground)]">
+                    Payment Method
+                  </h2>
+
+                  <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">
+                    Select how you would like to pay
+                  </p>
+                </div>
+
+                <span className="text-[10px] font-medium uppercase tracking-wide text-[var(--muted-foreground)]">
+                  Encrypted
+                </span>
+              </div>
+
+              <div className="mt-4">
+                <select
+                  value={paymentMethod}
+                  onChange={(event) =>
+                    setPaymentMethod(event.target.value)
+                  }
+                  className="app-select w-full rounded-none border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3 py-3 text-xs font-semibold text-[var(--foreground)] outline-none transition focus:border-[var(--action)] focus:ring-1 focus:ring-[var(--action)]"
+                >
+                  <option value="CASH_ON_DELIVERY">
+                    {getPaymentMethodLabel("CASH_ON_DELIVERY", t)}
+                  </option>
+
+                  <option value="KHQR">KHQR / Bakong</option>
+
+                  <option value="CREDIT_CARD">
+                    {getPaymentMethodLabel("CREDIT_CARD", t)}
+                  </option>
+
+                  <option value="BANK_TRANSFER">
+                    {getPaymentMethodLabel("BANK_TRANSFER", t)}
+                  </option>
+                </select>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* RIGHT: SUMMARY + COUPON + ACTION */}
+        <div className="space-y-6 lg:sticky lg:top-24 lg:col-span-5 xl:col-span-4">
+          {/* Order Summary */}
+          <Card>
+            <div className="flex items-center justify-between gap-3 border-b border-[var(--border-soft)] pb-4">
+              <div className="flex min-w-0 items-center gap-2">
+                <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--foreground)]">
+                  {t("order_summary")}
+                </h2>
+
+                <span className="shrink-0 border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-2 py-0.5 text-[10px] font-bold text-[var(--foreground)]">
+                  {store.cartItems.length} {t("items")}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-1">
+              {store.cartItems.map((item, index) => (
+                <div
+                  key={item.cartKey || item.productId}
+                  className={`flex items-center justify-between gap-4 py-3.5 ${index !== store.cartItems.length - 1
+                    ? "border-b border-[var(--border-soft)]"
+                    : ""
+                    }`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-semibold text-[var(--foreground)]">
+                      {item.product.name}
+                    </p>
+
+                    <p className="mt-0.5 truncate text-[11px] text-[var(--muted-foreground)]">
+                      {item.variantName || "Default Variant"} · Qty:{" "}
+                      {item.quantity}
+                    </p>
+                  </div>
+
+                  <span className="ml-2 shrink-0 text-xs font-bold text-[var(--foreground)]">
+                    {formatCurrency(item.subtotal)}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-1 border-t border-dashed border-[var(--border-soft)] pt-4">
+              <div className="flex items-center justify-between text-xs text-[var(--muted-foreground)]">
+                <span>{t("total")}</span>
+
+                <span className="text-sm font-extrabold text-[var(--action)]">
+                  {formatCurrency(store.cartTotal)}
+                </span>
+              </div>
+            </div>
+          </Card>
+
+          {/* Coupon */}
+          <Card>
+            <div className="flex items-start gap-3 border-b border-[var(--border-soft)] pb-4">
+              <div className="flex size-8 shrink-0 items-center justify-center border border-[var(--border-soft)] bg-[var(--surface-quiet)] text-[var(--action)]">
+                <Ticket className="size-4" />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--foreground)]">
+                  Coupon & Campaign Voucher
+                </h3>
+
+                <p className="mt-1 text-[11px] leading-5 text-[var(--muted-foreground)]">
                   {t("coupon_hint")}
                 </p>
               </div>
             </div>
-            <input value={couponCode} onChange={(event) => setCouponCode(event.target.value)} placeholder={t("enter_coupon")} className="app-input px-4 py-3 text-sm" />
-            <p className="text-xs leading-6 text-[var(--muted-foreground)]">{t("coupon_wallet_note")}</p>
-            <select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)} className="app-select px-4 py-3 text-sm">
-              <option value="CASH_ON_DELIVERY">{getPaymentMethodLabel("CASH_ON_DELIVERY", t)}</option>
-              <option value="KHQR">KHQR / Bakong</option>
-              <option value="CREDIT_CARD">{getPaymentMethodLabel("CREDIT_CARD", t)}</option>
-              <option value="BANK_TRANSFER">{getPaymentMethodLabel("BANK_TRANSFER", t)}</option>
-            </select>
-            {message ? <div className="rounded-2xl bg-[var(--surface-quiet)] px-4 py-3 text-sm">{message}</div> : null}
-            <Button type="submit" className="w-full" disabled={submitting || !store.cartItems.length}>
-              {submitting ? t("placing_order") : paymentMethod === "KHQR" ? "Create KHQR payment" : t("place_order")}
+
+            <div className="mt-4">
+              <input
+                value={couponCode}
+                onChange={(event) => setCouponCode(event.target.value)}
+                placeholder={t("enter_coupon")}
+                className="app-input w-full rounded-none border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3 py-2.5 text-xs font-medium uppercase tracking-wider text-[var(--foreground)] outline-none transition placeholder:normal-case placeholder:tracking-normal focus:border-[var(--action)] focus:ring-1 focus:ring-[var(--action)]"
+              />
+            </div>
+
+            <p className="mt-2 text-[10px] leading-5 text-[var(--muted-foreground)]">
+              {t("coupon_wallet_note")}
+            </p>
+          </Card>
+
+          {/* Desktop CTA */}
+          {/* Desktop CTA */}
+          <div className="hidden border border-[var(--border-soft)] bg-[var(--surface)] p-4 shadow-[var(--shadow-soft)] lg:block">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex min-w-0 items-baseline gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)] whitespace-nowrap">
+                  Total to Pay
+                </span>
+
+                <span className="text-2xl font-extrabold tracking-tight text-[var(--foreground)] whitespace-nowrap">
+                  {formatCurrency(store.cartTotal)}
+                </span>
+              </div>
+
+              <Button
+                type="submit"
+                className="h-11 shrink-0 rounded-none border border-[var(--action)] bg-[var(--action)] px-5 text-sm font-bold text-white shadow-none transition hover:opacity-90"
+                disabled={submitting || !store.cartItems.length}
+              >
+                {submitting
+                  ? t("placing_order")
+                  : paymentMethod === "KHQR"
+                    ? "Create KHQR payment"
+                    : t("place_order")}
+              </Button>
+            </div>
+
+            {message ? (
+              <div className="mt-3 border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3 py-2.5 text-xs text-[var(--foreground)]">
+                {message}
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        {/* Mobile + Tablet CTA */}
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--border-soft)] bg-[var(--surface)] px-3 py-3 shadow-[var(--shadow-soft)] lg:hidden">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-baseline gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)] whitespace-nowrap">
+                Total to Pay
+              </span>
+
+              <span className="text-xl font-extrabold tracking-tight text-[var(--foreground)] whitespace-nowrap">
+                {formatCurrency(store.cartTotal)}
+              </span>
+            </div>
+
+            <Button
+              type="submit"
+              className="h-11 shrink-0 rounded-none border border-[var(--action)] bg-[var(--action)] px-4 text-sm font-bold text-white shadow-none transition hover:opacity-90"
+              disabled={submitting || !store.cartItems.length}
+            >
+              {submitting
+                ? t("placing_order")
+                : paymentMethod === "KHQR"
+                  ? "Create KHQR payment"
+                  : t("place_order")}
             </Button>
           </div>
-        </Card>
+
+          {message ? (
+            <div className="mt-2 border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3 py-2.5 text-xs text-[var(--foreground)]">
+              {message}
+            </div>
+          ) : null}
+        </div>
       </form>
     </div>
   );
@@ -1478,6 +2015,7 @@ export function ClientOrderHistoryPageView() {
           return false;
         }
       }
+
       if (endDate) {
         const end = new Date(`${endDate}T23:59:59`);
         if (createdAt > end) {
@@ -1494,7 +2032,9 @@ export function ClientOrderHistoryPageView() {
         String(order.orderNumber || "").toLowerCase().includes(lower) ||
         String(order.shippingAddress || "").toLowerCase().includes(lower) ||
         String(order.paymentMethod || "").toLowerCase().includes(lower) ||
-        (order.lines || []).some((line) => String(line.productName || "").toLowerCase().includes(lower))
+        (order.lines || []).some((line) =>
+          String(line.productName || "").toLowerCase().includes(lower)
+        )
       );
     });
 
@@ -1515,19 +2055,38 @@ export function ClientOrderHistoryPageView() {
   const orderMetrics = useMemo(() => {
     return {
       total: store.orders.length,
-      active: store.orders.filter((order) => !["delivered", "cancelled"].includes(order.status)).length,
-      delivered: store.orders.filter((order) => order.status === "delivered").length,
-      spent: store.orders.reduce((sum, order) => sum + Number(order.total || 0), 0),
+      active: store.orders.filter(
+        (order) => !["delivered", "cancelled"].includes(order.status)
+      ).length,
+      delivered: store.orders.filter(
+        (order) => order.status === "delivered"
+      ).length,
+      spent: store.orders.reduce(
+        (sum, order) => sum + Number(order.total || 0),
+        0
+      ),
     };
   }, [store.orders]);
 
   const dateRangeLabel =
     startDate && endDate
-      ? `${new Date(`${startDate}T00:00:00`).toLocaleDateString("en-US", { month: "numeric", day: "numeric" })} - ${new Date(`${endDate}T00:00:00`).toLocaleDateString("en-US", { month: "numeric", day: "numeric" })}`
+      ? `${new Date(`${startDate}T00:00:00`).toLocaleDateString("en-US", {
+        month: "numeric",
+        day: "numeric",
+      })} - ${new Date(`${endDate}T00:00:00`).toLocaleDateString("en-US", {
+        month: "numeric",
+        day: "numeric",
+      })}`
       : startDate
-        ? `From ${new Date(`${startDate}T00:00:00`).toLocaleDateString("en-US", { month: "numeric", day: "numeric" })}`
+        ? `From ${new Date(`${startDate}T00:00:00`).toLocaleDateString(
+          "en-US",
+          { month: "numeric", day: "numeric" }
+        )}`
         : endDate
-          ? `Until ${new Date(`${endDate}T00:00:00`).toLocaleDateString("en-US", { month: "numeric", day: "numeric" })}`
+          ? `Until ${new Date(`${endDate}T00:00:00`).toLocaleDateString(
+            "en-US",
+            { month: "numeric", day: "numeric" }
+          )}`
           : "Date range";
 
   const statusOptions = [
@@ -1556,42 +2115,68 @@ export function ClientOrderHistoryPageView() {
   };
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <Link href="/client" className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--action)] transition hover:text-[var(--foreground)]">
+    <div className="min-w-0 space-y-5">
+      <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
+          <Link
+            href="/client"
+            className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--action)] transition hover:text-[var(--foreground)]"
+          >
             <ChevronRight className="size-3 rotate-180" />
             Back to shop
           </Link>
-          <h1 className="font-display mt-2 text-3xl font-bold tracking-tight text-[var(--foreground)] sm:text-4xl">Order History</h1>
+
+          <h1 className="font-display mt-2 text-3xl font-bold tracking-tight text-[var(--foreground)] sm:text-4xl">
+            Order History
+          </h1>
+
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
-            Review previous orders, delivery progress, payment method, and applied discounts.
+            Review previous orders, delivery progress, payment method, and
+            applied discounts.
           </p>
         </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:min-w-[31rem]">
+
+        <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 lg:min-w-[31rem]">
           {[
             { label: "Orders", value: orderMetrics.total, icon: ReceiptText },
             { label: "Active", value: orderMetrics.active, icon: PackageCheck },
-            { label: "Delivered", value: orderMetrics.delivered, icon: BadgeCheck },
-            { label: "Spent", value: formatCurrency(orderMetrics.spent), icon: CircleDollarSign },
+            {
+              label: "Delivered",
+              value: orderMetrics.delivered,
+              icon: BadgeCheck,
+            },
+            {
+              label: "Spent",
+              value: formatCurrency(orderMetrics.spent),
+              icon: CircleDollarSign,
+            },
           ].map(({ label, value, icon: Icon }) => (
-            <div key={label} className="rounded-[1.1rem] border border-[var(--border-soft)] bg-[var(--surface)] px-3 py-3 shadow-sm">
+            <div
+              key={label}
+              className="min-w-0 rounded-[1.1rem] border border-[var(--border-soft)] bg-[var(--surface)] px-3 py-3 shadow-sm"
+            >
               <div className="flex items-center justify-between gap-2 text-[var(--muted-foreground)]">
-                <span className="text-xs font-medium">{label}</span>
-                <Icon className="size-4 text-[var(--action)]" />
+                <span className="min-w-0 truncate text-xs font-medium">
+                  {label}
+                </span>
+                <Icon className="size-4 shrink-0 text-[var(--action)]" />
               </div>
-              <p className="mt-2 truncate text-lg font-semibold text-[var(--foreground)]">{value}</p>
+
+              <p className="mt-2 truncate text-lg font-semibold text-[var(--foreground)]">
+                {value}
+              </p>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_18rem]">
-        <div className="space-y-4">
-          <Card className="p-3 sm:p-4">
-            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_12rem_12rem]">
-              <label className="flex min-h-12 items-center gap-3 rounded-[1rem] border border-[var(--border-soft)] bg-[var(--surface)] px-4">
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_18rem]">
+        <div className="min-w-0 space-y-4">
+          <Card className="w-full min-w-0 max-w-full overflow-hidden p-3 sm:p-4">
+            <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_12rem_12rem]">
+              <label className="flex min-h-12 min-w-0 items-center gap-3 rounded-[1rem] border border-[var(--border-soft)] bg-[var(--surface)] px-4">
                 <Search className="size-4 shrink-0 text-[var(--action)]" />
+
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
@@ -1599,23 +2184,29 @@ export function ClientOrderHistoryPageView() {
                   className="w-full min-w-0 bg-transparent text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
                 />
               </label>
-              <select value={sort} onChange={(event) => setSort(event.target.value)} className="app-select min-h-12 px-4 text-sm">
+
+              <select
+                value={sort}
+                onChange={(event) => setSort(event.target.value)}
+                className="app-select min-h-12 w-full min-w-0"
+              >
                 <option value="newest">{t("newest")}</option>
                 <option value="oldest">{t("oldest")}</option>
                 <option value="total-high">{t("total_high")}</option>
                 <option value="total-low">{t("total_low")}</option>
               </select>
+
               <button
                 type="button"
                 onClick={resetFilters}
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[1rem] border border-[var(--border-soft)] bg-[var(--surface)] px-4 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--action)] hover:text-[var(--action)]"
+                className="inline-flex min-h-12 w-full min-w-0 items-center justify-center gap-2 rounded-[1rem] border border-[var(--border-soft)] bg-[var(--surface)] px-4 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--action)] hover:text-[var(--action)]"
               >
-                <RefreshCw className="size-4" />
+                <RefreshCw className="size-4 shrink-0" />
                 Reset
               </button>
             </div>
 
-            <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+            <div className="mt-3 flex min-w-0 max-w-full gap-2 overflow-x-auto pb-1">
               {statusOptions.map((option) => (
                 <button
                   key={option.value}
@@ -1635,59 +2226,85 @@ export function ClientOrderHistoryPageView() {
           </Card>
 
           {store.orders.length === 0 ? (
-            <div className="flex min-h-[18rem] flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-[var(--border-soft)] bg-[var(--surface)] px-6 text-center">
+            <div className="flex min-h-[18rem] min-w-0 flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-[var(--border-soft)] bg-[var(--surface)] px-6 text-center">
               <ReceiptText className="size-9 text-[var(--action)]" />
-              <p className="mt-4 text-lg font-semibold text-[var(--foreground)]">No orders yet</p>
-              <p className="mt-2 max-w-md text-sm leading-6 text-[var(--muted-foreground)]">Completed orders will show here after checkout.</p>
+
+              <p className="mt-4 text-lg font-semibold text-[var(--foreground)]">
+                No orders yet
+              </p>
+
+              <p className="mt-2 max-w-md text-sm leading-6 text-[var(--muted-foreground)]">
+                Completed orders will show here after checkout.
+              </p>
             </div>
           ) : orders.length ? (
-            <div className="grid gap-3">
+            <div className="grid min-w-0 gap-3">
               {orders.map((order) => {
                 const primaryLine = getPrimaryOrderLine(order);
-                const lineCount = order.lines?.length || order.items?.length || 0;
-                const productImage = getProductImageForLine(store, primaryLine);
+                const lineCount =
+                  order.lines?.length || order.items?.length || 0;
+                const productImage = getProductImageForLine(
+                  store,
+                  primaryLine
+                );
 
                 return (
                   <Link
                     key={order.id}
                     className={cn(
-                      "group grid w-full gap-4 rounded-[1.4rem] border bg-[var(--surface)] p-4 text-left shadow-sm transition sm:grid-cols-[4.75rem_minmax(0,1fr)_auto]",
+                      "group grid w-full min-w-0 gap-4 overflow-hidden rounded-[1.4rem] border bg-[var(--surface)] p-4 text-left shadow-sm transition sm:grid-cols-[4.75rem_minmax(0,1fr)_auto]",
                       "border-[var(--border-soft)] hover:border-[var(--action)] hover:shadow-[var(--shadow-card)]"
                     )}
-                    href={`/client/order-history/${encodeURIComponent(order.id)}`}
+                    href={`/client/order-history/${encodeURIComponent(
+                      order.id
+                    )}`}
                   >
                     {productImage ? (
                       <div
-                        className="size-[4.75rem] overflow-hidden rounded-[1.25rem] bg-[var(--surface-quiet)] bg-cover bg-center shadow-inner"
+                        className="size-[4.75rem] shrink-0 overflow-hidden rounded-[1.25rem] bg-[var(--surface-quiet)] bg-cover bg-center shadow-inner"
                         style={{ backgroundImage: `url(${productImage})` }}
                       />
                     ) : (
-                      <div className="flex size-[4.75rem] items-center justify-center rounded-[1.25rem] bg-[radial-gradient(circle_at_30%_25%,rgba(255,255,255,0.92),rgba(20,127,111,0.22)_34%,rgba(10,53,47,0.86)_100%)] text-lg font-semibold text-white shadow-inner">
+                      <div className="flex size-[4.75rem] shrink-0 items-center justify-center rounded-[1.25rem] bg-[radial-gradient(circle_at_30%_25%,rgba(255,255,255,0.92),rgba(20,127,111,0.22)_34%,rgba(10,53,47,0.86)_100%)] text-lg font-semibold text-white shadow-inner">
                         {getProductInitials(getOrderLineLabel(primaryLine))}
                       </div>
                     )}
+
                     <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="truncate text-base font-semibold text-[var(--foreground)]">{getOrderLineLabel(primaryLine)}</p>
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <p className="min-w-0 truncate text-base font-semibold text-[var(--foreground)]">
+                          {getOrderLineLabel(primaryLine)}
+                        </p>
+
                         <StatusPill status={order.status} />
                       </div>
-                      <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-                        Order {order.orderNumber || order.id} · {formatDate(order.createdAt)}
+
+                      <p className="mt-1 min-w-0 truncate text-xs text-[var(--muted-foreground)]">
+                        Order {order.orderNumber || order.id} ·{" "}
+                        {formatDate(order.createdAt)}
                       </p>
-                      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[var(--muted-foreground)]">
-                        <span className="inline-flex items-center gap-1.5">
-                          <PackageCheck className="size-3.5 text-[var(--action)]" />
+
+                      <div className="mt-3 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[var(--muted-foreground)]">
+                        <span className="inline-flex min-w-0 items-center gap-1.5">
+                          <PackageCheck className="size-3.5 shrink-0 text-[var(--action)]" />
                           {lineCount} item{lineCount === 1 ? "" : "s"}
                         </span>
-                        <span className="inline-flex items-center gap-1.5">
-                          <CreditCard className="size-3.5 text-[var(--action)]" />
-                          {getPaymentMethodLabel(order.paymentMethod, t)}
+
+                        <span className="inline-flex min-w-0 items-center gap-1.5">
+                          <CreditCard className="size-3.5 shrink-0 text-[var(--action)]" />
+                          <span className="min-w-0 truncate">
+                            {getPaymentMethodLabel(order.paymentMethod, t)}
+                          </span>
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between gap-3 sm:min-w-[8.5rem] sm:flex-col sm:items-end">
-                      <p className="text-xl font-semibold text-[var(--foreground)]">{formatCurrency(order.total)}</p>
-                      <span className="inline-flex min-h-9 items-center gap-2 rounded-full bg-[var(--action)] px-4 text-xs font-semibold text-[var(--action-foreground)] transition group-hover:brightness-95">
+
+                    <div className="flex min-w-0 items-center justify-between gap-3 sm:min-w-[8.5rem] sm:flex-col sm:items-end">
+                      <p className="truncate text-xl font-semibold text-[var(--foreground)]">
+                        {formatCurrency(order.total)}
+                      </p>
+
+                      <span className="inline-flex shrink-0 min-h-9 items-center gap-2 rounded-full bg-[var(--action)] px-4 text-xs font-semibold text-[var(--action-foreground)] transition group-hover:brightness-95">
                         Details
                         <ChevronRight className="size-3.5" />
                       </span>
@@ -1697,53 +2314,96 @@ export function ClientOrderHistoryPageView() {
               })}
             </div>
           ) : (
-            <div className="flex min-h-[18rem] flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-[var(--border-soft)] bg-[var(--surface)] px-6 text-center">
+            <div className="flex min-h-[18rem] min-w-0 flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-[var(--border-soft)] bg-[var(--surface)] px-6 text-center">
               <SlidersHorizontal className="size-9 text-[var(--action)]" />
-              <p className="mt-4 text-lg font-semibold text-[var(--foreground)]">No orders for this filter</p>
-              <p className="mt-2 text-sm text-[var(--muted-foreground)]">Adjust status, date, search, or sorting to find the order.</p>
+
+              <p className="mt-4 text-lg font-semibold text-[var(--foreground)]">
+                No orders for this filter
+              </p>
+
+              <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+                Adjust status, date, search, or sorting to find the order.
+              </p>
             </div>
           )}
         </div>
 
-        <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start">
-          <Card className="p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Filter className="size-4 text-[var(--action)]" />
-                <p className="font-semibold text-[var(--foreground)]">Filters</p>
+        <aside className="min-w-0 space-y-4 xl:sticky xl:top-24 xl:self-start">
+          <Card className="w-full min-w-0 max-w-full overflow-hidden p-4">
+            <div className="flex min-w-0 items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <Filter className="size-4 shrink-0 text-[var(--action)]" />
+
+                <p className="truncate font-semibold text-[var(--foreground)]">
+                  Filters
+                </p>
               </div>
-              <button type="button" onClick={resetFilters} className="text-xs font-semibold text-[var(--action)]">
+
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="shrink-0 text-xs font-semibold text-[var(--action)]"
+              >
                 Reset all
               </button>
             </div>
 
-            <div className="mt-5 space-y-4">
-              <div>
-                <p className="text-xs font-semibold text-[var(--muted-foreground)]">Date range</p>
-                <div className="mt-2 grid gap-2">
-                  <input type="date" value={startDate} max={endDate || undefined} onChange={(event) => setStartDate(event.target.value)} className="app-input min-h-11 px-3 text-sm" />
-                  <input type="date" value={endDate} min={startDate || undefined} onChange={(event) => setEndDate(event.target.value)} className="app-input min-h-11 px-3 text-sm" />
+            <div className="mt-5 min-w-0 space-y-4">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-[var(--muted-foreground)]">
+                  Date range
+                </p>
+
+                <div className="mt-2 grid min-w-0 gap-2">
+                  <input
+                    type="date"
+                    value={startDate}
+                    max={endDate || undefined}
+                    onChange={(event) => setStartDate(event.target.value)}
+                    className="app-input min-h-11 w-full min-w-0 max-w-full px-3 text-sm"
+                  />
+
+                  <input
+                    type="date"
+                    value={endDate}
+                    min={startDate || undefined}
+                    onChange={(event) => setEndDate(event.target.value)}
+                    className="app-input min-h-11 w-full min-w-0 max-w-full px-3 text-sm"
+                  />
                 </div>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <button type="button" onClick={() => setRecentRange(30)} className="rounded-full bg-[var(--surface-quiet)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)]">
+
+                <div className="mt-2 flex min-w-0 flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setRecentRange(30)}
+                    className="rounded-full bg-[var(--surface-quiet)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)]"
+                  >
                     Last 30 days
                   </button>
-                  <button type="button" onClick={() => setRecentRange(180)} className="rounded-full bg-[var(--surface-quiet)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)]">
+
+                  <button
+                    type="button"
+                    onClick={() => setRecentRange(180)}
+                    className="rounded-full bg-[var(--surface-quiet)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)]"
+                  >
                     Last 6 months
                   </button>
                 </div>
               </div>
 
-              <div className="rounded-[1rem] border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3 py-3">
-                <div className="flex items-center gap-2 text-sm font-semibold text-[var(--foreground)]">
-                  <CalendarRange className="size-4 text-[var(--action)]" />
-                  {dateRangeLabel}
+              <div className="min-w-0 rounded-[1rem] border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3 py-3">
+                <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-[var(--foreground)]">
+                  <CalendarRange className="size-4 shrink-0 text-[var(--action)]" />
+
+                  <span className="min-w-0 truncate">{dateRangeLabel}</span>
                 </div>
-                <p className="mt-2 text-xs leading-5 text-[var(--muted-foreground)]">Showing {orders.length} of {store.orders.length} orders.</p>
+
+                <p className="mt-2 text-xs leading-5 text-[var(--muted-foreground)]">
+                  Showing {orders.length} of {store.orders.length} orders.
+                </p>
               </div>
             </div>
           </Card>
-
         </aside>
       </div>
     </div>
@@ -2425,15 +3085,27 @@ export function ClientProductDetailPageView({ productId, user }) {
   }
 
   const isVariantProduct = useMemo(
-    () => Boolean(product) && product.isVariant && Array.isArray(product.variants) && product.variants.length > 0,
+    () =>
+      Boolean(product) &&
+      product.isVariant &&
+      Array.isArray(product.variants) &&
+      product.variants.length > 0,
     [product]
   );
+
   const productVariants = useMemo(
-    () => (isVariantProduct ? product.variants.filter((v) => v.isActive !== false) : []),
+    () =>
+      isVariantProduct
+        ? product.variants.filter((v) => v.isActive !== false)
+        : [],
     [isVariantProduct, product]
   );
+
   const selectedVariant = useMemo(
-    () => (productVariants.length && selectedVariantId ? productVariants.find((v) => v.id === selectedVariantId) : null),
+    () =>
+      productVariants.length && selectedVariantId
+        ? productVariants.find((v) => v.id === selectedVariantId)
+        : null,
     [productVariants, selectedVariantId]
   );
 
@@ -2441,25 +3113,51 @@ export function ClientProductDetailPageView({ productId, user }) {
     if (!isVariantProduct || selectedVariantId || !product) {
       return;
     }
-    const defaultVariant = product.variants.find((v) => v.isActive !== false && Number(v.stock) > 0);
+
+    const defaultVariant = product.variants.find(
+      (v) => v.isActive !== false && Number(v.stock) > 0
+    );
+
     if (defaultVariant) {
       setSelectedVariantId(defaultVariant.id);
     }
   }, [isVariantProduct, product, selectedVariantId]);
 
-  const { effectivePrice, effectiveStock, effectiveDiscountPercent } = useMemo(() => {
-    if (!product) return { effectivePrice: 0, effectiveStock: 0, effectiveDiscountPercent: 0 };
+  const {
+    effectivePrice,
+    effectiveStock,
+    effectiveDiscountPercent,
+  } = useMemo(() => {
+    if (!product) {
+      return {
+        effectivePrice: 0,
+        effectiveStock: 0,
+        effectiveDiscountPercent: 0,
+      };
+    }
+
     if (selectedVariant) {
       return {
-        effectivePrice: Number((selectedVariant.price * (1 - (selectedVariant.discountPercent || 0) / 100)).toFixed(2)),
+        effectivePrice: Number(
+          (
+            selectedVariant.price *
+            (1 - (selectedVariant.discountPercent || 0) / 100)
+          ).toFixed(2)
+        ),
         effectiveStock: Number(selectedVariant.stock || 0),
         effectiveDiscountPercent: selectedVariant.discountPercent || 0,
       };
     }
+
     const displayPrice = Number(product.displayPrice || product.price || 0);
-    const displayDiscount = Number(product.displayDiscountPercent ?? product.discountPercent ?? 0);
+    const displayDiscount = Number(
+      product.displayDiscountPercent ?? product.discountPercent ?? 0
+    );
+
     return {
-      effectivePrice: Number((displayPrice * (1 - displayDiscount / 100)).toFixed(2)),
+      effectivePrice: Number(
+        (displayPrice * (1 - displayDiscount / 100)).toFixed(2)
+      ),
       effectiveStock: Number(product.stock || 0),
       effectiveDiscountPercent: displayDiscount,
     };
@@ -2467,6 +3165,7 @@ export function ClientProductDetailPageView({ productId, user }) {
 
   const selectedCartQuantity = useMemo(() => {
     if (!product) return 0;
+
     return isVariantProduct
       ? store.cartQuantityFor(product.id, selectedVariant?.id || null)
       : store.cartQuantityFor(product.id);
@@ -2475,7 +3174,9 @@ export function ClientProductDetailPageView({ productId, user }) {
   if (!product) {
     return (
       <Card>
-        <p className="text-sm text-[var(--muted-foreground)]">Product not found.</p>
+        <p className="text-sm text-[var(--muted-foreground)]">
+          Product not found.
+        </p>
       </Card>
     );
   }
@@ -2487,257 +3188,410 @@ export function ClientProductDetailPageView({ productId, user }) {
     if (isVariantProduct && !selectedVariantId) {
       return;
     }
+
     if (!requireAuth("Sign in to add items to your cart")) return;
+
     store.addToCart(product.id, 1, selectedVariantId);
   }
 
   return (
     <>
-    <div className="space-y-4 pb-28">
-      <div className="sticky top-0 z-30 bg-[var(--background-start)]/90 backdrop-blur-md py-2 -mx-5 px-5">
-        <Link href="/client" className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--action)] transition hover:text-[var(--foreground)]">
-          <CircleArrowLeft className="size-5" />
-          Back to shop
-        </Link>
-      </div>
-      <div className="overflow-hidden rounded-[1.75rem] border border-[var(--border-soft)] bg-[var(--surface-strong)] shadow-[var(--shadow-card)]">
-        <div className="min-h-80 bg-cover bg-center" style={{ backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.06), rgba(0,0,0,0.48)), url(${product.image})` }} />
-      </div>
-
-      <Card>
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex flex-wrap gap-2">
-            <span className="app-chip px-3 py-1.5 text-sm" data-active="true">{product.category}</span>
-            <span className="app-chip px-3 py-1.5 text-sm" data-active="true">
-              {effectiveStock > 0 ? `${effectiveStock} available` : "Out of stock"}
-            </span>
-            <span className="app-chip px-3 py-1.5 text-sm" data-active="true">
-              {product.rating.toFixed(1)} * ({product.ratingCount})
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              if (!requireAuth("Sign in to save this product to favorites")) return;
-              store.toggleFavorite(product.id);
-            }}
-            className={cn(
-              "rounded-full p-3",
-              store.isFavorite(product.id) ? "bg-rose-100 text-rose-600" : "bg-[var(--surface)] text-[var(--muted-foreground)]",
-            )}
+      <div className="min-w-0 overflow-x-hidden space-y-4 pb-32 sm:pb-24">
+        <div className="sticky top-0 z-30 -mx-4 bg-[var(--background-start)]/90 px-4 py-2 backdrop-blur-md sm:-mx-5 sm:px-5">
+          <Link
+            href="/client"
+            className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] px-3.5 text-sm font-semibold text-[var(--action)] shadow-sm transition hover:border-[var(--action)] hover:text-[var(--foreground)] sm:px-4"
           >
-            <Heart className={cn("size-5", store.isFavorite(product.id) && "fill-current")} />
-          </button>
+            <CircleArrowLeft className="size-4 shrink-0 sm:size-5" />
+            <span>Back to shop</span>
+          </Link>
         </div>
 
-        <h1 className="mt-4 text-3xl font-semibold text-[var(--foreground)]">{product.name}</h1>
-        <p className="mt-3 text-3xl font-bold text-[var(--foreground)]">
-          {formatCurrency(effectivePrice)}
-        </p>
-        {effectiveDiscountPercent > 0 ? <p className="mt-1 text-sm font-semibold text-green-700">{effectiveDiscountPercent}% off</p> : null}
-
-        {/* Variant Selector */}
-        {isVariantProduct && product.variants.length > 0 ? (
-          <div className="mt-6">
-            <h3 className="text-sm font-semibold text-[var(--foreground)] mb-3">Choose option:</h3>
-            <div className="flex flex-wrap gap-2">
-              {product.variants.map((variant) => {
-                const isSelected = selectedVariantId === variant.id;
-                const variantPrice = variant.price * (1 - (variant.discountPercent || 0) / 100);
-                return (
-                  <button
-                    key={variant.id}
-                    type="button"
-                    onClick={() => setSelectedVariantId(variant.id)}
-                    className={cn(
-                      "rounded-xl border px-4 py-3 text-sm font-semibold transition text-left",
-                      isSelected
-                        ? "border-[var(--action)] bg-[color-mix(in_srgb,var(--action)_14%,var(--surface))] text-[var(--foreground)]"
-                        : "border-[var(--border-soft)] bg-[var(--surface)] text-[var(--muted-foreground)] hover:border-[var(--action)]",
-                    )}
-                  >
-                    <span className="block">{variant.name}</span>
-                    <span className="block mt-1 text-xs opacity-80">{formatCurrency(variantPrice)}</span>
-                    {variant.stock <= 0 ? (
-                      <span className="block mt-1 text-[10px] text-red-400">Out of stock</span>
-                    ) : null}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
-
-        <p className="mt-5 text-base leading-8 text-[var(--muted-foreground)]">{product.description}</p>
-
-        <div className="mt-6 rounded-[1.4rem] bg-[linear-gradient(135deg,color-mix(in_srgb,var(--action)_18%,white),color-mix(in_srgb,var(--accent-secondary)_25%,white))] p-4">
-          <div className="flex items-start gap-3">
-            <div className="rounded-2xl bg-white/35 p-3 text-[var(--foreground)]">
-              <Truck className="size-5" />
-            </div>
-            <div>
-              <p className="font-semibold text-[var(--foreground)]">Free delivery over $50</p>
-              <p className="mt-1 text-sm leading-6 text-[var(--foreground)]/82">
-                Same-day pickup available for essentials and fresh items.
-              </p>
-            </div>
-          </div>
+        <div className="min-w-0 overflow-hidden rounded-[1.5rem] border border-[var(--border-soft)] bg-[var(--surface-strong)] shadow-[var(--shadow-card)] sm:rounded-[1.75rem]">
+          <div
+            className="aspect-[4/3] min-h-64 w-full bg-cover bg-center sm:aspect-[16/9] sm:min-h-80 lg:aspect-[2.2/1] lg:min-h-96"
+            style={{
+              backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.06), rgba(0,0,0,0.48)), url(${product.image})`,
+            }}
+          />
         </div>
 
-        <div className="mt-6">
-          <h2 className="text-lg font-semibold text-[var(--foreground)]">Rate this product</h2>
-          <div className="mt-2 flex">
-            {Array.from({ length: 5 }, (_, index) => index + 1).map((ratingValue) => (
-              <button
-                key={ratingValue}
-                type="button"
-                onClick={() => {
-                  if (!user?.email) {
-                    return;
-                  }
-                  store.submitRating?.(product.id, ratingValue);
-                }}
-                className="rounded-full p-1"
-                aria-label={`Rate ${ratingValue} stars`}
+        <Card className="min-w-0 p-4 sm:p-6 lg:p-7">
+          <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 flex-wrap gap-2">
+              <span className="app-chip px-3 py-1.5 text-sm" data-active="true">
+                {product.category}
+              </span>
+
+              <span
+                className="app-chip px-3 py-1.5 text-sm"
+                data-active="true"
               >
-                <Star className={cn("size-6", product.rating >= ratingValue ? "fill-amber-400 text-amber-400" : "text-amber-400")} />
-              </button>
-            ))}
-          </div>
-        </div>
+                {effectiveStock > 0
+                  ? `${effectiveStock} available`
+                  : "Out of stock"}
+              </span>
 
-        <div className="mt-6">
-          <div className="flex items-center gap-3">
-            <MessageCircle className="size-5 text-[var(--action)]" />
-            <h2 className="text-xl font-semibold text-[var(--foreground)]">Customer comments</h2>
-          </div>
-          <div className="mt-4 space-y-3">
-            {(product.comments || []).length ? (
-              product.comments.map((entry) => {
-                const canEdit = Boolean(user?.email) && (user.role === "ADMIN" || user.email === entry.userEmail);
-                const isEditing = editingId === entry.id;
-
-                return (
-                  <div key={entry.id} className="rounded-[1.2rem] bg-[var(--surface)] px-4 py-4 text-sm">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-semibold text-[var(--foreground)]">{entry.userEmail}</p>
-                        <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-                          {entry.isEdited ? `Edited | ${formatDate(entry.updatedAt || entry.createdAt)}` : formatDate(entry.createdAt)}
-                        </p>
-                      </div>
-                      {canEdit ? (
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingId(entry.id);
-                              setEditingMessage(entry.message);
-                            }}
-                            className="app-icon-button p-2"
-                            aria-label="Edit comment"
-                          >
-                            <Edit3 className="size-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => store.deleteComment?.(product.id, entry.id)}
-                            className="app-icon-button p-2"
-                            aria-label="Delete comment"
-                          >
-                            <Trash2 className="size-4" />
-                          </button>
-                        </div>
-                      ) : null}
-                    </div>
-                    {isEditing ? (
-                      <div className="mt-3 space-y-3">
-                        <textarea value={editingMessage} onChange={(event) => setEditingMessage(event.target.value)} className="app-input min-h-24 w-full px-4 py-3 text-sm" />
-                        <div className="flex gap-2">
-                          <Button
-                            onClick={() => {
-                              if (editingMessage.trim().length < 3) {
-                                return;
-                              }
-                              store.updateComment?.(product.id, entry.id, editingMessage.trim());
-                              setEditingId("");
-                              setEditingMessage("");
-                            }}
-                          >
-                            Save
-                          </Button>
-                          <Button variant="secondary" onClick={() => {
-                            setEditingId("");
-                            setEditingMessage("");
-                          }}>
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="mt-3 leading-7 text-[var(--muted-foreground)]">{entry.message}</p>
-                    )}
-                  </div>
-                );
-              })
-            ) : (
-              <p className="text-sm text-[var(--muted-foreground)]">No comments yet. Be the first to comment.</p>
-            )}
-          </div>
-
-          {!user?.email ? (
-            <div className="mt-4">
-              <Link href="/?auth=login" className="inline-flex items-center justify-center rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold text-[var(--foreground)]">
-                Login to comment
-              </Link>
+              <span
+                className="app-chip px-3 py-1.5 text-sm"
+                data-active="true"
+              >
+                {product.rating.toFixed(1)} * ({product.ratingCount})
+              </span>
             </div>
-          ) : (
-            <div className="mt-4 space-y-3">
-              <textarea value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Write a comment" className="app-input min-h-24 w-full px-4 py-3 text-sm" />
-              <div className="flex justify-end">
-                <Button
-                  onClick={() => {
-                    if (comment.trim().length < 3) {
-                      return;
-                    }
-                    store.addComment(product.id, comment.trim());
-                    setComment("");
-                  }}
-                >
-                  Post comment
-                </Button>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (
+                  !requireAuth(
+                    "Sign in to save this product to favorites"
+                  )
+                )
+                  return;
+
+                store.toggleFavorite(product.id);
+              }}
+              className={cn(
+                "inline-flex size-11 shrink-0 items-center justify-center rounded-full border p-2.5 transition sm:size-12",
+                store.isFavorite(product.id)
+                  ? "border-rose-200 bg-rose-100 text-rose-600"
+                  : "border-[var(--border-soft)] bg-[var(--surface)] text-[var(--muted-foreground)]"
+              )}
+              aria-label="Toggle favorite"
+            >
+              <Heart
+                className={cn(
+                  "size-5",
+                  store.isFavorite(product.id) && "fill-current"
+                )}
+              />
+            </button>
+          </div>
+
+          <h1 className="mt-4 break-words text-2xl font-semibold leading-tight text-[var(--foreground)] sm:text-3xl lg:text-4xl">
+            {product.name}
+          </h1>
+
+          <p className="mt-3 text-2xl font-bold text-[var(--foreground)] sm:text-3xl">
+            {formatCurrency(effectivePrice)}
+          </p>
+
+          {effectiveDiscountPercent > 0 ? (
+            <p className="mt-1 text-sm font-semibold text-green-700">
+              {effectiveDiscountPercent}% off
+            </p>
+          ) : null}
+
+          {isVariantProduct && product.variants.length > 0 ? (
+            <div className="mt-6 min-w-0">
+              <h3 className="mb-3 text-sm font-semibold text-[var(--foreground)]">
+                Choose option:
+              </h3>
+
+              <div className="flex min-w-0 flex-wrap gap-2">
+                {product.variants.map((variant) => {
+                  const isSelected = selectedVariantId === variant.id;
+                  const variantPrice =
+                    variant.price *
+                    (1 - (variant.discountPercent || 0) / 100);
+
+                  return (
+                    <button
+                      key={variant.id}
+                      type="button"
+                      onClick={() => setSelectedVariantId(variant.id)}
+                      className={cn(
+                        "max-w-full rounded-xl border px-4 py-3 text-left text-sm font-semibold transition",
+                        isSelected
+                          ? "border-[var(--action)] bg-[color-mix(in_srgb,var(--action)_14%,var(--surface))] text-[var(--foreground)]"
+                          : "border-[var(--border-soft)] bg-[var(--surface)] text-[var(--muted-foreground)] hover:border-[var(--action)]"
+                      )}
+                    >
+                      <span className="block break-words">
+                        {variant.name}
+                      </span>
+
+                      <span className="mt-1 block text-xs opacity-80">
+                        {formatCurrency(variantPrice)}
+                      </span>
+
+                      {variant.stock <= 0 ? (
+                        <span className="mt-1 block text-[10px] text-red-400">
+                          Out of stock
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
               </div>
             </div>
-          )}
-        </div>
-      </Card>
+          ) : null}
 
-      <div className="sticky bottom-4 rounded-[1.5rem] border border-[var(--border-soft)] bg-[linear-gradient(135deg,var(--surface-quiet),var(--surface),color-mix(in_srgb,var(--action)_12%,var(--surface)))] px-4 py-4 shadow-[0_-4px_16px_rgba(15,24,35,0.06)]">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm text-[var(--muted-foreground)]">Total</p>
-            <p className="mt-1 text-2xl font-bold text-[var(--foreground)]">
-              {formatCurrency(effectivePrice)}
-            </p>
+          <p className="mt-5 break-words text-base leading-8 text-[var(--muted-foreground)]">
+            {product.description}
+          </p>
+
+          <div className="mt-6 rounded-[1.4rem] border border-[var(--border-soft)] bg-[linear-gradient(135deg,color-mix(in_srgb,var(--action)_14%,var(--surface)),color-mix(in_srgb,var(--accent-secondary)_14%,var(--surface)))] p-4 shadow-sm sm:p-5">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="shrink-0 rounded-2xl border border-[var(--border-soft)] bg-[color-mix(in_srgb,var(--foreground)_8%,var(--surface))] p-3 text-[var(--foreground)]">
+                <Truck className="size-5" />
+              </div>
+
+              <div className="min-w-0">
+                <p className="break-words font-semibold text-[var(--foreground)]">
+                  Free delivery over $50
+                </p>
+
+                <p className="mt-1 break-words text-sm leading-6 text-[var(--muted-foreground)]">
+                  Same-day pickup available for essentials and fresh items.
+                </p>
+              </div>
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            {selectedCartQuantity ? (
-              <span className="text-sm font-medium text-[var(--muted-foreground)]">{selectedCartQuantity} in cart</span>
-            ) : null}
-            <Button onClick={handleAddToCart} disabled={effectiveStock <= 0}>
-              {effectiveStock > 0 ? (isVariantProduct && !selectedVariantId ? "Select option" : "Add to cart") : "Out of stock"}
-            </Button>
+
+          <div className="mt-6">
+            <h2 className="text-lg font-semibold text-[var(--foreground)]">
+              Rate this product
+            </h2>
+
+            <div className="mt-2 flex">
+              {Array.from({ length: 5 }, (_, index) => index + 1).map(
+                (ratingValue) => (
+                  <button
+                    key={ratingValue}
+                    type="button"
+                    onClick={() => {
+                      if (!user?.email) {
+                        return;
+                      }
+
+                      store.submitRating?.(product.id, ratingValue);
+                    }}
+                    className="rounded-full p-1"
+                    aria-label={`Rate ${ratingValue} stars`}
+                  >
+                    <Star
+                      className={cn(
+                        "size-6",
+                        product.rating >= ratingValue
+                          ? "fill-amber-400 text-amber-400"
+                          : "text-amber-400"
+                      )}
+                    />
+                  </button>
+                )
+              )}
+            </div>
+          </div>
+
+          <div className="mt-6 min-w-0">
+            <div className="flex min-w-0 items-center gap-3">
+              <MessageCircle className="size-5 shrink-0 text-[var(--action)]" />
+
+              <h2 className="min-w-0 truncate text-xl font-semibold text-[var(--foreground)]">
+                Customer comments
+              </h2>
+            </div>
+
+            <div className="mt-4 min-w-0 space-y-3">
+              {(product.comments || []).length ? (
+                product.comments.map((entry) => {
+                  const canEdit =
+                    Boolean(user?.email) &&
+                    (user.role === "ADMIN" ||
+                      user.email === entry.userEmail);
+
+                  const isEditing = editingId === entry.id;
+
+                  return (
+                    <div
+                      key={entry.id}
+                      className="min-w-0 rounded-[1.2rem] border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-4 text-sm"
+                    >
+                      <div className="flex min-w-0 items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold text-[var(--foreground)]">
+                            {entry.userEmail}
+                          </p>
+
+                          <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                            {entry.isEdited
+                              ? `Edited | ${formatDate(
+                                entry.updatedAt || entry.createdAt
+                              )}`
+                              : formatDate(entry.createdAt)}
+                          </p>
+                        </div>
+
+                        {canEdit ? (
+                          <div className="flex shrink-0 items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingId(entry.id);
+                                setEditingMessage(entry.message);
+                              }}
+                              className="app-icon-button p-2"
+                              aria-label="Edit comment"
+                            >
+                              <Edit3 className="size-4" />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                store.deleteComment?.(
+                                  product.id,
+                                  entry.id
+                                )
+                              }
+                              className="app-icon-button p-2"
+                              aria-label="Delete comment"
+                            >
+                              <Trash2 className="size-4" />
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+
+                      {isEditing ? (
+                        <div className="mt-3 min-w-0 space-y-3">
+                          <textarea
+                            value={editingMessage}
+                            onChange={(event) =>
+                              setEditingMessage(event.target.value)
+                            }
+                            className="app-input min-h-24 w-full min-w-0 px-4 py-3 text-sm"
+                          />
+
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              onClick={() => {
+                                if (editingMessage.trim().length < 3) {
+                                  return;
+                                }
+
+                                store.updateComment?.(
+                                  product.id,
+                                  entry.id,
+                                  editingMessage.trim()
+                                );
+
+                                setEditingId("");
+                                setEditingMessage("");
+                              }}
+                            >
+                              Save
+                            </Button>
+
+                            <Button
+                              variant="secondary"
+                              onClick={() => {
+                                setEditingId("");
+                                setEditingMessage("");
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="mt-3 break-words leading-7 text-[var(--muted-foreground)]">
+                          {entry.message}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="text-sm text-[var(--muted-foreground)]">
+                  No comments yet. Be the first to comment.
+                </p>
+              )}
+            </div>
+
+            {!user?.email ? (
+              <div className="mt-4">
+                <Link
+                  href="/?auth=login"
+                  className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--action)] hover:text-[var(--action)]"
+                >
+                  Login to comment
+                </Link>
+              </div>
+            ) : (
+              <div className="mt-4 min-w-0 space-y-3">
+                <textarea
+                  value={comment}
+                  onChange={(event) => setComment(event.target.value)}
+                  placeholder="Write a comment"
+                  className="app-input min-h-24 w-full min-w-0 px-4 py-3 text-sm"
+                />
+
+                <div className="flex justify-end">
+                  <Button
+                    onClick={() => {
+                      if (comment.trim().length < 3) {
+                        return;
+                      }
+
+                      store.addComment(product.id, comment.trim());
+                      setComment("");
+                    }}
+                  >
+                    Post comment
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </Card>
+
+        <div className="fixed bottom-0 left-0 right-0 z-50 border border-b-0 border-[var(--border-soft)] bg-[linear-gradient(135deg,var(--surface-quiet),var(--surface),color-mix(in_srgb,var(--action)_12%,var(--surface)))] px-3 py-3 shadow-[0_-4px_16px_rgba(15,24,35,0.06)] sm:px-4 sm:py-4">
+          <div className="mx-auto flex w-full max-w-7xl min-w-0 items-center justify-between">
+
+            {/* Total */}
+            <div className="min-w-0 shrink">
+              <p className="text-sm text-[var(--muted-foreground)]">
+                Total
+              </p>
+
+              <p className="mt-1 truncate text-2xl font-bold text-[var(--foreground)]">
+                {formatCurrency(effectivePrice)}
+              </p>
+            </div>
+
+            {/* Cart quantity + button */}
+            <div className="ml-3 flex min-w-0 shrink-0 items-center gap-2 sm:gap-3">
+              {selectedCartQuantity ? (
+                <span className="flex items-center justify-center whitespace-nowrap text-center text-sm font-medium text-[var(--muted-foreground)]">
+                  {selectedCartQuantity} in cart
+                </span>
+              ) : null}
+
+              <Button
+                onClick={handleAddToCart}
+                disabled={effectiveStock <= 0}
+              >
+                {effectiveStock > 0
+                  ? isVariantProduct && !selectedVariantId
+                    ? "Select option"
+                    : "Add to cart"
+                  : "Out of stock"}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    {/* Auth modal — shown to guests when they attempt a protected action */}
-    <AuthModal
-      isOpen={authModal.isOpen}
-      onClose={() => setAuthModal({ isOpen: false, hint: "" })}
-      hint={authModal.hint}
-    />
+      <AuthModal
+        isOpen={authModal.isOpen}
+        onClose={() =>
+          setAuthModal({ isOpen: false, hint: "" })
+        }
+        hint={authModal.hint}
+      />
     </>
   );
 }

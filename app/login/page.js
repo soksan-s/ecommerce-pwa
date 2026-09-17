@@ -12,8 +12,10 @@ export default async function LoginPage() {
   }
 
   return (
-    <Suspense fallback={<div className="flex h-screen items-center justify-center">Loading...</div>}>
-      <PublicAuthGate initialAuthView="login" />
-    </Suspense>
+    <>
+      <Suspense fallback={<div className="flex h-screen items-center justify-center">Loading...</div>}>
+        <PublicAuthGate initialAuthView="login" />
+      </Suspense>
+    </>
   );
 }

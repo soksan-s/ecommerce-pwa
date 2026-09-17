@@ -103,7 +103,7 @@ export function AdminLoginForm() {
                 type="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                placeholder="admin@soksan.com"
+                placeholder="admin@soeumsavet.com"
                 className="h-12 w-full bg-transparent px-3.5 text-sm font-medium text-[var(--foreground)] outline-none"
                 autoComplete="email"
               />

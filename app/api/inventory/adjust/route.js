@@ -18,7 +18,7 @@ export async function POST(request) {
     const quantity = Number(body.quantity || 0);
     const reason = String(body.reason || "").trim();
 
-    if (!productId) {
+    if (!productId && !variantId) {
       return fail("Product ID is required.", 422);
     }
 
@@ -35,8 +35,22 @@ export async function POST(request) {
     }
 
     const updatedProduct = await prisma.$transaction(async (tx) => {
+      // Variant-only requests resolve their parent product via the variant.
+      const resolvedProductId = productId
+        ? productId
+        : (
+            await tx.productVariant.findUnique({
+              where: { id: variantId },
+              select: { productId: true },
+            })
+          )?.productId;
+
+      if (!resolvedProductId) {
+        throw Object.assign(new Error("PRODUCT_NOT_FOUND"), { code: "P2025" });
+      }
+
       const existingProduct = await tx.product.findUnique({
-        where: { id: productId },
+        where: { id: resolvedProductId },
         include: {
           variants: true,
         },
@@ -68,7 +82,7 @@ export async function POST(request) {
 
       // Update product stock
       const product = await tx.product.update({
-        where: { id: productId },
+        where: { id: resolvedProductId },
         data: { stock: nextProductStock },
       });
 
@@ -118,7 +132,7 @@ export async function POST(request) {
         userId: admin.id,
         action: action === "STOCK_IN" ? "STOCK_IN" : "STOCK_ADJUSTMENT",
         module: "inventory",
-        recordId: productId,
+        recordId: resolvedProductId,
         oldValue: { stock: previousProductStock },
         newValue: { stock: nextProductStock, action, quantity, reason },
       });
