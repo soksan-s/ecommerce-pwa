@@ -1156,7 +1156,6 @@ export function ClientProductListPageView({
       ) : null}
 
       <div className="min-w-0 space-y-4">
-
         {products.length ? (
           isCustomCollection ? (
             <ClientProductGrid key={productGridKey} products={products} store={store} requireAuth={requireAuth} />
@@ -1242,19 +1241,24 @@ export function ClientFavoritesPageView() {
 
 
 
+
 export function ClientCartPageView() {
   const store = useAppStore();
   const { t } = useTranslation(store.language);
 
   return (
     <>
-      <div className="space-y-4">
+      <div className="space-y-4 md:mx-auto md:max-w-[72rem] md:space-y-6">
         {store.cartItems.length ? (
           <>
-            <div className="space-y-3 px-4">
+            <div className="space-y-3 px-4 md:grid md:grid-cols-2 md:gap-4 md:space-y-0 md:px-0 lg:grid-cols-3 xl:grid-cols-4">
               {store.cartItems.map((item) => (
-                <Card key={item.cartKey || item.productId} className="p-3">
-                  <div className="flex min-w-0 gap-3">
+                <Card
+                  key={item.cartKey || item.productId}
+                  className="relative h-full p-3 md:flex md:flex-col"
+                >
+                  {/* MOBILE — KEEP EXISTING DESIGN */}
+                  <div className="flex min-w-0 gap-3 md:hidden">
                     <div
                       className="h-[5.25rem] w-[5.25rem] shrink-0 rounded-xl bg-cover bg-center"
                       style={{
@@ -1281,7 +1285,7 @@ export function ClientCartPageView() {
                         </p>
 
                         <p className="mt-1 truncate text-sm font-semibold text-[var(--foreground)]">
-                          {t("subtotal")}: {formatCurrency(item.subtotal)}
+                          {formatCurrency(item.subtotal)}: {t("subtotal")}
                         </p>
                       </div>
 
@@ -1338,11 +1342,98 @@ export function ClientCartPageView() {
                       </div>
                     </div>
                   </div>
+
+                  {/* IPAD + PC — VERTICAL DETAIL CARD */}
+                  <div className="hidden md:flex md:flex-col">
+                    <div
+                      className="relative h-48 w-full shrink-0 rounded-xl bg-cover bg-center lg:h-52 xl:h-56"
+                      style={{
+                        backgroundImage: item.product.image
+                          ? `url(${item.product.image})`
+                          : undefined,
+                      }}
+                    />
+
+                    {/* X — TOP RIGHT OF CARD */}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        store.removeFromCart(
+                          item.productId,
+                          item.variantId
+                        )
+                      }
+                      aria-label={t("remove")}
+                      title={t("remove")}
+                      className="absolute right-5 top-5 z-10 grid size-8 place-items-center rounded-full bg-[var(--surface)]/95 text-red-500 shadow-[var(--shadow-soft)] transition-colors hover:bg-red-50 hover:text-red-600"
+                    >
+                      <X size={20} strokeWidth={2.5} />
+                    </button>
+
+                    {/* DETAILS — VERTICAL LIST */}
+                    <div className="flex min-w-0 flex-1 flex-col pt-4">
+                      <div className="min-w-0">
+                        <h2 className="break-words text-lg font-semibold leading-snug text-[var(--foreground)]">
+                          {item.product.name}
+                        </h2>
+
+                        {item.variantName ? (
+                          <p className="mt-1 break-words text-xs font-medium text-[var(--action)]">
+                            {item.variantName}
+                          </p>
+                        ) : null}
+
+                        <p className="mt-2 break-words text-sm text-[var(--muted-foreground)]">
+                          {formatCurrency(item.unitPrice)} {t("each")}
+                        </p>
+
+                        <p className="mt-1 break-words text-sm font-semibold text-[var(--foreground)]">
+                          {t("subtotal")}: {formatCurrency(item.subtotal)}
+                        </p>
+                      </div>
+
+                      {/* QUANTITY — FULL WIDTH */}
+                      <div className="mt-4 flex w-full overflow-hidden rounded-xl border border-[var(--border-strong)] bg-[var(--surface-strong)]">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            store.decreaseCart(
+                              item.productId,
+                              item.variantId
+                            )
+                          }
+                          aria-label="Decrease quantity"
+                          className="grid h-10 flex-1 place-items-center bg-red-100 text-base font-bold text-red-600 transition-colors hover:bg-red-200"
+                        >
+                          -
+                        </button>
+
+                        <span className="grid h-10 flex-1 place-items-center text-sm font-extrabold tabular-nums text-[var(--foreground)]">
+                          {item.quantity}
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            store.addToCart(
+                              item.productId,
+                              1,
+                              item.variantId
+                            )
+                          }
+                          aria-label="Increase quantity"
+                          className="grid h-10 flex-1 place-items-center bg-[var(--action)] text-base font-bold text-[var(--action-foreground)] transition-colors hover:opacity-90"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </Card>
               ))}
             </div>
 
-            <div className="rounded-t-[1.5rem] border-t border-[var(--border-soft)] bg-[linear-gradient(135deg,var(--surface-quiet),var(--surface),color-mix(in_srgb,var(--action)_12%,var(--surface)))] px-4 pb-4 pt-3 shadow-[0_-4px_16px_rgba(15,24,35,0.06)]">
+            <div className="rounded-t-[1.5rem] border-t border-[var(--border-soft)] bg-[linear-gradient(135deg,var(--surface-quiet),var(--surface),color-mix(in_srgb,var(--action)_12%,var(--surface)))] px-4 pb-4 pt-3 shadow-[0_-4px_16px_rgba(15,24,35,0.06)] md:rounded-[1.5rem] md:border md:p-5">
               <div className="flex items-center gap-4">
                 <div className="min-w-0">
                   <p className="text-lg font-bold text-[var(--foreground)]">
@@ -1358,7 +1449,7 @@ export function ClientCartPageView() {
                   <Link
                     href="/client/checkout"
                     prefetch={false}
-                    className="inline-flex items-center justify-center rounded-xl bg-[var(--action)] px-[1.125rem] py-[0.875rem] text-sm font-semibold text-[var(--action-foreground)] shadow-[var(--shadow-soft)]"
+                    className="inline-flex items-center justify-center rounded-xl bg-[var(--action)] px-[1.125rem] py-[0.875rem] text-sm font-semibold !text-white shadow-[var(--shadow-soft)]"
                   >
                     {t("proceed_to_checkout")}
                   </Link>
@@ -1375,6 +1466,7 @@ export function ClientCartPageView() {
     </>
   );
 }
+
 
 
 
@@ -3119,9 +3211,11 @@ export function ClientProductDetailPageView({ productId, user }) {
           </div>
         </Card>
 
-        <div className="fixed left-0 right-0 bottom-0 z-50 border border-b-0 border-[var(--border-soft)] bg-[linear-gradient(135deg,var(--surface-quiet),var(--surface),color-mix(in_srgb,var(--action)_12%,var(--surface)))] px-3 py-3 shadow-[0_-4px_16px_rgba(15,24,35,0.06)] sm:px-4 sm:py-4">
-          <div className="mx-auto flex w-full max-w-7xl min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0 text-center sm:text-left">
+        <div className="fixed bottom-0 left-0 right-0 z-50 border border-b-0 border-[var(--border-soft)] bg-[linear-gradient(135deg,var(--surface-quiet),var(--surface),color-mix(in_srgb,var(--action)_12%,var(--surface)))] px-3 py-3 shadow-[0_-4px_16px_rgba(15,24,35,0.06)] sm:px-4 sm:py-4">
+          <div className="mx-auto flex w-full max-w-7xl min-w-0 items-center justify-between">
+
+            {/* Total */}
+            <div className="min-w-0 shrink">
               <p className="text-sm text-[var(--muted-foreground)]">
                 Total
               </p>
@@ -3131,9 +3225,10 @@ export function ClientProductDetailPageView({ productId, user }) {
               </p>
             </div>
 
-            <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+            {/* Cart quantity + button */}
+            <div className="ml-3 flex min-w-0 shrink-0 items-center gap-2 sm:gap-3">
               {selectedCartQuantity ? (
-                <span className="text-sm font-medium text-[var(--muted-foreground)]">
+                <span className="flex items-center justify-center whitespace-nowrap text-center text-sm font-medium text-[var(--muted-foreground)]">
                   {selectedCartQuantity} in cart
                 </span>
               ) : null}
