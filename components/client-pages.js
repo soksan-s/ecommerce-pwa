@@ -2656,15 +2656,27 @@ export function ClientProductDetailPageView({ productId, user }) {
   }
 
   const isVariantProduct = useMemo(
-    () => Boolean(product) && product.isVariant && Array.isArray(product.variants) && product.variants.length > 0,
+    () =>
+      Boolean(product) &&
+      product.isVariant &&
+      Array.isArray(product.variants) &&
+      product.variants.length > 0,
     [product]
   );
+
   const productVariants = useMemo(
-    () => (isVariantProduct ? product.variants.filter((v) => v.isActive !== false) : []),
+    () =>
+      isVariantProduct
+        ? product.variants.filter((v) => v.isActive !== false)
+        : [],
     [isVariantProduct, product]
   );
+
   const selectedVariant = useMemo(
-    () => (productVariants.length && selectedVariantId ? productVariants.find((v) => v.id === selectedVariantId) : null),
+    () =>
+      productVariants.length && selectedVariantId
+        ? productVariants.find((v) => v.id === selectedVariantId)
+        : null,
     [productVariants, selectedVariantId]
   );
 
@@ -2672,25 +2684,51 @@ export function ClientProductDetailPageView({ productId, user }) {
     if (!isVariantProduct || selectedVariantId || !product) {
       return;
     }
-    const defaultVariant = product.variants.find((v) => v.isActive !== false && Number(v.stock) > 0);
+
+    const defaultVariant = product.variants.find(
+      (v) => v.isActive !== false && Number(v.stock) > 0
+    );
+
     if (defaultVariant) {
       setSelectedVariantId(defaultVariant.id);
     }
   }, [isVariantProduct, product, selectedVariantId]);
 
-  const { effectivePrice, effectiveStock, effectiveDiscountPercent } = useMemo(() => {
-    if (!product) return { effectivePrice: 0, effectiveStock: 0, effectiveDiscountPercent: 0 };
+  const {
+    effectivePrice,
+    effectiveStock,
+    effectiveDiscountPercent,
+  } = useMemo(() => {
+    if (!product) {
+      return {
+        effectivePrice: 0,
+        effectiveStock: 0,
+        effectiveDiscountPercent: 0,
+      };
+    }
+
     if (selectedVariant) {
       return {
-        effectivePrice: Number((selectedVariant.price * (1 - (selectedVariant.discountPercent || 0) / 100)).toFixed(2)),
+        effectivePrice: Number(
+          (
+            selectedVariant.price *
+            (1 - (selectedVariant.discountPercent || 0) / 100)
+          ).toFixed(2)
+        ),
         effectiveStock: Number(selectedVariant.stock || 0),
         effectiveDiscountPercent: selectedVariant.discountPercent || 0,
       };
     }
+
     const displayPrice = Number(product.displayPrice || product.price || 0);
-    const displayDiscount = Number(product.displayDiscountPercent ?? product.discountPercent ?? 0);
+    const displayDiscount = Number(
+      product.displayDiscountPercent ?? product.discountPercent ?? 0
+    );
+
     return {
-      effectivePrice: Number((displayPrice * (1 - displayDiscount / 100)).toFixed(2)),
+      effectivePrice: Number(
+        (displayPrice * (1 - displayDiscount / 100)).toFixed(2)
+      ),
       effectiveStock: Number(product.stock || 0),
       effectiveDiscountPercent: displayDiscount,
     };
@@ -2698,6 +2736,7 @@ export function ClientProductDetailPageView({ productId, user }) {
 
   const selectedCartQuantity = useMemo(() => {
     if (!product) return 0;
+
     return isVariantProduct
       ? store.cartQuantityFor(product.id, selectedVariant?.id || null)
       : store.cartQuantityFor(product.id);
@@ -2706,7 +2745,9 @@ export function ClientProductDetailPageView({ productId, user }) {
   if (!product) {
     return (
       <Card>
-        <p className="text-sm text-[var(--muted-foreground)]">Product not found.</p>
+        <p className="text-sm text-[var(--muted-foreground)]">
+          Product not found.
+        </p>
       </Card>
     );
   }
@@ -2718,79 +2759,138 @@ export function ClientProductDetailPageView({ productId, user }) {
     if (isVariantProduct && !selectedVariantId) {
       return;
     }
+
     if (!requireAuth("Sign in to add items to your cart")) return;
+
     store.addToCart(product.id, 1, selectedVariantId);
   }
 
   return (
     <>
-      <div className="space-y-4 pb-28">
-        <div className="sticky top-0 z-30 bg-[var(--background-start)]/90 backdrop-blur-md py-2 -mx-5 px-5">
-          <Link href="/client" className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--action)] transition hover:text-[var(--foreground)]">
-            <CircleArrowLeft className="size-5" />
-            Back to shop
+      <div className="min-w-0 overflow-x-hidden space-y-4 pb-32 sm:pb-24">
+        <div className="sticky top-0 z-30 -mx-4 bg-[var(--background-start)]/90 px-4 py-2 backdrop-blur-md sm:-mx-5 sm:px-5">
+          <Link
+            href="/client"
+            className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] px-3.5 text-sm font-semibold text-[var(--action)] shadow-sm transition hover:border-[var(--action)] hover:text-[var(--foreground)] sm:px-4"
+          >
+            <CircleArrowLeft className="size-4 shrink-0 sm:size-5" />
+            <span>Back to shop</span>
           </Link>
         </div>
-        <div className="overflow-hidden rounded-[1.75rem] border border-[var(--border-soft)] bg-[var(--surface-strong)] shadow-[var(--shadow-card)]">
-          <div className="min-h-80 bg-cover bg-center" style={{ backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.06), rgba(0,0,0,0.48)), url(${product.image})` }} />
+
+        <div className="min-w-0 overflow-hidden rounded-[1.5rem] border border-[var(--border-soft)] bg-[var(--surface-strong)] shadow-[var(--shadow-card)] sm:rounded-[1.75rem]">
+          <div
+            className="aspect-[4/3] min-h-64 w-full bg-cover bg-center sm:aspect-[16/9] sm:min-h-80 lg:aspect-[2.2/1] lg:min-h-96"
+            style={{
+              backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.06), rgba(0,0,0,0.48)), url(${product.image})`,
+            }}
+          />
         </div>
 
-        <Card>
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex flex-wrap gap-2">
-              <span className="app-chip px-3 py-1.5 text-sm" data-active="true">{product.category}</span>
+        <Card className="min-w-0 p-4 sm:p-6 lg:p-7">
+          <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 flex-wrap gap-2">
               <span className="app-chip px-3 py-1.5 text-sm" data-active="true">
-                {effectiveStock > 0 ? `${effectiveStock} available` : "Out of stock"}
+                {product.category}
               </span>
-              <span className="app-chip px-3 py-1.5 text-sm" data-active="true">
+
+              <span
+                className="app-chip px-3 py-1.5 text-sm"
+                data-active="true"
+              >
+                {effectiveStock > 0
+                  ? `${effectiveStock} available`
+                  : "Out of stock"}
+              </span>
+
+              <span
+                className="app-chip px-3 py-1.5 text-sm"
+                data-active="true"
+              >
                 {product.rating.toFixed(1)} * ({product.ratingCount})
               </span>
             </div>
+
             <button
               type="button"
               onClick={() => {
-                if (!requireAuth("Sign in to save this product to favorites")) return;
+                if (
+                  !requireAuth(
+                    "Sign in to save this product to favorites"
+                  )
+                )
+                  return;
+
                 store.toggleFavorite(product.id);
               }}
               className={cn(
-                "rounded-full p-3",
-                store.isFavorite(product.id) ? "bg-rose-100 text-rose-600" : "bg-[var(--surface)] text-[var(--muted-foreground)]",
+                "inline-flex size-11 shrink-0 items-center justify-center rounded-full border p-2.5 transition sm:size-12",
+                store.isFavorite(product.id)
+                  ? "border-rose-200 bg-rose-100 text-rose-600"
+                  : "border-[var(--border-soft)] bg-[var(--surface)] text-[var(--muted-foreground)]"
               )}
+              aria-label="Toggle favorite"
             >
-              <Heart className={cn("size-5", store.isFavorite(product.id) && "fill-current")} />
+              <Heart
+                className={cn(
+                  "size-5",
+                  store.isFavorite(product.id) && "fill-current"
+                )}
+              />
             </button>
           </div>
 
-          <h1 className="mt-4 text-3xl font-semibold text-[var(--foreground)]">{product.name}</h1>
-          <p className="mt-3 text-3xl font-bold text-[var(--foreground)]">
+          <h1 className="mt-4 break-words text-2xl font-semibold leading-tight text-[var(--foreground)] sm:text-3xl lg:text-4xl">
+            {product.name}
+          </h1>
+
+          <p className="mt-3 text-2xl font-bold text-[var(--foreground)] sm:text-3xl">
             {formatCurrency(effectivePrice)}
           </p>
-          {effectiveDiscountPercent > 0 ? <p className="mt-1 text-sm font-semibold text-green-700">{effectiveDiscountPercent}% off</p> : null}
 
-          {/* Variant Selector */}
+          {effectiveDiscountPercent > 0 ? (
+            <p className="mt-1 text-sm font-semibold text-green-700">
+              {effectiveDiscountPercent}% off
+            </p>
+          ) : null}
+
           {isVariantProduct && product.variants.length > 0 ? (
-            <div className="mt-6">
-              <h3 className="text-sm font-semibold text-[var(--foreground)] mb-3">Choose option:</h3>
-              <div className="flex flex-wrap gap-2">
+            <div className="mt-6 min-w-0">
+              <h3 className="mb-3 text-sm font-semibold text-[var(--foreground)]">
+                Choose option:
+              </h3>
+
+              <div className="flex min-w-0 flex-wrap gap-2">
                 {product.variants.map((variant) => {
                   const isSelected = selectedVariantId === variant.id;
-                  const variantPrice = variant.price * (1 - (variant.discountPercent || 0) / 100);
+                  const variantPrice =
+                    variant.price *
+                    (1 - (variant.discountPercent || 0) / 100);
+
                   return (
                     <button
                       key={variant.id}
                       type="button"
                       onClick={() => setSelectedVariantId(variant.id)}
                       className={cn(
-                        "rounded-xl border px-4 py-3 text-sm font-semibold transition text-left",
+                        "max-w-full rounded-xl border px-4 py-3 text-left text-sm font-semibold transition",
                         isSelected
                           ? "border-[var(--action)] bg-[color-mix(in_srgb,var(--action)_14%,var(--surface))] text-[var(--foreground)]"
-                          : "border-[var(--border-soft)] bg-[var(--surface)] text-[var(--muted-foreground)] hover:border-[var(--action)]",
+                          : "border-[var(--border-soft)] bg-[var(--surface)] text-[var(--muted-foreground)] hover:border-[var(--action)]"
                       )}
                     >
-                      <span className="block">{variant.name}</span>
-                      <span className="block mt-1 text-xs opacity-80">{formatCurrency(variantPrice)}</span>
+                      <span className="block break-words">
+                        {variant.name}
+                      </span>
+
+                      <span className="mt-1 block text-xs opacity-80">
+                        {formatCurrency(variantPrice)}
+                      </span>
+
                       {variant.stock <= 0 ? (
-                        <span className="block mt-1 text-[10px] text-red-400">Out of stock</span>
+                        <span className="mt-1 block text-[10px] text-red-400">
+                          Out of stock
+                        </span>
                       ) : null}
                     </button>
                   );
@@ -2799,16 +2899,22 @@ export function ClientProductDetailPageView({ productId, user }) {
             </div>
           ) : null}
 
-          <p className="mt-5 text-base leading-8 text-[var(--muted-foreground)]">{product.description}</p>
+          <p className="mt-5 break-words text-base leading-8 text-[var(--muted-foreground)]">
+            {product.description}
+          </p>
 
-          <div className="mt-6 rounded-[1.4rem] bg-[linear-gradient(135deg,color-mix(in_srgb,var(--action)_18%,white),color-mix(in_srgb,var(--accent-secondary)_25%,white))] p-4">
-            <div className="flex items-start gap-3">
-              <div className="rounded-2xl bg-white/35 p-3 text-[var(--foreground)]">
+          <div className="mt-6 rounded-[1.4rem] border border-[var(--border-soft)] bg-[linear-gradient(135deg,color-mix(in_srgb,var(--action)_14%,var(--surface)),color-mix(in_srgb,var(--accent-secondary)_14%,var(--surface)))] p-4 shadow-sm sm:p-5">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="shrink-0 rounded-2xl border border-[var(--border-soft)] bg-[color-mix(in_srgb,var(--foreground)_8%,var(--surface))] p-3 text-[var(--foreground)]">
                 <Truck className="size-5" />
               </div>
-              <div>
-                <p className="font-semibold text-[var(--foreground)]">Free delivery over $50</p>
-                <p className="mt-1 text-sm leading-6 text-[var(--foreground)]/82">
+
+              <div className="min-w-0">
+                <p className="break-words font-semibold text-[var(--foreground)]">
+                  Free delivery over $50
+                </p>
+
+                <p className="mt-1 break-words text-sm leading-6 text-[var(--muted-foreground)]">
                   Same-day pickup available for essentials and fresh items.
                 </p>
               </div>
@@ -2816,49 +2922,81 @@ export function ClientProductDetailPageView({ productId, user }) {
           </div>
 
           <div className="mt-6">
-            <h2 className="text-lg font-semibold text-[var(--foreground)]">Rate this product</h2>
+            <h2 className="text-lg font-semibold text-[var(--foreground)]">
+              Rate this product
+            </h2>
+
             <div className="mt-2 flex">
-              {Array.from({ length: 5 }, (_, index) => index + 1).map((ratingValue) => (
-                <button
-                  key={ratingValue}
-                  type="button"
-                  onClick={() => {
-                    if (!user?.email) {
-                      return;
-                    }
-                    store.submitRating?.(product.id, ratingValue);
-                  }}
-                  className="rounded-full p-1"
-                  aria-label={`Rate ${ratingValue} stars`}
-                >
-                  <Star className={cn("size-6", product.rating >= ratingValue ? "fill-amber-400 text-amber-400" : "text-amber-400")} />
-                </button>
-              ))}
+              {Array.from({ length: 5 }, (_, index) => index + 1).map(
+                (ratingValue) => (
+                  <button
+                    key={ratingValue}
+                    type="button"
+                    onClick={() => {
+                      if (!user?.email) {
+                        return;
+                      }
+
+                      store.submitRating?.(product.id, ratingValue);
+                    }}
+                    className="rounded-full p-1"
+                    aria-label={`Rate ${ratingValue} stars`}
+                  >
+                    <Star
+                      className={cn(
+                        "size-6",
+                        product.rating >= ratingValue
+                          ? "fill-amber-400 text-amber-400"
+                          : "text-amber-400"
+                      )}
+                    />
+                  </button>
+                )
+              )}
             </div>
           </div>
 
-          <div className="mt-6">
-            <div className="flex items-center gap-3">
-              <MessageCircle className="size-5 text-[var(--action)]" />
-              <h2 className="text-xl font-semibold text-[var(--foreground)]">Customer comments</h2>
+          <div className="mt-6 min-w-0">
+            <div className="flex min-w-0 items-center gap-3">
+              <MessageCircle className="size-5 shrink-0 text-[var(--action)]" />
+
+              <h2 className="min-w-0 truncate text-xl font-semibold text-[var(--foreground)]">
+                Customer comments
+              </h2>
             </div>
-            <div className="mt-4 space-y-3">
+
+            <div className="mt-4 min-w-0 space-y-3">
               {(product.comments || []).length ? (
                 product.comments.map((entry) => {
-                  const canEdit = Boolean(user?.email) && (user.role === "ADMIN" || user.email === entry.userEmail);
+                  const canEdit =
+                    Boolean(user?.email) &&
+                    (user.role === "ADMIN" ||
+                      user.email === entry.userEmail);
+
                   const isEditing = editingId === entry.id;
 
                   return (
-                    <div key={entry.id} className="rounded-[1.2rem] bg-[var(--surface)] px-4 py-4 text-sm">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="font-semibold text-[var(--foreground)]">{entry.userEmail}</p>
+                    <div
+                      key={entry.id}
+                      className="min-w-0 rounded-[1.2rem] border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-4 text-sm"
+                    >
+                      <div className="flex min-w-0 items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold text-[var(--foreground)]">
+                            {entry.userEmail}
+                          </p>
+
                           <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-                            {entry.isEdited ? `Edited | ${formatDate(entry.updatedAt || entry.createdAt)}` : formatDate(entry.createdAt)}
+                            {entry.isEdited
+                              ? `Edited | ${formatDate(
+                                entry.updatedAt || entry.createdAt
+                              )}`
+                              : formatDate(entry.createdAt)}
                           </p>
                         </div>
+
                         {canEdit ? (
-                          <div className="flex items-center gap-1">
+                          <div className="flex shrink-0 items-center gap-1">
                             <button
                               type="button"
                               onClick={() => {
@@ -2870,9 +3008,15 @@ export function ClientProductDetailPageView({ productId, user }) {
                             >
                               <Edit3 className="size-4" />
                             </button>
+
                             <button
                               type="button"
-                              onClick={() => store.deleteComment?.(product.id, entry.id)}
+                              onClick={() =>
+                                store.deleteComment?.(
+                                  product.id,
+                                  entry.id
+                                )
+                              }
                               className="app-icon-button p-2"
                               aria-label="Delete comment"
                             >
@@ -2881,56 +3025,88 @@ export function ClientProductDetailPageView({ productId, user }) {
                           </div>
                         ) : null}
                       </div>
+
                       {isEditing ? (
-                        <div className="mt-3 space-y-3">
-                          <textarea value={editingMessage} onChange={(event) => setEditingMessage(event.target.value)} className="app-input min-h-24 w-full px-4 py-3 text-sm" />
-                          <div className="flex gap-2">
+                        <div className="mt-3 min-w-0 space-y-3">
+                          <textarea
+                            value={editingMessage}
+                            onChange={(event) =>
+                              setEditingMessage(event.target.value)
+                            }
+                            className="app-input min-h-24 w-full min-w-0 px-4 py-3 text-sm"
+                          />
+
+                          <div className="flex flex-wrap gap-2">
                             <Button
                               onClick={() => {
                                 if (editingMessage.trim().length < 3) {
                                   return;
                                 }
-                                store.updateComment?.(product.id, entry.id, editingMessage.trim());
+
+                                store.updateComment?.(
+                                  product.id,
+                                  entry.id,
+                                  editingMessage.trim()
+                                );
+
                                 setEditingId("");
                                 setEditingMessage("");
                               }}
                             >
                               Save
                             </Button>
-                            <Button variant="secondary" onClick={() => {
-                              setEditingId("");
-                              setEditingMessage("");
-                            }}>
+
+                            <Button
+                              variant="secondary"
+                              onClick={() => {
+                                setEditingId("");
+                                setEditingMessage("");
+                              }}
+                            >
                               Cancel
                             </Button>
                           </div>
                         </div>
                       ) : (
-                        <p className="mt-3 leading-7 text-[var(--muted-foreground)]">{entry.message}</p>
+                        <p className="mt-3 break-words leading-7 text-[var(--muted-foreground)]">
+                          {entry.message}
+                        </p>
                       )}
                     </div>
                   );
                 })
               ) : (
-                <p className="text-sm text-[var(--muted-foreground)]">No comments yet. Be the first to comment.</p>
+                <p className="text-sm text-[var(--muted-foreground)]">
+                  No comments yet. Be the first to comment.
+                </p>
               )}
             </div>
 
             {!user?.email ? (
               <div className="mt-4">
-                <Link href="/?auth=login" className="inline-flex items-center justify-center rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold text-[var(--foreground)]">
+                <Link
+                  href="/?auth=login"
+                  className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--action)] hover:text-[var(--action)]"
+                >
                   Login to comment
                 </Link>
               </div>
             ) : (
-              <div className="mt-4 space-y-3">
-                <textarea value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Write a comment" className="app-input min-h-24 w-full px-4 py-3 text-sm" />
+              <div className="mt-4 min-w-0 space-y-3">
+                <textarea
+                  value={comment}
+                  onChange={(event) => setComment(event.target.value)}
+                  placeholder="Write a comment"
+                  className="app-input min-h-24 w-full min-w-0 px-4 py-3 text-sm"
+                />
+
                 <div className="flex justify-end">
                   <Button
                     onClick={() => {
                       if (comment.trim().length < 3) {
                         return;
                       }
+
                       store.addComment(product.id, comment.trim());
                       setComment("");
                     }}
@@ -2943,30 +3119,45 @@ export function ClientProductDetailPageView({ productId, user }) {
           </div>
         </Card>
 
-        <div className="sticky bottom-4 rounded-[1.5rem] border border-[var(--border-soft)] bg-[linear-gradient(135deg,var(--surface-quiet),var(--surface),color-mix(in_srgb,var(--action)_12%,var(--surface)))] px-4 py-4 shadow-[0_-4px_16px_rgba(15,24,35,0.06)]">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm text-[var(--muted-foreground)]">Total</p>
-              <p className="mt-1 text-2xl font-bold text-[var(--foreground)]">
+        <div className="fixed left-0 right-0 bottom-0 z-50 border border-b-0 border-[var(--border-soft)] bg-[linear-gradient(135deg,var(--surface-quiet),var(--surface),color-mix(in_srgb,var(--action)_12%,var(--surface)))] px-3 py-3 shadow-[0_-4px_16px_rgba(15,24,35,0.06)] sm:px-4 sm:py-4">
+          <div className="mx-auto flex w-full max-w-7xl min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0 text-center sm:text-left">
+              <p className="text-sm text-[var(--muted-foreground)]">
+                Total
+              </p>
+
+              <p className="mt-1 truncate text-2xl font-bold text-[var(--foreground)]">
                 {formatCurrency(effectivePrice)}
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
+
+            <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
               {selectedCartQuantity ? (
-                <span className="text-sm font-medium text-[var(--muted-foreground)]">{selectedCartQuantity} in cart</span>
+                <span className="text-sm font-medium text-[var(--muted-foreground)]">
+                  {selectedCartQuantity} in cart
+                </span>
               ) : null}
-              <Button onClick={handleAddToCart} disabled={effectiveStock <= 0}>
-                {effectiveStock > 0 ? (isVariantProduct && !selectedVariantId ? "Select option" : "Add to cart") : "Out of stock"}
+
+              <Button
+                onClick={handleAddToCart}
+                disabled={effectiveStock <= 0}
+              >
+                {effectiveStock > 0
+                  ? isVariantProduct && !selectedVariantId
+                    ? "Select option"
+                    : "Add to cart"
+                  : "Out of stock"}
               </Button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Auth modal — shown to guests when they attempt a protected action */}
       <AuthModal
         isOpen={authModal.isOpen}
-        onClose={() => setAuthModal({ isOpen: false, hint: "" })}
+        onClose={() =>
+          setAuthModal({ isOpen: false, hint: "" })
+        }
         hint={authModal.hint}
       />
     </>
