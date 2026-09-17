@@ -1478,6 +1478,7 @@ export function ClientCheckoutPageView() {
   const store = useAppStore();
   const { t } = useTranslation(store.language);
   const router = useRouter();
+
   const [shippingAddress, setShippingAddress] = useState("");
   const [deliveryCoords, setDeliveryCoords] = useState(null);
   const [deliveryNote, setDeliveryNote] = useState("");
@@ -1489,6 +1490,7 @@ export function ClientCheckoutPageView() {
 
   async function handleSubmit(event) {
     event.preventDefault();
+
     if (shippingAddress.trim().length < 8) {
       setMessage(t("shipping_address_hint"));
       return;
@@ -1526,12 +1528,17 @@ export function ClientCheckoutPageView() {
           },
           body: JSON.stringify({ orderId: result.order.id }),
         });
+
         const data = await response.json();
 
         setSubmitting(false);
 
         if (!response.ok || !data.payment) {
-          setMessage(data.error || `Order ${result.order.orderNumber || result.order.id} was created, but KHQR payment could not be prepared.`);
+          setMessage(
+            data.error ||
+            `Order ${result.order.orderNumber || result.order.id
+            } was created, but KHQR payment could not be prepared.`
+          );
           return;
         }
 
@@ -1539,13 +1546,20 @@ export function ClientCheckoutPageView() {
         return;
       } catch {
         setSubmitting(false);
-        setMessage(`Order ${result.order.orderNumber || result.order.id} was created, but payment setup is unavailable right now.`);
+        setMessage(
+          `Order ${result.order.orderNumber || result.order.id
+          } was created, but payment setup is unavailable right now.`
+        );
         return;
       }
     }
 
     setSubmitting(false);
-    setMessage(`Order ${result.order.orderNumber || result.order.id} placed successfully.`);
+    setMessage(
+      `Order ${result.order.orderNumber || result.order.id
+      } placed successfully.`
+    );
+
     router.push("/client?tab=orders");
   }
 
@@ -1560,96 +1574,307 @@ export function ClientCheckoutPageView() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <button
-          type="button"
-          onClick={() => router.push("/client?tab=cart")}
-          className="inline-flex items-center gap-2 rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-2.5 text-sm font-semibold text-[var(--foreground)] shadow-[var(--shadow-soft)] transition hover:bg-[var(--surface-quiet)] active:scale-95"
-        >
-          <CircleArrowLeft className="size-4 text-[var(--action)]" />
-          <span>{t("back_to_cart") || "Back to Cart"}</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => router.push("/client?tab=shop")}
-          className="text-sm font-semibold text-[var(--action)] transition hover:underline"
-        >
-          {t("continue_shopping") || "Continue Shopping"}
-        </button>
+    <div className="min-h-full space-y-5 bg-[var(--background)] text-[var(--foreground)]">
+      {/* Top navigation */}
+      <div className="border-b border-[var(--border-soft)]">
+        <div className="flex items-end justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => router.push("/client?tab=cart")}
+            className="inline-flex items-center gap-2 border-l border-r border-t border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold capitalize tracking-tight text-[var(--foreground)] transition hover:bg-[var(--surface-quiet)] active:scale-[0.98]"
+          >
+            <CircleArrowLeft className="size-4 text-[var(--action)]" />
+            <span>{t("Back to Cart") || "Back to Cart"}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => router.push("/client?tab=shop")}
+            className="border-l border-r border-t border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold capitalize text-[var(--action)] transition hover:bg-[var(--surface-quiet)] active:scale-[0.98]"
+          >
+            {t("Continue") || "Continue Shopping"}
+          </button>
+        </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
-        <Card>
-          <h2 className="text-xl font-semibold text-[var(--foreground)]">{t("order_summary")}</h2>
-          <div className="mt-4 space-y-3">
-            <div className="flex items-center justify-between gap-4 text-sm">
-              <span className="text-[var(--muted-foreground)]">{t("items")}</span>
-              <span className="font-semibold text-[var(--foreground)]">{store.cartItems.length}</span>
-            </div>
-            {store.cartItems.map((item) => (
-              <div key={item.cartKey || item.productId} className="flex items-center justify-between gap-4 text-sm">
-                <span className="text-[var(--muted-foreground)]">
-                  {item.product.name}{item.variantName ? ` (${item.variantName})` : ''} x {item.quantity}
-                </span>
-                <span className="font-semibold text-[var(--foreground)]">{formatCurrency(item.subtotal)}</span>
-              </div>
-            ))}
-          </div>
-          <div className="mt-5 border-t border-[var(--border-soft)] pt-4">
-            <p className="text-sm text-[var(--muted-foreground)]">{t("total")}</p>
-            <p className="mt-2 text-3xl font-semibold text-[var(--foreground)]">{formatCurrency(store.cartTotal)}</p>
-          </div>
-        </Card>
-        <Card>
-          <h2 className="text-xl font-semibold text-[var(--foreground)]">{t("delivery_details")}</h2>
-          <div className="mt-4 space-y-4">
-            <DeliveryLocationPicker
-              onAddressSelect={setShippingAddress}
-              onLocationSelect={(loc) => {
-                setShippingAddress(loc.address);
-                setDeliveryCoords({ lat: loc.lat, lng: loc.lng });
-              }}
-              locateLabel={t("use_current_location")}
-              pickLabel={t("pick_on_map")}
-              hint={t("map_location_hint")}
-            />
-            <textarea
-              value={shippingAddress}
-              onChange={(event) => setShippingAddress(event.target.value)}
-              placeholder={t("shipping_address")}
-              className="app-input min-h-24 px-4 py-3 text-sm"
-            />
-            <input
-              value={deliveryNote}
-              onChange={(event) => setDeliveryNote(event.target.value)}
-              placeholder="Delivery instructions / notes (e.g. Near Wat Bo, call when arrived)"
-              className="app-input px-4 py-2.5 text-sm"
-            />
-            <div className="rounded-[1.125rem] border border-[color:color-mix(in_srgb,var(--border-soft)_85%,transparent)] bg-[linear-gradient(135deg,color-mix(in_srgb,var(--action)_12%,var(--surface)),color-mix(in_srgb,var(--accent-secondary)_35%,var(--surface)))] p-4">
-              <div className="flex items-start gap-3">
-                <div className="rounded-xl bg-white/35 p-2 text-[var(--foreground)]">
-                  <Ticket className="size-5" />
+      <form
+        onSubmit={handleSubmit}
+        className="grid items-start gap-6 pb-24 lg:grid-cols-12 lg:gap-8 lg:pb-0"
+      >
+        {/* LEFT: DELIVERY + PAYMENT */}
+        <div className="space-y-6 lg:col-span-7 xl:col-span-8">
+          {/* Delivery */}
+          <Card>
+            <div className="flex items-center justify-between gap-4 border-b border-[var(--border-soft)] pb-4">
+              <div className="flex items-center gap-3">
+                <div className="flex size-9 shrink-0 items-center justify-center border border-[var(--border-soft)] bg-[var(--surface-quiet)] text-[var(--action)]">
+                  <CircleArrowLeft className="size-4 rotate-180" />
                 </div>
-                <p className="text-sm leading-6 text-[var(--foreground)]/88">
+
+                <div>
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--foreground)]">
+                    {t("delivery_details")}
+                  </h2>
+                  <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">
+                    {t("map_location_hint")}
+                  </p>
+                </div>
+              </div>
+
+              <span className="hidden border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--action)] sm:inline-flex">
+                Express
+              </span>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              {/* Existing map/location component */}
+              <div className="overflow-hidden border border-[var(--border-soft)] bg-[var(--surface-quiet)]">
+                <DeliveryLocationPicker
+                  onAddressSelect={setShippingAddress}
+                  onLocationSelect={(loc) => {
+                    setShippingAddress(loc.address);
+                    setDeliveryCoords({
+                      lat: loc.lat,
+                      lng: loc.lng,
+                    });
+                  }}
+                  locateLabel={t("use_current_location")}
+                  pickLabel={t("pick_on_map")}
+                  hint={t("map_location_hint")}
+                />
+              </div>
+
+              {/* Address */}
+              <div>
+                <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+                  {t("shipping_address")}
+                </label>
+
+                <textarea
+                  value={shippingAddress}
+                  onChange={(event) =>
+                    setShippingAddress(event.target.value)
+                  }
+                  placeholder={t("shipping_address")}
+                  className="app-input min-h-24 w-full rounded-none border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3 py-2.5 text-xs font-medium text-[var(--foreground)] outline-none transition focus:border-[var(--action)] focus:ring-1 focus:ring-[var(--action)]"
+                />
+              </div>
+
+              {/* Delivery note */}
+              <div>
+                <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+                  Rider Note / Instructions
+                </label>
+
+                <input
+                  value={deliveryNote}
+                  onChange={(event) =>
+                    setDeliveryNote(event.target.value)
+                  }
+                  placeholder="Delivery instructions / notes (e.g. Near Wat Bo, call when arrived)"
+                  className="app-input w-full rounded-none border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3 py-2.5 text-xs text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--action)] focus:ring-1 focus:ring-[var(--action)]"
+                />
+              </div>
+            </div>
+
+            {/* Payment inside same left-side flow */}
+            <div className="mt-6 border-t border-[var(--border-soft)] pt-5">
+              <div className="flex items-center justify-between gap-4 border-b border-[var(--border-soft)] pb-4">
+                <div>
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--foreground)]">
+                    Payment Method
+                  </h2>
+
+                  <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">
+                    Select how you would like to pay
+                  </p>
+                </div>
+
+                <span className="text-[10px] font-medium uppercase tracking-wide text-[var(--muted-foreground)]">
+                  Encrypted
+                </span>
+              </div>
+
+              <div className="mt-4">
+                <select
+                  value={paymentMethod}
+                  onChange={(event) =>
+                    setPaymentMethod(event.target.value)
+                  }
+                  className="app-select w-full rounded-none border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3 py-3 text-xs font-semibold text-[var(--foreground)] outline-none transition focus:border-[var(--action)] focus:ring-1 focus:ring-[var(--action)]"
+                >
+                  <option value="CASH_ON_DELIVERY">
+                    {getPaymentMethodLabel("CASH_ON_DELIVERY", t)}
+                  </option>
+
+                  <option value="KHQR">KHQR / Bakong</option>
+
+                  <option value="CREDIT_CARD">
+                    {getPaymentMethodLabel("CREDIT_CARD", t)}
+                  </option>
+
+                  <option value="BANK_TRANSFER">
+                    {getPaymentMethodLabel("BANK_TRANSFER", t)}
+                  </option>
+                </select>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* RIGHT: SUMMARY + COUPON + ACTION */}
+        <div className="space-y-6 lg:sticky lg:top-24 lg:col-span-5 xl:col-span-4">
+          {/* Order Summary */}
+          <Card>
+            <div className="flex items-center justify-between gap-3 border-b border-[var(--border-soft)] pb-4">
+              <div className="flex min-w-0 items-center gap-2">
+                <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--foreground)]">
+                  {t("order_summary")}
+                </h2>
+
+                <span className="shrink-0 border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-2 py-0.5 text-[10px] font-bold text-[var(--foreground)]">
+                  {store.cartItems.length} {t("items")}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-1">
+              {store.cartItems.map((item, index) => (
+                <div
+                  key={item.cartKey || item.productId}
+                  className={`flex items-center justify-between gap-4 py-3.5 ${index !== store.cartItems.length - 1
+                    ? "border-b border-[var(--border-soft)]"
+                    : ""
+                    }`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-semibold text-[var(--foreground)]">
+                      {item.product.name}
+                    </p>
+
+                    <p className="mt-0.5 truncate text-[11px] text-[var(--muted-foreground)]">
+                      {item.variantName || "Default Variant"} · Qty:{" "}
+                      {item.quantity}
+                    </p>
+                  </div>
+
+                  <span className="ml-2 shrink-0 text-xs font-bold text-[var(--foreground)]">
+                    {formatCurrency(item.subtotal)}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-1 border-t border-dashed border-[var(--border-soft)] pt-4">
+              <div className="flex items-center justify-between text-xs text-[var(--muted-foreground)]">
+                <span>{t("total")}</span>
+
+                <span className="text-sm font-extrabold text-[var(--action)]">
+                  {formatCurrency(store.cartTotal)}
+                </span>
+              </div>
+            </div>
+          </Card>
+
+          {/* Coupon */}
+          <Card>
+            <div className="flex items-start gap-3 border-b border-[var(--border-soft)] pb-4">
+              <div className="flex size-8 shrink-0 items-center justify-center border border-[var(--border-soft)] bg-[var(--surface-quiet)] text-[var(--action)]">
+                <Ticket className="size-4" />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--foreground)]">
+                  Coupon & Campaign Voucher
+                </h3>
+
+                <p className="mt-1 text-[11px] leading-5 text-[var(--muted-foreground)]">
                   {t("coupon_hint")}
                 </p>
               </div>
             </div>
-            <input value={couponCode} onChange={(event) => setCouponCode(event.target.value)} placeholder={t("enter_coupon")} className="app-input px-4 py-3 text-sm" />
-            <p className="text-xs leading-6 text-[var(--muted-foreground)]">{t("coupon_wallet_note")}</p>
-            <select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)} className="app-select px-4 py-3 text-sm">
-              <option value="CASH_ON_DELIVERY">{getPaymentMethodLabel("CASH_ON_DELIVERY", t)}</option>
-              <option value="KHQR">KHQR / Bakong</option>
-              <option value="CREDIT_CARD">{getPaymentMethodLabel("CREDIT_CARD", t)}</option>
-              <option value="BANK_TRANSFER">{getPaymentMethodLabel("BANK_TRANSFER", t)}</option>
-            </select>
-            {message ? <div className="rounded-2xl bg-[var(--surface-quiet)] px-4 py-3 text-sm">{message}</div> : null}
-            <Button type="submit" className="w-full" disabled={submitting || !store.cartItems.length}>
-              {submitting ? t("placing_order") : paymentMethod === "KHQR" ? "Create KHQR payment" : t("place_order")}
+
+            <div className="mt-4">
+              <input
+                value={couponCode}
+                onChange={(event) => setCouponCode(event.target.value)}
+                placeholder={t("enter_coupon")}
+                className="app-input w-full rounded-none border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3 py-2.5 text-xs font-medium uppercase tracking-wider text-[var(--foreground)] outline-none transition placeholder:normal-case placeholder:tracking-normal focus:border-[var(--action)] focus:ring-1 focus:ring-[var(--action)]"
+              />
+            </div>
+
+            <p className="mt-2 text-[10px] leading-5 text-[var(--muted-foreground)]">
+              {t("coupon_wallet_note")}
+            </p>
+          </Card>
+
+          {/* Desktop CTA */}
+          {/* Desktop CTA */}
+          <div className="hidden border border-[var(--border-soft)] bg-[var(--surface)] p-4 shadow-[var(--shadow-soft)] lg:block">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex min-w-0 items-baseline gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)] whitespace-nowrap">
+                  Total to Pay
+                </span>
+
+                <span className="text-2xl font-extrabold tracking-tight text-[var(--foreground)] whitespace-nowrap">
+                  {formatCurrency(store.cartTotal)}
+                </span>
+              </div>
+
+              <Button
+                type="submit"
+                className="h-11 shrink-0 rounded-none border border-[var(--action)] bg-[var(--action)] px-5 text-sm font-bold text-white shadow-none transition hover:opacity-90"
+                disabled={submitting || !store.cartItems.length}
+              >
+                {submitting
+                  ? t("placing_order")
+                  : paymentMethod === "KHQR"
+                    ? "Create KHQR payment"
+                    : t("place_order")}
+              </Button>
+            </div>
+
+            {message ? (
+              <div className="mt-3 border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3 py-2.5 text-xs text-[var(--foreground)]">
+                {message}
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        {/* Mobile + Tablet CTA */}
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--border-soft)] bg-[var(--surface)] px-3 py-3 shadow-[var(--shadow-soft)] lg:hidden">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-baseline gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)] whitespace-nowrap">
+                Total to Pay
+              </span>
+
+              <span className="text-xl font-extrabold tracking-tight text-[var(--foreground)] whitespace-nowrap">
+                {formatCurrency(store.cartTotal)}
+              </span>
+            </div>
+
+            <Button
+              type="submit"
+              className="h-11 shrink-0 rounded-none border border-[var(--action)] bg-[var(--action)] px-4 text-sm font-bold text-white shadow-none transition hover:opacity-90"
+              disabled={submitting || !store.cartItems.length}
+            >
+              {submitting
+                ? t("placing_order")
+                : paymentMethod === "KHQR"
+                  ? "Create KHQR payment"
+                  : t("place_order")}
             </Button>
           </div>
-        </Card>
+
+          {message ? (
+            <div className="mt-2 border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3 py-2.5 text-xs text-[var(--foreground)]">
+              {message}
+            </div>
+          ) : null}
+        </div>
       </form>
     </div>
   );
