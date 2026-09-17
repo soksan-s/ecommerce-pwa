@@ -10,7 +10,13 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
-    "seed": "node prisma/seed.js"
+    "seed": "node prisma/seed.js",
+
+    "auth:admin": "node scripts/auth.setup.js",
+    "auth:cashier": "node scripts/auth.setup.js",
+    "auth:customer": "node scripts/auth.setup.js",
+    
+    "screenshots": "node scripts/screenshot-pages.js"
   },
   "dependencies": {
     "@better-auth/infra": "^0.3.6",
@@ -37,7 +43,6 @@
     "node": "^26.6.0",
     "pdfkit": "^0.20.2",
     "pg": "^8.21.0",
-    "playwright": "^1.41.1",
     "qrcode": "^1.5.4",
     "react": "19.2.3",
     "react-dom": "19.2.3",
@@ -50,6 +55,7 @@
     "@tailwindcss/postcss": "^4",
     "eslint": "^9",
     "eslint-config-next": "16.1.7",
+    "playwright": "^1.63.0",
     "prisma": "^6.19.3",
     "tailwindcss": "^4"
   }

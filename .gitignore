@@ -17,6 +17,7 @@
 /.next/
 /out/
 /.agents/
+screenshots/
 
 # production
 /build
@@ -67,3 +68,6 @@ ai-services/
 # AI tooling logs / dev logs
 context7*
 next-dev*
+
+playwright/.auth/
+screenshots/
