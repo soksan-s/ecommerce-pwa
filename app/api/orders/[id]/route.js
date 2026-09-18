@@ -206,7 +206,10 @@ export async function PATCH(request, { params }) {
 
         const next = await tx.order.update({
           where: { id },
-          data: { status: "CANCELLED" },
+          data: {
+            status: "CANCELLED",
+            paymentStatus: existing.paymentStatus === "PAID" ? existing.paymentStatus : "CANCELLED",
+          },
           include: {
             items: true,
             delivery: {
@@ -216,6 +219,16 @@ export async function PATCH(request, { params }) {
             },
             customer: true,
             user: true,
+          },
+        });
+
+        await tx.payment.updateMany({
+          where: {
+            orderId: id,
+            status: "PENDING",
+          },
+          data: {
+            status: "CANCELLED",
           },
         });
 

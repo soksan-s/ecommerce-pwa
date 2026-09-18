@@ -366,7 +366,7 @@ function KhqrPaymentPanel({ payment, onCancel, onPaid }) {
                   onClick={onCancel}
                 >
                   {isFailed || isExpired
-                    ? "Back to Orders"
+                    ? "Back to Checkout"
                     : "Cancel"}
                 </Button>
               </div>
@@ -1616,6 +1616,8 @@ export function ClientCheckoutPageView() {
     setSubmitting(true);
     setMessage("");
 
+    const isKhqr = paymentMethod === "KHQR";
+
     const result = await store.placeOrder({
       shippingAddress: shippingAddress.trim(),
       paymentMethod,
@@ -1623,6 +1625,7 @@ export function ClientCheckoutPageView() {
       deliveryLatitude: deliveryCoords?.lat || null,
       deliveryLongitude: deliveryCoords?.lng || null,
       deliveryNote: deliveryNote.trim() || null,
+      clearCartOnSuccess: !isKhqr,
     });
 
     if (!result.success || !result.order) {
@@ -1631,7 +1634,7 @@ export function ClientCheckoutPageView() {
       return;
     }
 
-    if (paymentMethod === "KHQR") {
+    if (isKhqr) {
       try {
         const response = await fetch("/api/ecommerce/payments/khqr/create", {
           method: "POST",
@@ -1646,10 +1649,20 @@ export function ClientCheckoutPageView() {
         setSubmitting(false);
 
         if (!response.ok || !data.payment) {
+          // Cancel the newly created pending order since KHQR could not be prepared
+          try {
+            await fetch(`/api/orders/${encodeURIComponent(result.order.id)}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ status: "CANCELLED" }),
+            });
+          } catch {
+            // Ignore cancel failure
+          }
+
           setMessage(
             data.error ||
-            `Order ${result.order.orderNumber || result.order.id
-            } was created, but KHQR payment could not be prepared.`
+            `KHQR payment could not be prepared. Your cart items are preserved. Please retry or choose another payment method.`
           );
           return;
         }
@@ -1658,9 +1671,17 @@ export function ClientCheckoutPageView() {
         return;
       } catch {
         setSubmitting(false);
+        try {
+          await fetch(`/api/orders/${encodeURIComponent(result.order.id)}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: "CANCELLED" }),
+          });
+        } catch {
+          // Ignore cancel failure
+        }
         setMessage(
-          `Order ${result.order.orderNumber || result.order.id
-          } was created, but payment setup is unavailable right now.`
+          `Payment setup is unavailable right now. Your cart items are preserved. Please retry or select Cash on Delivery.`
         );
         return;
       }
@@ -1675,12 +1696,41 @@ export function ClientCheckoutPageView() {
     router.push("/client?tab=orders");
   }
 
+  async function handleCancelKhqrPayment() {
+    if (khqrPayment?.status === "PAID") {
+      router.push("/client?tab=orders");
+      return;
+    }
+
+    if (khqrPayment?.orderId) {
+      try {
+        await fetch(`/api/orders/${encodeURIComponent(khqrPayment.orderId)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "CANCELLED" }),
+        });
+      } catch {
+        // Ignore network error on cancellation
+      }
+    }
+
+    setKhqrPayment(null);
+    setMessage("");
+  }
+
+  function handleKhqrPaid(paidPayment) {
+    store.clearCart();
+    if (paidPayment?.orderId) {
+      store.updateOrder?.(paidPayment.orderId, { status: "CONFIRMED", paymentStatus: "PAID" });
+    }
+  }
+
   if (khqrPayment) {
     return (
       <KhqrPaymentPanel
         payment={khqrPayment}
-        onCancel={() => router.push("/client?tab=orders")}
-        onPaid={() => { }}
+        onCancel={handleCancelKhqrPayment}
+        onPaid={handleKhqrPaid}
       />
     );
   }

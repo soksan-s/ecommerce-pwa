@@ -61,6 +61,7 @@ function isLocalOnlyId(id) {
 
 export function AppStoreProvider({ children }) {
   const [state, setState] = useState(createInitialState);
+  const [isHydrated, setIsHydrated] = useState(false);
 
   async function readJson(endpoint, fallback) {
     try {
@@ -91,28 +92,49 @@ export function AppStoreProvider({ children }) {
   useEffect(() => {
     let active = true;
 
-    const timer = window.setTimeout(async () => {
-      const localState = readStoredState();
-      const offlineState = await readOfflineAppState(localState);
+    async function hydrate() {
+      try {
+        const localState = readStoredState();
+        const offlineState = await readOfflineAppState(localState);
 
-      if (active) {
-        setState(offlineState);
-        // Apply persisted language to <html lang="..."> on first load
-        if (typeof document !== "undefined" && offlineState.language) {
-          document.documentElement.lang = offlineState.language;
-          document.documentElement.setAttribute("data-lang", offlineState.language);
+        if (active) {
+          const mergedCart =
+            Array.isArray(offlineState?.cart) && offlineState.cart.length > 0
+              ? offlineState.cart
+              : Array.isArray(localState?.cart) && localState.cart.length > 0
+                ? localState.cart
+                : [];
+
+          setState((current) => ({
+            ...current,
+            ...offlineState,
+            cart: mergedCart.length > 0 ? mergedCart : current.cart,
+            favorites: offlineState?.favorites || localState?.favorites || current.favorites,
+            language: offlineState?.language || localState?.language || current.language || "en",
+          }));
+          setIsHydrated(true);
+
+          if (typeof document !== "undefined" && (offlineState?.language || localState?.language)) {
+            const lang = offlineState?.language || localState?.language || "en";
+            document.documentElement.lang = lang;
+            document.documentElement.setAttribute("data-lang", lang);
+          }
+        }
+      } catch {
+        if (active) {
+          setIsHydrated(true);
         }
       }
-    }, 0);
+    }
+
+    hydrate();
 
     return () => {
       active = false;
-      window.clearTimeout(timer);
     };
   }, []);
 
-
-useEffect(() => {
+  useEffect(() => {
     let active = true;
     let debounceTimer;
 
@@ -154,10 +176,18 @@ useEffect(() => {
     };
   }, []);
 
-  // useEffect(() => {
-  //   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  //   saveOfflineAppState(state);
-  // }, [state]);
+  useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      saveOfflineAppState(state);
+    } catch {
+      // Storage quota or private mode fallback
+    }
+  }, [state, isHydrated]);
 
   const products = state.products;
   const productsById = useMemo(
@@ -414,6 +444,12 @@ useEffect(() => {
           cart: current.cart.filter((item) => item.cartKey !== cartKey),
         }));
       },
+      clearCart() {
+        patch((current) => ({
+          ...current,
+          cart: [],
+        }));
+      },
       addComment(productId, message) {
         fetch("/api/comments", {
           method: "POST",
@@ -520,7 +556,15 @@ useEffect(() => {
           ratingCount: nextCount,
         });
       },
-      async placeOrder({ shippingAddress, paymentMethod, couponCode, deliveryLatitude, deliveryLongitude, deliveryNote }) {
+      async placeOrder({
+        shippingAddress,
+        paymentMethod,
+        couponCode,
+        deliveryLatitude,
+        deliveryLongitude,
+        deliveryNote,
+        clearCartOnSuccess = true,
+      }) {
         const currentCart = state.cart;
         if (!currentCart.length) {
           return { success: false, message: "Your cart is empty.", order: null };
@@ -601,8 +645,8 @@ useEffect(() => {
 
             return {
               ...current,
-              cart: [],
-              orders: [data.data, ...current.orders],
+              ...(clearCartOnSuccess ? { cart: [] } : {}),
+              orders: [data.data, ...current.orders.filter((o) => o.id !== data.data.id)],
               products: nextProducts,
             };
           });
