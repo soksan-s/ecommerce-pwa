@@ -4,15 +4,15 @@ import { PwaProvider } from "@/components/pwa-provider";
 
 export const metadata = {
   title: {
-    default: "MyShop — Premium Store, POS & Delivery",
-    template: "%s | MyShop",
+    default: "Soeum Savet Store",
+    template: "%s | Soeum Savet Store",
   },
   description: "Shop premium products online, or visit our store. Fast delivery, secure checkout.",
-  applicationName: "MyShop",
+  applicationName: "Soeum Savet Store",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    title: "MyShop",
+    title: "Soeum Savet Store",
     statusBarStyle: "black-translucent",
   },
 };

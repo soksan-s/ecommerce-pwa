@@ -54,12 +54,12 @@ export function OrderPrintView({ order }) {
           <meta charset="utf-8" />
           <title>Order Receipt - ${order.orderNumber || order.id}</title>
           <style>
-            @import url('https://fonts.googleapis.com/css2?family=Content:wght@400;700&display=swap');
+            @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;600;700&display=swap');
             * { box-sizing: border-box; }
             body {
-              font-family: 'Content', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+              font-family: 'Noto Sans Khmer', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
               font-size: 13px;
-              line-height: 1.4;
+              line-height: 1.5;
               color: #111;
               margin: 0;
               padding: 20px;

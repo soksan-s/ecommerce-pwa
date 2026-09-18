@@ -19,8 +19,8 @@ export function LogoutButton({ variant = "outline", className = "", children }) 
     setLoading(true);
 
     try {
-      await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
-      await authClient.signOut().catch(() => {});
+      await fetch("/api/auth/logout", { method: "POST" }).catch(() => { });
+      await authClient.signOut().catch(() => { });
       window.location.href = "/login";
     } catch (error) {
       window.location.href = "/login";

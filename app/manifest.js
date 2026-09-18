@@ -1,7 +1,7 @@
 export default function manifest() {
   return {
-    name: "Grocery Store POS and E-Commerce",
-    short_name: "Grocery Store",
+    name: "Soeum Savet Store",
+    short_name: "Soeum Savet Store",
     description: "Shared PWA for customer shopping, cashier POS, and store operations.",
     start_url: "/",
     scope: "/",

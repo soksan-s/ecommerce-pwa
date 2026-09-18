@@ -29,6 +29,9 @@ import {
   Store,
   TrendingUp,
   Package,
+  Globe,
+  Check,
+  ChevronDown,
 } from "lucide-react";
 
 import {
@@ -48,27 +51,28 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { useTranslation } from "@/lib/translations";
 import { cn } from "@/lib/utils";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Navigation Config (v0 Sales Operations Style)
 // ─────────────────────────────────────────────────────────────────────────────
 const adminTabs = [
-  { key: "dashboard", label: "Overview",     icon: LayoutDashboard, group: "overview" },
-  { key: "sales",     label: "Reports",      icon: BarChart3,       group: "overview" },
-  { key: "products",  label: "Products",     icon: Boxes,           group: "catalog" },
-  { key: "inventory", label: "Inventory",    icon: ClipboardList,   group: "catalog" },
-  { key: "orders",    label: "Orders",       icon: ReceiptText,     group: "operations" },
-  { key: "coupons",   label: "Coupons",      icon: Ticket,          group: "operations" },
-  { key: "support",   label: "Support Inbox",icon: LifeBuoy,        group: "operations" },
-  { key: "users",     label: "Team & Roles", icon: Users,           group: "settings" },
+  { key: "dashboard", label: "Overview",      translationKey: "nav_overview",  icon: LayoutDashboard, group: "overview" },
+  { key: "sales",     label: "Reports",       translationKey: "nav_reports",   icon: BarChart3,       group: "overview" },
+  { key: "products",  label: "Products",      translationKey: "nav_products",  icon: Boxes,           group: "catalog" },
+  { key: "inventory", label: "Inventory",     translationKey: "nav_inventory", icon: ClipboardList,   group: "catalog" },
+  { key: "orders",    label: "Orders",        translationKey: "nav_orders",    icon: ReceiptText,     group: "operations" },
+  { key: "coupons",   label: "Coupons",       translationKey: "nav_coupons",   icon: Ticket,          group: "operations" },
+  { key: "support",   label: "Support Inbox", translationKey: "nav_support",   icon: LifeBuoy,        group: "operations" },
+  { key: "users",     label: "Team & Roles",  translationKey: "nav_users",     icon: Users,           group: "settings" },
 ];
 
 const tabGroups = [
-  { key: "overview",   label: "Overview" },
-  { key: "catalog",    label: "Catalog & Stock" },
-  { key: "operations", label: "Sales & Support" },
-  { key: "settings",   label: "Administration" },
+  { key: "overview",   label: "Overview",         translationKey: "group_overview" },
+  { key: "catalog",    label: "Catalog & Stock",  translationKey: "group_catalog" },
+  { key: "operations", label: "Sales & Support",  translationKey: "group_operations" },
+  { key: "settings",   label: "Administration",   translationKey: "group_settings" },
 ];
 
 function resolveAdminTab(value) {
@@ -78,14 +82,15 @@ function resolveAdminTab(value) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Nav Item Component (v0 Pill with Accent Dot/Bar)
 // ─────────────────────────────────────────────────────────────────────────────
-function SideNavItem({ tab, active, collapsed, badge, onClick }) {
+function SideNavItem({ tab, active, collapsed, badge, onClick, t }) {
   const Icon = tab.icon;
+  const label = t ? t(tab.translationKey || tab.label) : tab.label;
   return (
     <button
       type="button"
       onClick={onClick}
       aria-current={active ? "page" : undefined}
-      title={collapsed ? tab.label : undefined}
+      title={collapsed ? label : undefined}
       className={cn(
         "group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--action)] focus-visible:ring-offset-1",
@@ -104,7 +109,7 @@ function SideNavItem({ tab, active, collapsed, badge, onClick }) {
       />
       {!collapsed && (
         <>
-          <span className="flex-1 text-left truncate">{tab.label}</span>
+          <span className="flex-1 text-left truncate">{label}</span>
           {badge > 0 && (
             <span
               className={cn(
@@ -127,7 +132,7 @@ function SideNavItem({ tab, active, collapsed, badge, onClick }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Desktop Collapsible Sidebar
 // ─────────────────────────────────────────────────────────────────────────────
-function DesktopSidebar({ user, selectedTab, collapsed, setCollapsed, openTab, tabBadges }) {
+function DesktopSidebar({ user, selectedTab, collapsed, setCollapsed, openTab, tabBadges, t }) {
   const initials = (user?.name || user?.email || "A")
     .split(" ")
     .map((w) => w[0])
@@ -161,8 +166,12 @@ function DesktopSidebar({ user, selectedTab, collapsed, setCollapsed, openTab, t
           </button>
           {!collapsed && (
             <div className="min-w-0">
-              <p className="truncate text-sm font-bold text-[var(--foreground)] tracking-tight">SalesOps Admin</p>
-              <p className="truncate text-[11px] text-[var(--muted-foreground)]">Cambodia Beverage POS</p>
+              <p className="truncate text-sm font-bold text-[var(--foreground)] tracking-tight">
+                {t ? t("admin_title") : "SalesOps Admin"}
+              </p>
+              <p className="truncate text-[11px] text-[var(--muted-foreground)]">
+                {t ? t("admin_subtitle") : "Beverage Wholesale & Retail Management System"}
+              </p>
             </div>
           )}
         </div>
@@ -184,11 +193,12 @@ function DesktopSidebar({ user, selectedTab, collapsed, setCollapsed, openTab, t
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
         {tabGroups.map((group) => {
           const groupTabs = adminTabs.filter((t) => t.group === group.key);
+          const groupLabel = t ? t(group.translationKey || group.label) : group.label;
           return (
             <div key={group.key}>
               {!collapsed && (
                 <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-widest text-[var(--muted-foreground)]">
-                  {group.label}
+                  {groupLabel}
                 </p>
               )}
               <div className="space-y-1">
@@ -200,6 +210,7 @@ function DesktopSidebar({ user, selectedTab, collapsed, setCollapsed, openTab, t
                     collapsed={collapsed}
                     badge={tabBadges[tab.key] || 0}
                     onClick={() => openTab(tab.key)}
+                    t={t}
                   />
                 ))}
               </div>
@@ -234,7 +245,7 @@ function DesktopSidebar({ user, selectedTab, collapsed, setCollapsed, openTab, t
 // ─────────────────────────────────────────────────────────────────────────────
 // Mobile Drawer
 // ─────────────────────────────────────────────────────────────────────────────
-function MobileDrawer({ user, selectedTab, drawerOpen, setDrawerOpen, openTab, tabBadges }) {
+function MobileDrawer({ user, selectedTab, drawerOpen, setDrawerOpen, openTab, tabBadges, t, lang, setLanguage }) {
   const initials = (user?.name || user?.email || "A")
     .split(" ")
     .map((w) => w[0])
@@ -270,7 +281,7 @@ function MobileDrawer({ user, selectedTab, drawerOpen, setDrawerOpen, openTab, t
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--action)] text-[var(--action-foreground)]">
                   <Zap className="size-4" />
                 </div>
-                <p className="text-sm font-bold text-[var(--foreground)]">SalesOps Admin</p>
+                <p className="text-sm font-bold text-[var(--foreground)]">{t ? t("admin_title") : "SalesOps Admin"}</p>
               </div>
               <button
                 type="button"
@@ -285,10 +296,11 @@ function MobileDrawer({ user, selectedTab, drawerOpen, setDrawerOpen, openTab, t
             <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
               {tabGroups.map((group) => {
                 const groupTabs = adminTabs.filter((t) => t.group === group.key);
+                const groupLabel = t ? t(group.translationKey || group.label) : group.label;
                 return (
                   <div key={group.key}>
                     <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-widest text-[var(--muted-foreground)]">
-                      {group.label}
+                      {groupLabel}
                     </p>
                     <div className="space-y-1">
                       {groupTabs.map((tab) => (
@@ -299,6 +311,7 @@ function MobileDrawer({ user, selectedTab, drawerOpen, setDrawerOpen, openTab, t
                           collapsed={false}
                           badge={tabBadges[tab.key] || 0}
                           onClick={() => openTab(tab.key)}
+                          t={t}
                         />
                       ))}
                     </div>
@@ -307,7 +320,37 @@ function MobileDrawer({ user, selectedTab, drawerOpen, setDrawerOpen, openTab, t
               })}
             </nav>
 
-            <div className="border-t border-[var(--border-soft)] p-3">
+            <div className="border-t border-[var(--border-soft)] p-3 space-y-3">
+              {/* Mobile Language Switcher */}
+              <div className="flex items-center justify-between rounded-xl p-2 bg-[var(--surface-quiet)]/50 border border-[var(--border-soft)]">
+                <span className="text-xs font-semibold text-[var(--muted-foreground)] flex items-center gap-1.5">
+                  <Globe className="size-3.5" />
+                  {t ? t("language") : "Language"}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setLanguage("en")}
+                    className={cn(
+                      "px-2 py-1 text-xs rounded-md transition-colors",
+                      lang === "en" ? "bg-[var(--action)] text-white font-bold" : "text-[var(--foreground)] hover:bg-[var(--surface-quiet)]"
+                    )}
+                  >
+                    EN
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLanguage("km")}
+                    className={cn(
+                      "px-2 py-1 text-xs rounded-md transition-colors font-khmer",
+                      lang === "km" ? "bg-[var(--action)] text-white font-bold" : "text-[var(--foreground)] hover:bg-[var(--surface-quiet)]"
+                    )}
+                  >
+                    ខ្មែរ
+                  </button>
+                </div>
+              </div>
+
               <div className="flex items-center gap-3 rounded-xl p-2.5 bg-[var(--surface-quiet)]/50">
                 <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[var(--action-surface)] text-xs font-bold text-[var(--action-on-muted)] ring-1 ring-[color-mix(in_srgb,var(--action)_30%,transparent)]">
                   {initials}
@@ -338,9 +381,13 @@ function TopHeader({
   setNotificationOpen,
   notificationAlerts,
   openTab,
+  t,
+  lang,
+  setLanguage,
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [langDropdownOpen, setLangDropdownOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center gap-4 border-b border-[var(--border-soft)] bg-[var(--surface-strong)]/85 backdrop-blur-md px-4 sm:px-6">
@@ -360,7 +407,7 @@ function TopHeader({
           {title}
         </h1>
         <p className="hidden sm:block text-xs text-[var(--muted-foreground)] truncate">
-          Beverage Wholesale & Retail Management System
+          {t ? t("admin_subtitle") : "Beverage Wholesale & Retail Management System"}
         </p>
       </div>
 
@@ -372,7 +419,7 @@ function TopHeader({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search orders, products, users..."
+            placeholder={t ? t("search_admin_placeholder") : "Search orders, products, users..."}
             className="w-full rounded-xl border border-[var(--border-soft)] bg-[var(--surface-quiet)]/60 pl-9 pr-12 py-1.5 text-xs text-[var(--foreground)] placeholder:[var(--muted-foreground)] focus:border-[var(--action)] focus:outline-none transition-colors"
           />
           <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5 rounded border border-[var(--border-soft)] bg-[var(--surface-strong)] px-1.5 py-0.5 text-[10px] font-mono text-[var(--muted-foreground)]">
@@ -390,8 +437,67 @@ function TopHeader({
           className="hidden sm:inline-flex items-center gap-1.5 bg-[var(--action)] text-white hover:opacity-90 shadow-sm"
         >
           <Plus className="size-3.5" />
-          <span className="text-xs font-semibold">New Product</span>
+          <span className="text-xs font-semibold">{t ? t("new_product") : "New Product"}</span>
         </Button>
+
+        {/* Language Switcher Dropdown */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setLangDropdownOpen(!langDropdownOpen)}
+            className="flex h-9 items-center gap-1.5 rounded-xl border border-[var(--border-soft)] px-2.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--surface-quiet)] transition-colors focus:outline-none"
+            aria-label="Change Language"
+          >
+            <Globe className="size-4 text-[var(--muted-foreground)]" />
+            <span className="hidden sm:inline">{lang === "en" ? "English" : "ភាសាខ្មែរ"}</span>
+            <ChevronDown className="size-3 text-[var(--muted-foreground)]" />
+          </button>
+
+          <AnimatePresence>
+            {langDropdownOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: -4, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -4, scale: 0.95 }}
+                transition={{ duration: 0.15 }}
+                className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-36 overflow-hidden rounded-xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-1.5 shadow-xl"
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLanguage("en");
+                    setLangDropdownOpen(false);
+                  }}
+                  className={cn(
+                    "flex w-full items-center justify-between px-3 py-1.5 text-xs rounded-lg transition-colors",
+                    lang === "en"
+                      ? "bg-[var(--action-surface)] font-bold text-[var(--action)]"
+                      : "text-[var(--foreground)] hover:bg-[var(--surface-quiet)]"
+                  )}
+                >
+                  <span>English</span>
+                  {lang === "en" && <Check className="size-3.5" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLanguage("km");
+                    setLangDropdownOpen(false);
+                  }}
+                  className={cn(
+                    "flex w-full items-center justify-between px-3 py-1.5 text-xs rounded-lg transition-colors font-khmer",
+                    lang === "km"
+                      ? "bg-[var(--action-surface)] font-bold text-[var(--action)]"
+                      : "text-[var(--foreground)] hover:bg-[var(--surface-quiet)]"
+                  )}
+                >
+                  <span>ភាសាខ្មែរ</span>
+                  {lang === "km" && <Check className="size-3.5" />}
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
         {/* Notifications Bell */}
         <div className="relative">
@@ -425,8 +531,8 @@ function TopHeader({
               >
                 <div className="flex items-center justify-between border-b border-[var(--border-soft)] px-4 py-3 bg-[var(--surface-quiet)]/40">
                   <div>
-                    <p className="text-sm font-semibold text-[var(--foreground)]">Notifications</p>
-                    <p className="text-xs text-[var(--muted-foreground)]">Inventory & expiry alerts</p>
+                    <p className="text-sm font-semibold text-[var(--foreground)]">{t ? t("notifications") : "Notifications"}</p>
+                    <p className="text-xs text-[var(--muted-foreground)]">{t ? t("notifications_sub") : "Inventory & expiry alerts"}</p>
                   </div>
                   {notificationTotal > 0 && (
                     <Badge variant="destructive" className="text-[10px]">
@@ -467,7 +573,7 @@ function TopHeader({
                       </Link>
                     ))
                   ) : (
-                    <p className="py-10 text-center text-sm text-[var(--muted-foreground)]">All clear — no pending alerts.</p>
+                    <p className="py-10 text-center text-sm text-[var(--muted-foreground)]">{t ? t("no_notifications") : "All clear — no pending alerts."}</p>
                   )}
                 </div>
               </motion.div>
@@ -566,12 +672,14 @@ export function AdminShell({ user, initialTab = "dashboard" }) {
   const [notificationTotal, setNotificationTotal] = useState(0);
   const [lastAlertSignature, setLastAlertSignature] = useState("");
 
+  const lang = store.language || "en";
+  const { t } = useTranslation(lang);
   const selectedTab = resolveAdminTab(searchParams.get("tab") || initialTab);
 
   const title = useMemo(() => {
     const found = adminTabs.find((t) => t.key === selectedTab);
-    return found ? found.label : "Overview";
-  }, [selectedTab]);
+    return found ? t(found.translationKey || found.label) : t("nav_overview");
+  }, [selectedTab, t]);
 
   function openTab(tab) {
     const href = tab === "dashboard" ? "/admin" : `/admin?tab=${tab}`;
@@ -674,6 +782,7 @@ export function AdminShell({ user, initialTab = "dashboard" }) {
         setCollapsed={setCollapsed}
         openTab={openTab}
         tabBadges={tabBadges}
+        t={t}
       />
 
       {/* Mobile Navigation Drawer */}
@@ -684,6 +793,9 @@ export function AdminShell({ user, initialTab = "dashboard" }) {
         setDrawerOpen={setDrawerOpen}
         openTab={openTab}
         tabBadges={tabBadges}
+        t={t}
+        lang={lang}
+        setLanguage={store.setLanguage}
       />
 
       {/* Main Content Area (Dynamic padding for collapsible desktop sidebar) */}
@@ -703,6 +815,9 @@ export function AdminShell({ user, initialTab = "dashboard" }) {
           setNotificationOpen={setNotificationOpen}
           notificationAlerts={notificationAlerts}
           openTab={openTab}
+          t={t}
+          lang={lang}
+          setLanguage={store.setLanguage}
         />
 
         {/* Main Content Body */}

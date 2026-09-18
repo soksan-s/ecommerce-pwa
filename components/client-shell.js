@@ -291,13 +291,13 @@ export function ClientShell({ user, initialTab = "home", orderDetailId = "" }) {
               </div>
 
               <div className="flex flex-col">
-                <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--action)]">
+                {/* <span className="text-[9px] sm:text-[13px] font-bold uppercase tracking-[0.2em] text-[var(--action)]">
                   {lang === "km" ? "ហាង លក់ដូរ" : "Wholesale & Retail"}
-                </span>
-                <span className="font-display text-lg sm:text-xl font-black tracking-tight text-[var(--foreground)] leading-none my-0.5">
+                </span> */}
+                <span className="font-display text-lg sm:text-xxl font-black tracking-tight text-[var(--foreground)] leading-none my-0.5">
                   {storeName}
                 </span>
-                <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
+                <span className="text-[7px] sm:text-[13px] font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
                   {storeTagline}
                 </span>
               </div>

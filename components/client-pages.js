@@ -98,10 +98,10 @@ function getPaymentMethodLabel(method, t) {
       return t("cash_on_delivery");
     case "KHQR":
       return "KHQR / Bakong";
-    case "CREDIT_CARD":
-      return t("credit_card");
-    case "BANK_TRANSFER":
-      return t("bank_transfer");
+    // case "CREDIT_CARD":
+    //   return t("credit_card");
+    // case "BANK_TRANSFER":
+    //   return t("bank_transfer");
     default:
       return method || t("cash_on_delivery");
   }
@@ -1746,7 +1746,7 @@ export function ClientCheckoutPageView() {
             className="inline-flex items-center gap-2 border-l border-r border-t border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold capitalize tracking-tight text-[var(--foreground)] transition hover:bg-[var(--surface-quiet)] active:scale-[0.98]"
           >
             <CircleArrowLeft className="size-4 text-[var(--action)]" />
-            <span>{t("Back to Cart") || "Back to Cart"}</span>
+            <span>{t("back_to_cart")}</span>
           </button>
 
           <button
@@ -1754,7 +1754,7 @@ export function ClientCheckoutPageView() {
             onClick={() => router.push("/client?tab=shop")}
             className="border-l border-r border-t border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold capitalize text-[var(--action)] transition hover:bg-[var(--surface-quiet)] active:scale-[0.98]"
           >
-            {t("Continue") || "Continue Shopping"}
+            {t("back_to_shop")}
           </button>
         </div>
       </div>
@@ -1844,11 +1844,11 @@ export function ClientCheckoutPageView() {
               <div className="flex items-center justify-between gap-4 border-b border-[var(--border-soft)] pb-4">
                 <div>
                   <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--foreground)]">
-                    Payment Method
+                    {t("payment_method_header")}
                   </h2>
 
                   <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">
-                    Select how you would like to pay
+                    {t("payment_method_hint")}
                   </p>
                 </div>
 
@@ -1871,13 +1871,13 @@ export function ClientCheckoutPageView() {
 
                   <option value="KHQR">KHQR / Bakong</option>
 
-                  <option value="CREDIT_CARD">
+                  {/* <option value="CREDIT_CARD">
                     {getPaymentMethodLabel("CREDIT_CARD", t)}
                   </option>
 
                   <option value="BANK_TRANSFER">
                     {getPaymentMethodLabel("BANK_TRANSFER", t)}
-                  </option>
+                  </option> */}
                 </select>
               </div>
             </div>
@@ -2173,30 +2173,29 @@ export function ClientOrderHistoryPageView() {
             className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--action)] transition hover:text-[var(--foreground)]"
           >
             <ChevronRight className="size-3 rotate-180" />
-            Back to shop
+            {t("back_to_shop")}
           </Link>
 
           <h1 className="font-display mt-2 text-3xl font-bold tracking-tight text-[var(--foreground)] sm:text-4xl">
-            Order History
+            {t("order_history")}
           </h1>
 
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
-            Review previous orders, delivery progress, payment method, and
-            applied discounts.
+            {t("order_history_dis")}
           </p>
         </div>
 
         <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 lg:min-w-[31rem]">
           {[
-            { label: "Orders", value: orderMetrics.total, icon: ReceiptText },
-            { label: "Active", value: orderMetrics.active, icon: PackageCheck },
+            { label: t("order"), value: orderMetrics.total, icon: ReceiptText },
+            { label: t("active"), value: orderMetrics.active, icon: PackageCheck },
             {
-              label: "Delivered",
+              label: t("delivered"),
               value: orderMetrics.delivered,
               icon: BadgeCheck,
             },
             {
-              label: "Spent",
+              label: t("spent"),
               value: formatCurrency(orderMetrics.spent),
               icon: CircleDollarSign,
             },
@@ -2355,7 +2354,7 @@ export function ClientOrderHistoryPageView() {
                       </p>
 
                       <span className="inline-flex shrink-0 min-h-9 items-center gap-2 rounded-full bg-[var(--action)] px-4 text-xs font-semibold text-[var(--action-foreground)] transition group-hover:brightness-95">
-                        Details
+                        {t("view_detail")}
                         <ChevronRight className="size-3.5" />
                       </span>
                     </div>
@@ -2428,7 +2427,7 @@ export function ClientOrderHistoryPageView() {
                     onClick={() => setRecentRange(30)}
                     className="rounded-full bg-[var(--surface-quiet)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)]"
                   >
-                    Last 30 days
+                    {t("option_one_month")}
                   </button>
 
                   <button
@@ -2436,7 +2435,7 @@ export function ClientOrderHistoryPageView() {
                     onClick={() => setRecentRange(180)}
                     className="rounded-full bg-[var(--surface-quiet)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)]"
                   >
-                    Last 6 months
+                    {t("option_six_month")}
                   </button>
                 </div>
               </div>
@@ -2839,7 +2838,7 @@ export function ClientProfilePageView({ user }) {
             <CircleUserRound className="size-8" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-lg font-semibold text-[var(--foreground)]">Welcome back</p>
+            <p className="text-lg font-semibold text-[var(--foreground)]">{t("welcome_back")}</p>
             <p className="mt-1 truncate text-sm text-[var(--muted-foreground)]">{user.email}</p>
           </div>
           <LogoutButton iconOnly />
@@ -2851,15 +2850,15 @@ export function ClientProfilePageView({ user }) {
           <div className="flex items-center justify-between gap-4 px-4 py-4">
             <div className="flex items-center gap-3">
               <ReceiptText className="size-5 text-[var(--action)]" />
-              <span className="font-medium text-[var(--foreground)]">Total orders</span>
+              <span className="font-medium text-[var(--foreground)]">{t("total_order_account")}</span>
             </div>
             <span className="text-base font-semibold text-[var(--foreground)]">{store.orders.length}</span>
           </div>
           <div className="flex items-center gap-3 px-4 py-4">
             <Truck className="size-5 text-[var(--action)]" />
             <div>
-              <p className="font-medium text-[var(--foreground)]">Delivery preferences</p>
-              <p className="mt-1 text-sm text-[var(--muted-foreground)]">Standard delivery - 2 to 3 days</p>
+              <p className="font-medium text-[var(--foreground)]">{t("delivery_preference")}</p>
+              <p className="mt-1 text-sm text-[var(--muted-foreground)]">{t("standard_delivery")}</p>
             </div>
           </div>
           <div className="flex items-center gap-3 px-4 py-4">
@@ -2910,7 +2909,7 @@ export function ClientProfilePageView({ user }) {
             <Ticket className="size-5" />
           </div>
           <div className="min-w-0 flex-1">
-            <h2 className="text-xl font-semibold">Coupon wallet</h2>
+            <h2 className="text-xl font-semibold">{t("coupon_wallet")}</h2>
             <p className="mt-1 text-sm text-[var(--foreground)]/78">
               {userCoupons.length ? "Tap to view, copy, and use your coupons" : "No coupons yet. New offers will appear here."}
             </p>
@@ -2932,7 +2931,7 @@ export function ClientProfilePageView({ user }) {
             ))
           ) : (
             <div className="w-full rounded-2xl border border-white/15 bg-white/10 px-4 py-4 text-sm text-[var(--foreground)]/84">
-              When the store publishes a promo or assigns a coupon to your account, you will see it here.
+              {t("coupon_wallet_note")}
             </div>
           )}
         </div>
@@ -3047,8 +3046,8 @@ export function ClientProfilePageView({ user }) {
 
       {userTickets.length ? (
         <div className="rounded-[1.5rem] bg-[linear-gradient(135deg,color-mix(in_srgb,var(--surface)_90%,white),color-mix(in_srgb,var(--surface-quiet)_88%,var(--accent-secondary)),color-mix(in_srgb,var(--surface)_92%,var(--action)))] p-4 shadow-[var(--shadow-card)]">
-          <h2 className="text-lg font-semibold text-[var(--foreground)]">Your support tickets</h2>
-          <p className="mt-1 text-sm text-[var(--muted-foreground)]">Track replies and ticket status from the support team.</p>
+          <h2 className="text-lg font-semibold text-[var(--foreground)]">{t("your_support_ticket")}</h2>
+          <p className="mt-1 text-sm text-[var(--muted-foreground)]">{t("your_support_ticket_note")}</p>
           <div className="mt-4 space-y-3">
             {userTickets.map((ticket) => (
               <div key={ticket.id} className="rounded-[1.4rem] border border-[var(--border-soft)] bg-[var(--surface-strong)] p-4">
@@ -3084,10 +3083,10 @@ export function ClientProfilePageView({ user }) {
                         setReplyDrafts((current) => ({ ...current, [ticket.id]: "" }));
                       }}
                     >
-                      Reply
+                      {t("reply")}
                     </Button>
                     <Button variant="secondary" onClick={() => store.closeSupport(ticket.id)}>
-                      Close ticket
+                      {t("close_ticket")}
                     </Button>
                   </div>
                 ) : null}
@@ -3100,16 +3099,16 @@ export function ClientProfilePageView({ user }) {
       <Card>
         <div className="flex items-center gap-3">
           <MessageCircle className="size-5 text-[var(--action)]" />
-          <h2 className="text-xl font-semibold text-[var(--foreground)]">Support team</h2>
+          <h2 className="text-xl font-semibold text-[var(--foreground)]">{t("support_team")}</h2>
         </div>
         <form onSubmit={submitTicket} className="mt-5 space-y-4">
-          <input value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="Subject" className="app-input w-full px-4 py-3 text-sm" />
-          <textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Describe your issue" className="app-input min-h-28 w-full px-4 py-3 text-sm" />
+          <input value={subject} onChange={(event) => setSubject(event.target.value)} placeholder={t("ticket_subject")} className="app-input w-full px-4 py-3 text-sm" />
+          <textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder={t("ticket_description")} className="app-input min-h-28 w-full px-4 py-3 text-sm" />
           <p className="text-xs leading-6 text-[var(--muted-foreground)]">
-            Only signed-in users can create tickets. Replies will appear above in your ticket history.
+            {t("support_note")}
           </p>
           {supportNotice ? <div className="rounded-2xl bg-[var(--surface-quiet)] px-4 py-3 text-sm">{supportNotice}</div> : null}
-          <Button type="submit">Contact support</Button>
+          <Button type="submit">{t("contact_support")}</Button>
         </form>
       </Card>
     </div>
