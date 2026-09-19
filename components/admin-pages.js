@@ -422,24 +422,24 @@ export function AdminDashboardPageView() {
   const alerts = [
     complaints
       ? {
-          title: "Customer complaints",
-          message: `${complaints} active ticket${complaints === 1 ? "" : "s"} need a reply or closure.`,
-          tone: "danger",
-        }
+        title: "Customer complaints",
+        message: `${complaints} active ticket${complaints === 1 ? "" : "s"} need a reply or closure.`,
+        tone: "danger",
+      }
       : null,
     lowStock
       ? {
-          title: "Low stock",
-          message: `${lowStock} product${lowStock === 1 ? "" : "s"} are close to running out.`,
-          tone: lowStock >= 5 ? "danger" : "warning",
-        }
+        title: "Low stock",
+        message: `${lowStock} product${lowStock === 1 ? "" : "s"} are close to running out.`,
+        tone: lowStock >= 5 ? "danger" : "warning",
+      }
       : null,
     pending >= 8
       ? {
-          title: "Pending orders",
-          message: `${pending} orders are still waiting for movement.`,
-          tone: "warning",
-        }
+        title: "Pending orders",
+        message: `${pending} orders are still waiting for movement.`,
+        tone: "warning",
+      }
       : null,
   ].filter(Boolean);
   const metrics = [
@@ -447,8 +447,8 @@ export function AdminDashboardPageView() {
     { icon: PackageSearch, label: "Total Stock", value: totalStock, detail: "Combined stock units for all products.", tone: "neutral" },
     { icon: AlertTriangle, label: "Low Stock", value: lowStock, detail: "Products close to running out.", tone: lowStock ? "warning" : "success" },
     { icon: ShieldAlert, label: "Complaints", value: complaints, detail: "Support tickets that still need attention.", tone: complaints ? "danger" : "success" },
-    { icon: ClipboardCheck, label: "Pending Orders", value: pending, detail: "Orders waiting for manual review or processing.", tone: pending >= 8 ? "warning" : "neutral" },
-    { icon: CircleDollarSign, label: "Revenue", value: formatCurrency(revenue), detail: "Combined revenue from non-cancelled orders.", tone: "success" },
+    { icon: ClipboardCheck, label: "Pending Orders", value: pending, detail: "Orders waiting for review.", tone: pending >= 8 ? "warning" : "neutral" },
+    { icon: CircleDollarSign, label: "Revenue", value: formatCurrency(revenue), detail: "Revenue from non-cancelled orders.", tone: "success" },
   ];
 
   const expandedTitle = expandedChart === "revenue" ? "Revenue" : "Top products";
@@ -1336,7 +1336,7 @@ export function AdminAddProductPageView() {
 function isVariantProduct(product) {
   return Boolean(
     product &&
-      (product.hasVariants || (product.isVariant && product.variants && product.variants.length > 0)),
+    (product.hasVariants || (product.isVariant && product.variants && product.variants.length > 0)),
   );
 }
 
@@ -1538,52 +1538,52 @@ export function AdminProductManagementPageView() {
           const isRange = priceDisplay.isRange;
           const totalStock = getProductTotalStock(product);
           return (
-          <div key={product.id} className="rounded-[1.6rem] border border-[var(--border-soft)] bg-[var(--surface-strong)] p-5">
-            <div className="grid gap-4 xl:grid-cols-[1fr_1.2fr_0.7fr_0.7fr_1fr] xl:items-center">
-              <div className="overflow-hidden rounded-[1rem] border border-[var(--border-soft)]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={product.image} alt={product.name} className="h-24 w-full object-cover" />
-              </div>
-              <div>
-                <h2 className="text-xl font-semibold text-[var(--foreground)]">{product.name}</h2>
-                <p className="mt-1 text-sm font-medium text-[var(--muted-foreground)]">{product.category}</p>
-                <p className="mt-2 text-sm leading-7 text-[var(--muted-foreground)]">{product.description}</p>
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted-foreground)]">Price</p>
-                {isRange ? (
-                  <p className="mt-2 text-sm font-semibold text-[var(--foreground)]">
-                    {formatCurrency(priceDisplay.min)} - {formatCurrency(priceDisplay.max)}
-                  </p>
-                ) : (
-                  <input type="number" value={priceDisplay.price} onChange={(event) => store.updateProduct(product.id, { price: Number(event.target.value) })} className="app-input mt-2 w-full px-3 py-2 text-sm" />
-                )}
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted-foreground)]">Stock</p>
-                <p className="mt-2 text-sm font-semibold text-[var(--foreground)]">{totalStock}</p>
-              </div>
-              <div>
-                <Link
-                  href={`/admin/product-management/${product.id}/variants`}
-                  className="inline-flex items-center justify-center rounded-xl bg-[var(--action)] px-4 py-2 text-sm font-semibold text-[var(--action-foreground)]"
-                >
-                  Variants
-                </Link>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className={cn("rounded-full px-3 py-1 text-xs font-semibold uppercase", product.isActive ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" : "bg-[var(--surface-quiet)] text-[var(--muted-foreground)]")}>
-                  {product.isActive ? "Active" : "Hidden"}
-                </span>
-                <button type="button" onClick={() => store.toggleProductStatus(product.id)} className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-2 text-sm font-semibold">
-                  {product.isActive ? "Hide" : "Activate"}
-                </button>
-                <Link href="/admin/add-product" className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-2 text-sm font-semibold">
-                  Add More
-                </Link>
+            <div key={product.id} className="rounded-[1.6rem] border border-[var(--border-soft)] bg-[var(--surface-strong)] p-5">
+              <div className="grid gap-4 xl:grid-cols-[1fr_1.2fr_0.7fr_0.7fr_1fr] xl:items-center">
+                <div className="overflow-hidden rounded-[1rem] border border-[var(--border-soft)]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={product.image} alt={product.name} className="h-24 w-full object-cover" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-[var(--foreground)]">{product.name}</h2>
+                  <p className="mt-1 text-sm font-medium text-[var(--muted-foreground)]">{product.category}</p>
+                  <p className="mt-2 text-sm leading-7 text-[var(--muted-foreground)]">{product.description}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted-foreground)]">Price</p>
+                  {isRange ? (
+                    <p className="mt-2 text-sm font-semibold text-[var(--foreground)]">
+                      {formatCurrency(priceDisplay.min)} - {formatCurrency(priceDisplay.max)}
+                    </p>
+                  ) : (
+                    <input type="number" value={priceDisplay.price} onChange={(event) => store.updateProduct(product.id, { price: Number(event.target.value) })} className="app-input mt-2 w-full px-3 py-2 text-sm" />
+                  )}
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted-foreground)]">Stock</p>
+                  <p className="mt-2 text-sm font-semibold text-[var(--foreground)]">{totalStock}</p>
+                </div>
+                <div>
+                  <Link
+                    href={`/admin/product-management/${product.id}/variants`}
+                    className="inline-flex items-center justify-center rounded-xl bg-[var(--action)] px-4 py-2 text-sm font-semibold text-[var(--action-foreground)]"
+                  >
+                    Variants
+                  </Link>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={cn("rounded-full px-3 py-1 text-xs font-semibold uppercase", product.isActive ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" : "bg-[var(--surface-quiet)] text-[var(--muted-foreground)]")}>
+                    {product.isActive ? "Active" : "Hidden"}
+                  </span>
+                  <button type="button" onClick={() => store.toggleProductStatus(product.id)} className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-2 text-sm font-semibold">
+                    {product.isActive ? "Hide" : "Activate"}
+                  </button>
+                  <Link href="/admin/add-product" className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-2 text-sm font-semibold">
+                    Add More
+                  </Link>
+                </div>
               </div>
             </div>
-          </div>
           );
         })}
       </div>
@@ -2626,8 +2626,8 @@ export function AdminOrderManagementPageView() {
                           step.status === "DELIVERED"
                             ? "bg-emerald-600 text-white hover:bg-emerald-700"
                             : step.status === "CANCELLED"
-                            ? "bg-rose-600 text-white hover:bg-rose-700"
-                            : "border border-[var(--border-soft)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
+                              ? "bg-rose-600 text-white hover:bg-rose-700"
+                              : "border border-[var(--border-soft)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
                         )}
                       >
                         {step.label}
@@ -3059,7 +3059,7 @@ export function AdminUsersPageView({ currentUserId }) {
     return () => { mounted = false; };
   }, []);
 
-  const filteredUsers = users.filter(user => 
+  const filteredUsers = users.filter(user =>
     (user.name && user.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
     (user.username && user.username.toLowerCase().includes(searchQuery.toLowerCase())) ||
     user.phoneNumber.includes(searchQuery) ||
@@ -3240,9 +3240,8 @@ export function AdminUsersPageView({ currentUserId }) {
                     )}
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                      user.status === "ACTIVE" ? "bg-emerald-100/50 text-emerald-700" : "bg-red-100/50 text-red-700"
-                    }`}>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${user.status === "ACTIVE" ? "bg-emerald-100/50 text-emerald-700" : "bg-red-100/50 text-red-700"
+                      }`}>
                       {user.status === "ACTIVE" ? <UserCheck className="h-3 w-3" /> : <UserX className="h-3 w-3" />}
                       {user.status}
                     </span>

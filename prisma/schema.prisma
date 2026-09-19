@@ -193,6 +193,8 @@ enum AuditAction {
   LOGIN
   LOGOUT
   PERMISSION_CHANGE
+  STOCK_IN
+  STOCK_ADJUSTMENT
 }
 
 enum LoyaltyTransactionType {
