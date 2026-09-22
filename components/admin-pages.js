@@ -4311,6 +4311,11 @@ export function AdminInventoryPageView() {
 
 export function AdminOrderManagementPageView() {
   const store = useAppStore();
+
+  const isKhmer = store.language === "km" || store.language === "kh";
+
+  const t = (english, khmer) => (isKhmer ? khmer : english);
+
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -4334,556 +4339,1661 @@ export function AdminOrderManagementPageView() {
 
   const ordersList = useMemo(() => {
     const lower = query.trim().toLowerCase();
+
     return store.orders.filter((order) => {
-      if (statusFilter !== "all" && String(order.status).toLowerCase() !== statusFilter.toLowerCase()) {
+      if (
+        statusFilter !== "all" &&
+        String(order.status).toLowerCase() !== statusFilter.toLowerCase()
+      ) {
         return false;
       }
+
       if (lower) {
-        const matchId = String(order.orderNumber || order.id).toLowerCase().includes(lower);
-        const matchCustomer = String(order.customer?.name || order.user?.name || "").toLowerCase().includes(lower);
-        const matchPhone = String(order.customer?.phone || order.user?.phone || "").toLowerCase().includes(lower);
-        const matchAddress = String(order.shippingAddress || order.delivery?.address || "").toLowerCase().includes(lower);
+        const matchId = String(order.orderNumber || order.id || "")
+          .toLowerCase()
+          .includes(lower);
+
+        const matchCustomer = String(
+          order.customer?.name || order.user?.name || ""
+        )
+          .toLowerCase()
+          .includes(lower);
+
+        const matchPhone = String(
+          order.customer?.phone || order.user?.phone || ""
+        )
+          .toLowerCase()
+          .includes(lower);
+
+        const matchAddress = String(
+          order.shippingAddress || order.delivery?.address || ""
+        )
+          .toLowerCase()
+          .includes(lower);
+
         if (!matchId && !matchCustomer && !matchPhone && !matchAddress) {
           return false;
         }
       }
+
       return true;
     });
   }, [store.orders, query, statusFilter]);
 
   const statusCounts = useMemo(() => {
-    const counts = { all: store.orders.length, pending: 0, confirmed: 0, preparing: 0, ready: 0, shipped: 0, delivered: 0, cancelled: 0 };
-    store.orders.forEach((o) => {
-      const s = String(o.status).toLowerCase();
-      if (counts[s] !== undefined) counts[s]++;
+    const counts = {
+      all: store.orders.length,
+      pending: 0,
+      confirmed: 0,
+      preparing: 0,
+      ready: 0,
+      shipped: 0,
+      delivered: 0,
+      cancelled: 0,
+    };
+
+    store.orders.forEach((order) => {
+      const status = String(order.status || "").toLowerCase();
+
+      if (counts[status] !== undefined) {
+        counts[status]++;
+      }
     });
+
     return counts;
   }, [store.orders]);
 
+  function formatOrderDate(value) {
+    if (!value) return "—";
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      return "—";
+    }
+
+    return date.toLocaleString();
+  }
+
+  function getCustomerName(order) {
+    return (
+      order?.customer?.name ||
+      order?.user?.name ||
+      t("Customer", "អតិថិជន")
+    );
+  }
+
+  function getCustomerPhone(order) {
+    return order?.customer?.phone || order?.user?.phone || "";
+  }
+
+  function getOrderItems(order) {
+    return order?.items || order?.lines || [];
+  }
+
+  function getItemCount(order) {
+    return getOrderItems(order).reduce(
+      (sum, item) => sum + (Number(item?.quantity) || 1),
+      0
+    );
+  }
+
+  function getOrderAddress(order) {
+    return (
+      order?.shippingAddress ||
+      order?.delivery?.address ||
+      t("Store Pickup", "ទទួលនៅហាង")
+    );
+  }
+
+  function getPaymentMethod(order) {
+    return order?.paymentMethod || "COD";
+  }
+
   async function updateOrderStatus(orderId, newStatus) {
+    if (!orderId || statusUpdating) return;
+
     setStatusUpdating(true);
+
     try {
       const res = await fetch(`/api/orders/${orderId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          status: newStatus,
+        }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error?.message || "Status update failed");
 
-      store.updateOrder(orderId, { status: newStatus.toLowerCase() });
+      let data = {};
+
+      try {
+        data = await res.json();
+      } catch {
+        data = {};
+      }
+
+      if (!res.ok) {
+        const message =
+          typeof data?.error === "string"
+            ? data.error
+            : data?.error?.message ||
+            t(
+              "Status update failed",
+              "ការធ្វើបច្ចុប្បន្នភាពស្ថានភាពបរាជ័យ"
+            );
+
+        throw new Error(message);
+      }
+
+      const normalizedStatus = String(newStatus).toLowerCase();
+
+      store.updateOrder(orderId, {
+        status: normalizedStatus,
+      });
+
       if (selectedOrder && selectedOrder.id === orderId) {
-        setSelectedOrder((o) => ({ ...o, status: newStatus.toLowerCase() }));
+        setSelectedOrder((order) => ({
+          ...order,
+          status: normalizedStatus,
+        }));
       }
     } catch (err) {
-      alert(err.message);
+      alert(
+        err?.message ||
+        t(
+          "Status update failed",
+          "ការធ្វើបច្ចុប្បន្នភាពស្ថានភាពបរាជ័យ"
+        )
+      );
     } finally {
       setStatusUpdating(false);
     }
   }
 
+  function openTrackingModal(order) {
+    setTrackingModal({
+      open: true,
+      order,
+      carrier: order?.trackingCarrier || "",
+      trackingNumber: order?.trackingNumber || "",
+      driverName: order?.delivery?.driver?.name || "",
+      driverPhone: order?.delivery?.driver?.phone || "",
+      deliveryNote: order?.note || order?.delivery?.note || "",
+      scheduledAt: order?.delivery?.scheduledAt
+        ? new Date(order.delivery.scheduledAt).toISOString().slice(0, 10)
+        : "",
+      deliveryStatus: order?.delivery?.status || "PENDING",
+      loading: false,
+      error: "",
+      success: "",
+    });
+  }
+
   async function saveTrackingInfo(e) {
     e.preventDefault();
-    if (!trackingModal.order) return;
 
-    setTrackingModal((m) => ({ ...m, loading: true, error: "" }));
+    if (!trackingModal.order || trackingModal.loading) return;
+
+    setTrackingModal((m) => ({
+      ...m,
+      loading: true,
+      error: "",
+      success: "",
+    }));
+
+    const orderId = trackingModal.order.id;
+
+    const carrier = trackingModal.carrier.trim();
+    const trackingNumber = trackingModal.trackingNumber.trim();
+    const driverName = trackingModal.driverName.trim();
+    const driverPhone = trackingModal.driverPhone.trim();
+    const deliveryNote = trackingModal.deliveryNote.trim();
+
     try {
-      const res = await fetch(`/api/orders/${trackingModal.order.id}`, {
+      const res = await fetch(`/api/orders/${orderId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
-          trackingCarrier: trackingModal.carrier.trim() || null,
-          trackingNumber: trackingModal.trackingNumber.trim() || null,
-          driverName: trackingModal.driverName.trim() || null,
-          driverPhone: trackingModal.driverPhone.trim() || null,
-          deliveryNote: trackingModal.deliveryNote.trim() || null,
+          trackingCarrier: carrier || null,
+          trackingNumber: trackingNumber || null,
+          driverName: driverName || null,
+          driverPhone: driverPhone || null,
+          deliveryNote: deliveryNote || null,
           scheduledAt: trackingModal.scheduledAt || null,
           deliveryStatus: trackingModal.deliveryStatus || undefined,
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error?.message || "Failed to update tracking");
+      let data = {};
 
-      const updated = data.data || data.order;
-      store.updateOrder(trackingModal.order.id, {
-        trackingCarrier: trackingModal.carrier.trim() || "",
-        trackingNumber: trackingModal.trackingNumber.trim() || "",
-        delivery: {
-          ...(trackingModal.order.delivery || {}),
-          note: trackingModal.deliveryNote.trim(),
-          driver: trackingModal.driverName || trackingModal.driverPhone ? { name: trackingModal.driverName, phone: trackingModal.driverPhone } : trackingModal.order.delivery?.driver,
-        },
+      try {
+        data = await res.json();
+      } catch {
+        data = {};
+      }
+
+      if (!res.ok) {
+        const message =
+          typeof data?.error === "string"
+            ? data.error
+            : data?.error?.message ||
+            t(
+              "Failed to update tracking",
+              "ការធ្វើបច្ចុប្បន្នភាពការតាមដានបរាជ័យ"
+            );
+
+        throw new Error(message);
+      }
+
+      const previousDelivery = trackingModal.order.delivery || {};
+
+      const nextDriver =
+        driverName || driverPhone
+          ? {
+            name: driverName,
+            phone: driverPhone,
+          }
+          : null;
+
+      const nextDelivery = {
+        ...previousDelivery,
+        note: deliveryNote || null,
+        driver: nextDriver,
+        scheduledAt: trackingModal.scheduledAt || null,
+        status: trackingModal.deliveryStatus || "PENDING",
+      };
+
+      store.updateOrder(orderId, {
+        trackingCarrier: carrier || null,
+        trackingNumber: trackingNumber || null,
+        delivery: nextDelivery,
       });
 
-      if (selectedOrder && selectedOrder.id === trackingModal.order.id) {
+      if (selectedOrder && selectedOrder.id === orderId) {
         setSelectedOrder((prev) => ({
           ...prev,
-          trackingCarrier: trackingModal.carrier.trim() || "",
-          trackingNumber: trackingModal.trackingNumber.trim() || "",
+          trackingCarrier: carrier || null,
+          trackingNumber: trackingNumber || null,
           delivery: {
             ...(prev.delivery || {}),
-            note: trackingModal.deliveryNote.trim(),
-            driver: trackingModal.driverName || trackingModal.driverPhone ? { name: trackingModal.driverName, phone: trackingModal.driverPhone } : prev.delivery?.driver,
+            ...nextDelivery,
           },
         }));
       }
 
-      setTrackingModal((m) => ({ ...m, loading: false, success: "Carrier & tracking updated!" }));
+      setTrackingModal((m) => ({
+        ...m,
+        loading: false,
+        success: t(
+          "Carrier & tracking updated!",
+          "ការដឹកជញ្ជូន និងលេខតាមដានត្រូវបានធ្វើបច្ចុប្បន្នភាព!"
+        ),
+      }));
+
       setTimeout(() => {
-        setTrackingModal({ open: false, order: null, carrier: "", trackingNumber: "", driverName: "", driverPhone: "", deliveryNote: "", scheduledAt: "", deliveryStatus: "PENDING", loading: false, error: "", success: "" });
+        setTrackingModal({
+          open: false,
+          order: null,
+          carrier: "",
+          trackingNumber: "",
+          driverName: "",
+          driverPhone: "",
+          deliveryNote: "",
+          scheduledAt: "",
+          deliveryStatus: "PENDING",
+          loading: false,
+          error: "",
+          success: "",
+        });
       }, 1000);
     } catch (err) {
-      setTrackingModal((m) => ({ ...m, loading: false, error: err.message }));
+      setTrackingModal((m) => ({
+        ...m,
+        loading: false,
+        error:
+          err?.message ||
+          t(
+            "Failed to update tracking",
+            "ការធ្វើបច្ចុប្បន្នភាពការតាមដានបរាជ័យ"
+          ),
+      }));
     }
   }
 
+  const statusTabs = [
+    {
+      key: "all",
+      label: t("All Orders", "ការបញ្ជាទិញទាំងអស់"),
+      count: statusCounts.all,
+    },
+    {
+      key: "pending",
+      label: t("Pending", "កំពុងរង់ចាំ"),
+      count: statusCounts.pending,
+    },
+    {
+      key: "confirmed",
+      label: t("Confirmed", "បានបញ្ជាក់"),
+      count: statusCounts.confirmed,
+    },
+    {
+      key: "preparing",
+      label: t("Preparing", "កំពុងរៀបចំ"),
+      count: statusCounts.preparing,
+    },
+    {
+      key: "ready",
+      label: t("Ready", "ត្រៀមរួច"),
+      count: statusCounts.ready,
+    },
+    {
+      key: "shipped",
+      label: t("Shipped", "បានដឹកជញ្ជូន"),
+      count: statusCounts.shipped,
+    },
+    {
+      key: "delivered",
+      label: t("Delivered", "បានប្រគល់"),
+      count: statusCounts.delivered,
+    },
+    {
+      key: "cancelled",
+      label: t("Cancelled", "បានលុបចោល"),
+      count: statusCounts.cancelled,
+    },
+  ];
+
   return (
-    <div className="space-y-6">
-      <Card className="space-y-4">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-wider text-[var(--muted-foreground)]">Operations & Logistics</p>
-            <h1 className="text-3xl font-bold tracking-tight text-[var(--foreground)]">Admin Order Management</h1>
-            <p className="mt-1 text-xs text-[var(--muted-foreground)]">Manage workflow status, driver/carrier assignments, and view interactive customer delivery maps.</p>
-          </div>
-        </div>
+    <>
+      <div
+        className="
+          admin-order-management-page
+          mx-auto
+          flex
+          min-w-0
+          w-full
+          max-w-[1400px]
+          flex-col
+          overflow-x-hidden
+          space-y-5
+          px-3
+          py-3
+          sm:px-4
+          sm:py-4
+          md:px-6
+          md:py-5
+          lg:px-8
+          lg:py-6
+          [&_*]:!rounded-none
+          [&_*]:!border-0
+        "
+      >
+        {/* Existing Operations / Logistics Header + Filters + Search */}
+        <Card
+          className="
+            !rounded-none
+            w-full
+            min-w-0
+            space-y-5
+            bg-[var(--surface-strong)]
+            p-4
+            shadow-sm
+            sm:p-5
+            md:p-6
+          "
+        >
+          <div className="min-w-0 space-y-1">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+              {t("Operations & Logistics", "ប្រតិបត្តិការ និងដឹកជញ្ជូន")}
+            </p>
 
-        {/* Status Filter Tabs */}
-        <div className="flex flex-wrap gap-2 pt-2">
-          {[
-            { key: "all", label: "All Orders", count: statusCounts.all },
-            { key: "pending", label: "Pending", count: statusCounts.pending },
-            { key: "confirmed", label: "Confirmed", count: statusCounts.confirmed },
-            { key: "preparing", label: "Preparing", count: statusCounts.preparing },
-            { key: "ready", label: "Ready", count: statusCounts.ready },
-            { key: "shipped", label: "Shipped", count: statusCounts.shipped },
-            { key: "delivered", label: "Delivered", count: statusCounts.delivered },
-            { key: "cancelled", label: "Cancelled", count: statusCounts.cancelled },
-          ].map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setStatusFilter(tab.key)}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition",
-                statusFilter === tab.key
-                  ? "bg-[var(--action)] text-white shadow-sm"
-                  : "bg-[var(--surface-quiet)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+            <h1 className="break-words text-2xl font-extrabold tracking-tight text-[var(--foreground)] sm:text-3xl">
+              {t("Admin Order Management", "ការគ្រប់គ្រងការបញ្ជាទិញ")}
+            </h1>
+
+            <p className="max-w-3xl break-words text-xs leading-5 text-[var(--muted-foreground)] sm:text-sm">
+              {t(
+                "Manage workflow status, driver/carrier assignments, and view interactive customer delivery maps.",
+                "គ្រប់គ្រងស្ថានភាពការងារ ការកំណត់អ្នកដឹកជញ្ជូន/ក្រុមហ៊ុនដឹកជញ្ជូន និងមើលផែនទីដឹកជញ្ជូនអតិថិជន។"
               )}
-            >
-              <span>{tab.label}</span>
-              <span className={cn("rounded-full px-1.5 py-0.2 text-[10px]", statusFilter === tab.key ? "bg-white/20 text-white" : "bg-[var(--surface-hover)] text-[var(--foreground)]")}>
-                {tab.count}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        <div className="relative">
-          <Search className="absolute left-3.5 top-3 size-4 text-[var(--muted-foreground)]" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by order number, customer name, phone number, or address..."
-            className="app-input w-full pl-10 pr-4 py-2.5 text-sm"
-          />
-        </div>
-      </Card>
-
-      {/* Orders Grid/List */}
-      <div className="space-y-3">
-        {ordersList.length ? (
-          ordersList.map((order) => {
-            const customerName = order.customer?.name || order.user?.name || "Customer";
-            const customerPhone = order.customer?.phone || order.user?.phone || "";
-            const itemCount = (order.items || order.lines || []).reduce((sum, item) => sum + (item.quantity || 1), 0);
-
-            return (
-              <div key={order.id} className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-5 shadow-sm transition hover:border-[var(--action)]">
-                <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                  <div className="space-y-1.5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-base font-bold text-[var(--foreground)]">{order.orderNumber || order.id}</span>
-                      <StatusPill status={order.status} />
-                      <span className="rounded-md bg-[var(--surface-quiet)] px-2 py-0.5 text-[10px] font-bold uppercase text-[var(--muted-foreground)]">
-                        {order.channel || "ONLINE"}
-                      </span>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--muted-foreground)]">
-                      <span className="flex items-center gap-1">
-                        <User className="size-3.5 text-[var(--action)]" />
-                        <strong className="text-[var(--foreground)]">{customerName}</strong>
-                      </span>
-                      {customerPhone ? (
-                        <a href={`tel:${customerPhone}`} className="flex items-center gap-1 hover:text-[var(--action)]">
-                          <Phone className="size-3 text-[var(--action)]" />
-                          <span>{customerPhone}</span>
-                        </a>
-                      ) : null}
-                      <span className="flex items-center gap-1">
-                        <Clock className="size-3 text-[var(--action)]" />
-                        <span>{new Date(order.createdAt).toLocaleString()}</span>
-                      </span>
-                    </div>
-
-                    <div className="flex items-start gap-1 text-xs text-[var(--muted-foreground)]">
-                      <MapPin className="size-3.5 shrink-0 text-[var(--muted-foreground)] mt-0.5" />
-                      <span className="line-clamp-1">{order.shippingAddress || order.delivery?.address || "Store Pickup"}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-between gap-4 border-t border-[var(--border-soft)] pt-3 xl:border-0 xl:pt-0">
-                    <div className="text-left xl:text-right">
-                      <p className="text-lg font-bold text-[var(--foreground)]">{formatCurrency(order.total)}</p>
-                      <p className="text-xs text-[var(--muted-foreground)]">{itemCount} items &bull; {order.paymentMethod || "COD"}</p>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <OrderPrintView order={order} />
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={() => setSelectedOrder(order)}
-                        className="gap-1.5"
-                      >
-                        <FileText className="size-3.5" />
-                        Details & Map
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })
-        ) : (
-          <div className="rounded-2xl border border-dashed border-[var(--border-soft)] p-12 text-center text-sm text-[var(--muted-foreground)]">
-            No orders found matching the filter.
+            </p>
           </div>
-        )}
-      </div>
 
-      {/* Order Detail Drawer / Modal */}
-      <AnimatePresence>
-        {selectedOrder ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6 backdrop-blur-sm" onClick={() => setSelectedOrder(null)}>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.96 }}
-              className="relative flex max-h-[92vh] w-full max-w-3xl flex-col rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] shadow-2xl overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
+          {/* Status Filter Tabs */}
+          <div className="w-full min-w-0">
+            <div
+              className="
+                flex
+                w-full
+                min-w-0
+                flex-wrap
+                items-center
+                gap-1.5
+                text-xs
+                font-medium
+                text-[var(--muted-foreground)]
+              "
             >
-              {/* Drawer Header */}
-              <div className="flex items-center justify-between border-b border-[var(--border-soft)] bg-[var(--surface)] px-6 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--action-subtle)] text-[var(--action)]">
-                    <ReceiptText className="size-5" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-lg font-bold text-[var(--foreground)]">{selectedOrder.orderNumber || selectedOrder.id}</h2>
-                      <StatusPill status={selectedOrder.status} />
-                    </div>
-                    <p className="text-xs text-[var(--muted-foreground)]">Placed on {new Date(selectedOrder.createdAt).toLocaleString()}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <OrderPrintView order={selectedOrder} />
-                  <button type="button" onClick={() => setSelectedOrder(null)} className="rounded-lg p-1.5 text-[var(--muted-foreground)] hover:bg-[var(--surface-quiet)] hover:text-[var(--foreground)]">
-                    <X className="size-5" />
+              {statusTabs.map((tab) => {
+                const active = statusFilter === tab.key;
+
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setStatusFilter(tab.key)}
+                    className={cn(
+                      `
+                        inline-flex
+                        min-h-9
+                        max-w-full
+                        min-w-0
+                        shrink
+                        items-center
+                        gap-1.5
+                        px-3
+                        py-1.5
+                        text-xs
+                        font-semibold
+                        transition-colors
+                        focus:outline-none
+                        focus-visible:ring-2
+                        focus-visible:ring-[var(--action)]
+                      `,
+                      active
+                        ? "bg-[var(--action)] text-white shadow-sm"
+                        : "bg-[var(--surface-quiet)] text-[var(--muted-foreground)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]"
+                    )}
+                  >
+                    <span className="min-w-0 break-words">{tab.label}</span>
+
+                    <span
+                      className={cn(
+                        "shrink-0 px-1.5 py-0.5 text-[10px] font-mono leading-none",
+                        active
+                          ? "bg-white/20 text-white"
+                          : "bg-[var(--surface-hover)] text-[var(--foreground)]"
+                      )}
+                    >
+                      {tab.count}
+                    </span>
                   </button>
-                </div>
-              </div>
+                );
+              })}
+            </div>
+          </div>
 
-              {/* Drawer Content */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                {/* Status Workflow Action Bar */}
-                <div className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-quiet)] p-4 space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Status Workflow</span>
-                    <span className="text-xs text-[var(--muted-foreground)]">Update customer progress</span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {[
-                      { status: "CONFIRMED", label: "Confirm Order" },
-                      { status: "PREPARING", label: "Preparing" },
-                      { status: "READY", label: "Ready / Packed" },
-                      { status: "SHIPPED", label: "Ship Order" },
-                      { status: "DELIVERED", label: "Mark Delivered" },
-                      { status: "CANCELLED", label: "Cancel Order" },
-                    ].map((step) => (
-                      <button
-                        key={step.status}
-                        type="button"
-                        disabled={statusUpdating || String(selectedOrder.status).toUpperCase() === step.status}
-                        onClick={() => updateOrderStatus(selectedOrder.id, step.status)}
-                        className={cn(
-                          "rounded-lg px-3 py-1.5 text-xs font-semibold transition disabled:opacity-40",
-                          step.status === "DELIVERED"
-                            ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                            : step.status === "CANCELLED"
-                              ? "bg-rose-600 text-white hover:bg-rose-700"
-                              : "border border-[var(--border-soft)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
-                        )}
+          {/* Search */}
+          <div className="relative w-full min-w-0">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
+
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t(
+                "Search by order number, customer name, phone number, or address...",
+                "ស្វែងរកតាមលេខបញ្ជាទិញ ឈ្មោះអតិថិជន លេខទូរស័ព្ទ ឬអាសយដ្ឋាន..."
+              )}
+              className="
+                app-input
+                mt-0
+                w-full
+                min-w-0
+                !rounded-none
+                !border-0
+                bg-[var(--surface)]
+                px-4
+                py-2.5
+                pl-10
+                text-xs
+                sm:text-sm
+                focus:outline-none
+                focus:ring-2
+                focus:ring-[var(--action)]
+              "
+            />
+          </div>
+        </Card>
+
+        {/* Orders Grid / List */}
+        <div className="min-w-0 w-full space-y-3.5 overflow-x-hidden">
+          {ordersList.length ? (
+            ordersList.map((order) => {
+              const customerName = getCustomerName(order);
+              const customerPhone = getCustomerPhone(order);
+              const itemCount = getItemCount(order);
+
+              return (
+                <article
+                  key={order.id}
+                  className="
+                    w-full
+                    min-w-0
+                    overflow-hidden
+                    bg-[var(--surface-strong)]
+                    p-4
+                    shadow-sm
+                    transition-colors
+                    hover:bg-[var(--surface-hover)]
+                    sm:p-5
+                  "
+                >
+                  <div
+                    className="
+                      flex
+                      min-w-0
+                      flex-col
+                      gap-4
+                      md:flex-row
+                      md:items-center
+                      md:justify-between
+                    "
+                  >
+                    {/* Left Details */}
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <span className="max-w-full min-w-0 break-all font-mono text-sm font-bold tracking-tight text-[var(--foreground)]">
+                          {order.orderNumber || order.id}
+                        </span>
+
+                        <StatusPill status={order.status} />
+
+                        <span className="max-w-full min-w-0 break-words bg-[var(--surface-quiet)] px-2 py-0.5 text-[10px] font-bold uppercase text-[var(--muted-foreground)]">
+                          {order.channel || "ONLINE"}
+                        </span>
+                      </div>
+
+                      <div
+                        className="
+                          flex
+                          min-w-0
+                          flex-wrap
+                          items-center
+                          gap-x-3
+                          gap-y-1
+                          text-xs
+                          text-[var(--muted-foreground)]
+                        "
                       >
-                        {step.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                        <span className="inline-flex min-w-0 max-w-full items-center gap-1">
+                          <User className="size-3.5 shrink-0 text-[var(--action)]" />
 
-                {/* Customer & Carrier Information Grid */}
-                <div className="grid gap-4 md:grid-cols-2">
-                  {/* Customer Card */}
-                  <div className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] p-4 space-y-2">
-                    <div className="flex items-center gap-2 text-xs font-bold uppercase text-[var(--muted-foreground)]">
-                      <User className="size-3.5 text-[var(--action)]" />
-                      <span>Customer Details</span>
-                    </div>
-                    <div className="space-y-1 text-sm">
-                      <p className="font-semibold text-[var(--foreground)]">{selectedOrder.customer?.name || selectedOrder.user?.name || "Customer"}</p>
-                      {selectedOrder.customer?.phone || selectedOrder.user?.phone ? (
-                        <p className="text-xs text-[var(--muted-foreground)]">
-                          Phone:{" "}
-                          <a href={`tel:${selectedOrder.customer?.phone || selectedOrder.user?.phone}`} className="font-medium text-[var(--action)] hover:underline">
-                            {selectedOrder.customer?.phone || selectedOrder.user?.phone}
+                          <strong className="min-w-0 break-words text-[var(--foreground)]">
+                            {customerName}
+                          </strong>
+                        </span>
+
+                        {customerPhone ? (
+                          <a
+                            href={`tel:${customerPhone}`}
+                            className="
+                              inline-flex
+                              min-w-0
+                              max-w-full
+                              items-center
+                              gap-1
+                              break-all
+                              hover:text-[var(--action)]
+                            "
+                          >
+                            <Phone className="size-3 shrink-0 text-[var(--action)]" />
+                            <span className="break-all">{customerPhone}</span>
                           </a>
+                        ) : null}
+
+                        <span className="inline-flex min-w-0 max-w-full items-center gap-1">
+                          <Clock className="size-3 shrink-0 text-[var(--action)]" />
+                          <span className="break-words">
+                            {formatOrderDate(order.createdAt)}
+                          </span>
+                        </span>
+                      </div>
+
+                      <div className="flex min-w-0 items-start gap-1.5 text-xs text-[var(--muted-foreground)]">
+                        <MapPin className="mt-0.5 size-3.5 shrink-0 text-[var(--muted-foreground)]" />
+
+                        <span className="min-w-0 break-words">
+                          {getOrderAddress(order)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Right Price + Actions */}
+                    <div
+                      className="
+                        flex
+                        min-w-0
+                        w-full
+                        flex-col
+                        gap-3
+                        pt-1
+                        md:w-auto
+                        md:min-w-[330px]
+                        md:items-end
+                      "
+                    >
+                      <div className="w-full text-left md:text-right">
+                        <p className="break-all text-base font-extrabold text-[var(--foreground)] sm:text-lg">
+                          {formatCurrency(order.total)}
                         </p>
-                      ) : null}
-                      <p className="text-xs text-[var(--muted-foreground)]">
-                        Payment: <strong>{selectedOrder.paymentMethod || "COD"}</strong> ({String(selectedOrder.paymentStatus || "PENDING").toUpperCase()})
+
+                        <p className="break-words text-[11px] font-medium text-[var(--muted-foreground)]">
+                          {itemCount} {t("items", "ទំនិញ")} •{" "}
+                          {getPaymentMethod(order)}
+                        </p>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="grid w-full min-w-0 grid-cols-2 gap-2 md:w-auto md:min-w-[330px]">
+                        <div className="min-w-0">
+                          <div className="[&>button]:!flex [&>button]:!w-full [&>button]:!min-w-0 [&>button]:!items-center [&>button]:!justify-center [&>button]:!whitespace-nowrap">
+                            <OrderPrintView order={order} />
+                          </div>
+                        </div>
+
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => setSelectedOrder(order)}
+                          className="
+                            !flex
+                            !w-full
+                            !min-w-0
+                            !shrink-0
+                            !items-center
+                            !justify-center
+                            !gap-1.5
+                            !whitespace-nowrap
+                            !rounded-none
+                            bg-[var(--surface-quiet)]
+                            px-2
+                            text-xs
+                            text-[var(--foreground)]
+                            hover:bg-[var(--surface-hover)]
+                            hover:text-[var(--action)]
+                            sm:px-3
+                          "
+                        >
+                          <FileText className="size-3.5 shrink-0" />
+
+                          <span className="min-w-0 truncate">
+                            {t(
+                              "Details & Map",
+                              "ព័ត៌មានលម្អិត និងផែនទី"
+                            )}
+                          </span>
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              );
+            })
+          ) : (
+            <div className="w-full bg-[var(--surface-quiet)] p-8 text-center text-sm text-[var(--muted-foreground)] sm:p-12">
+              {t(
+                "No orders found matching the filter.",
+                "រកមិនឃើញការបញ្ជាទិញដែលត្រូវនឹងតម្រងទេ។"
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* =========================================================
+            ORDER DETAIL / DETAILS & MAP MODAL
+            ========================================================= */}
+        <AnimatePresence>
+          {selectedOrder ? (
+            <div
+              className="
+                fixed
+                inset-0
+                z-50
+                flex
+                items-center
+                justify-center
+                overflow-y-auto
+                overflow-x-hidden
+                bg-black/60
+                px-2
+                py-3
+                backdrop-blur-[1px]
+                sm:px-4
+                sm:py-5
+              "
+              onClick={() => setSelectedOrder(null)}
+              style={{
+                scrollbarWidth: "none",
+                msOverflowStyle: "none",
+              }}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.985, y: 8 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.985, y: 8 }}
+                transition={{ duration: 0.18 }}
+                className="
+                  relative
+                  my-auto
+                  flex
+                  max-h-[95vh]
+                  w-full
+                  max-w-2xl
+                  min-w-0
+                  flex-col
+                  overflow-hidden
+                  bg-[var(--surface-strong)]
+                  text-[var(--foreground)]
+                  shadow-2xl
+                "
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Modal Header */}
+                <div
+                  className="
+                    flex
+                    min-w-0
+                    shrink-0
+                    items-center
+                    justify-between
+                    gap-3
+                    bg-[var(--surface-strong)]
+                    px-4
+                    py-3.5
+                    sm:px-5
+                    sm:py-4
+                  "
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex size-9 shrink-0 items-center justify-center bg-[var(--action-subtle)] text-[var(--action)]">
+                      <ReceiptText className="size-5" />
+                    </div>
+
+                    <div className="min-w-0">
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <h2 className="max-w-full break-all font-mono text-base font-bold tracking-tight text-[var(--foreground)] sm:text-lg">
+                          {selectedOrder.orderNumber || selectedOrder.id}
+                        </h2>
+
+                        <StatusPill status={selectedOrder.status} />
+                      </div>
+
+                      <p className="break-words text-[11px] text-[var(--muted-foreground)] sm:text-xs">
+                        {t("Placed on", "បានដាក់នៅ")}{" "}
+                        {formatOrderDate(selectedOrder.createdAt)}
                       </p>
                     </div>
                   </div>
 
-                  {/* Carrier Tracking Card */}
-                  <div className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] p-4 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-xs font-bold uppercase text-[var(--muted-foreground)]">
-                        <Truck className="size-3.5 text-[var(--action)]" />
-                        <span>Carrier & Delivery</span>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <OrderPrintView order={selectedOrder} />
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedOrder(null)}
+                      aria-label={t("Close", "បិទ")}
+                      className="
+                        flex
+                        size-9
+                        shrink-0
+                        items-center
+                        justify-center
+                        bg-[var(--surface-quiet)]
+                        text-[var(--muted-foreground)]
+                        transition-colors
+                        hover:bg-[var(--surface-hover)]
+                        hover:text-[var(--foreground)]
+                      "
+                    >
+                      <X className="size-5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Modal Scrollable Content */}
+                <div
+                  className="
+                    min-h-0
+                    flex-1
+                    space-y-4
+                    overflow-y-auto
+                    overflow-x-hidden
+                    bg-[var(--surface)]
+                    p-4
+                    sm:space-y-5
+                    sm:p-5
+                  "
+                  style={{
+                    scrollbarWidth: "none",
+                    msOverflowStyle: "none",
+                  }}
+                >
+                  {/* STATUS WORKFLOW */}
+                  <section className="bg-[var(--surface-quiet)] p-3 sm:p-3.5">
+                    <div className="mb-2.5 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+                        {t("Status Workflow", "លំហូរស្ថានភាព")}
+                      </span>
+
+                      <span className="text-[11px] text-[var(--muted-foreground)]">
+                        {t(
+                          "Update customer progress",
+                          "ធ្វើបច្ចុប្បន្នភាពដំណើរការអតិថិជន"
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                      {[
+                        {
+                          status: "CONFIRMED",
+                          label: t(
+                            "Confirm Order",
+                            "បញ្ជាក់ការបញ្ជាទិញ"
+                          ),
+                        },
+                        {
+                          status: "PREPARING",
+                          label: t("Preparing", "កំពុងរៀបចំ"),
+                        },
+                        {
+                          status: "READY",
+                          label: t(
+                            "Ready / Packed",
+                            "ត្រៀមរួច / វេចខ្ចប់"
+                          ),
+                        },
+                        {
+                          status: "SHIPPED",
+                          label: t(
+                            "Ship Order",
+                            "ផ្ញើការបញ្ជាទិញ"
+                          ),
+                        },
+                        {
+                          status: "DELIVERED",
+                          label: t(
+                            "Mark Delivered",
+                            "សម្គាល់ថាបានប្រគល់"
+                          ),
+                        },
+                        {
+                          status: "CANCELLED",
+                          label: t(
+                            "Cancel Order",
+                            "លុបចោលការបញ្ជាទិញ"
+                          ),
+                        },
+                      ].map((step) => {
+                        const isCurrent =
+                          String(selectedOrder.status).toUpperCase() ===
+                          step.status;
+
+                        return (
+                          <button
+                            key={step.status}
+                            type="button"
+                            disabled={statusUpdating || isCurrent}
+                            onClick={() =>
+                              updateOrderStatus(
+                                selectedOrder.id,
+                                step.status
+                              )
+                            }
+                            className={cn(
+                              `
+                                min-h-9
+                                min-w-0
+                                px-2
+                                py-1.5
+                                text-center
+                                text-[11px]
+                                font-medium
+                                transition-colors
+                                disabled:cursor-not-allowed
+                                disabled:opacity-40
+                                focus:outline-none
+                                focus-visible:ring-2
+                                focus-visible:ring-[var(--action)]
+                              `,
+                              step.status === "DELIVERED"
+                                ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                                : step.status === "CANCELLED"
+                                  ? "bg-rose-600 text-white hover:bg-rose-700"
+                                  : "bg-[var(--surface-strong)] text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
+                            )}
+                          >
+                            <span className="break-words">
+                              {step.label}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+
+                  {/* CUSTOMER + CARRIER INFORMATION */}
+                  <section className="grid min-w-0 gap-3 md:grid-cols-2">
+                    {/* Customer Card */}
+                    <div className="min-w-0 bg-[var(--surface-strong)] p-3.5 space-y-2">
+                      <div className="flex min-w-0 items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--action)]">
+                        <User className="size-3.5 shrink-0" />
+
+                        <span className="min-w-0 break-words">
+                          {t(
+                            "Customer Details",
+                            "ព័ត៌មានអតិថិជន"
+                          )}
+                        </span>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTrackingModal({
-                            open: true,
-                            order: selectedOrder,
-                            carrier: selectedOrder.trackingCarrier || "",
-                            trackingNumber: selectedOrder.trackingNumber || "",
-                            driverName: selectedOrder.delivery?.driver?.name || "",
-                            driverPhone: selectedOrder.delivery?.driver?.phone || "",
-                            deliveryNote: selectedOrder.note || selectedOrder.delivery?.note || "",
-                            scheduledAt: selectedOrder.delivery?.scheduledAt ? new Date(selectedOrder.delivery.scheduledAt).toISOString().slice(0, 10) : "",
-                            deliveryStatus: selectedOrder.delivery?.status || "PENDING",
-                            loading: false,
-                            error: "",
-                            success: "",
-                          });
-                        }}
-                        className="text-xs font-bold text-[var(--action)] hover:underline"
-                      >
-                        Edit Tracking
-                      </button>
-                    </div>
-                    <div className="space-y-1 text-xs text-[var(--muted-foreground)]">
-                      <p>Carrier: <strong className="text-[var(--foreground)]">{selectedOrder.trackingCarrier || "Standard"}</strong></p>
-                      <p>Tracking #: <strong className="text-[var(--foreground)]">{selectedOrder.trackingNumber || "None"}</strong></p>
-                      {selectedOrder.delivery?.driver ? (
-                        <p>Driver: <strong className="text-[var(--foreground)]">{selectedOrder.delivery.driver.name}</strong> ({selectedOrder.delivery.driver.phone})</p>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
 
-                {/* Delivery Map */}
-                <div>
-                  <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Delivery Location</h3>
-                  <OrderDeliveryMap
-                    lat={selectedOrder.delivery?.lat}
-                    lng={selectedOrder.delivery?.lng}
-                    address={selectedOrder.shippingAddress || selectedOrder.delivery?.address}
-                    deliveryNote={selectedOrder.note || selectedOrder.delivery?.note}
-                    driver={selectedOrder.delivery?.driver}
-                    status={selectedOrder.status}
-                  />
-                </div>
+                      <div className="space-y-1 text-sm">
+                        <p className="break-words font-semibold text-[var(--foreground)]">
+                          {getCustomerName(selectedOrder)}
+                        </p>
 
-                {/* Ordered Items Table */}
-                <div>
-                  <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Ordered Items</h3>
-                  <div className="overflow-hidden rounded-xl border border-[var(--border-soft)]">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-[var(--surface-quiet)] uppercase text-[var(--muted-foreground)]">
-                        <tr>
-                          <th className="px-4 py-2.5 font-semibold">Item</th>
-                          <th className="px-4 py-2.5 font-semibold text-center">Qty</th>
-                          <th className="px-4 py-2.5 font-semibold text-right">Unit Price</th>
-                          <th className="px-4 py-2.5 font-semibold text-right">Line Total</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[var(--border-soft)]">
-                        {(selectedOrder.items || selectedOrder.lines || []).map((item, i) => (
-                          <tr key={item.id || i}>
-                            <td className="px-4 py-2.5">
-                              <p className="font-semibold text-[var(--foreground)]">{item.productName || item.variantName || "Product"}</p>
-                              {item.variantName && item.variantName !== "Default" && item.variantName !== item.productName ? (
-                                <p className="text-[11px] text-[var(--muted-foreground)]">{item.variantName}</p>
-                              ) : null}
-                            </td>
-                            <td className="px-4 py-2.5 text-center font-bold text-[var(--foreground)]">{item.quantity}</td>
-                            <td className="px-4 py-2.5 text-right text-[var(--muted-foreground)]">{formatCurrency(item.unitPrice)}</td>
-                            <td className="px-4 py-2.5 text-right font-bold text-[var(--foreground)]">
-                              {formatCurrency(item.lineTotal || item.quantity * item.unitPrice)}
-                            </td>
+                        {getCustomerPhone(selectedOrder) ? (
+                          <p className="break-words text-xs text-[var(--muted-foreground)]">
+                            {t("Phone", "ទូរស័ព្ទ")}:{" "}
+                            <a
+                              href={`tel:${getCustomerPhone(
+                                selectedOrder
+                              )}`}
+                              className="font-medium text-[var(--action)] hover:underline"
+                            >
+                              {getCustomerPhone(selectedOrder)}
+                            </a>
+                          </p>
+                        ) : null}
+
+                        <p className="break-words text-xs text-[var(--muted-foreground)]">
+                          {t("Payment", "ការទូទាត់")}:{" "}
+                          <strong className="text-[var(--foreground)]">
+                            {getPaymentMethod(selectedOrder)}
+                          </strong>{" "}
+                          (
+                          {String(
+                            selectedOrder.paymentStatus || "PENDING"
+                          ).toUpperCase()}
+                          )
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Carrier Tracking Card */}
+                    <div className="min-w-0 bg-[var(--surface-strong)] p-3.5 space-y-2">
+                      <div className="flex min-w-0 items-center justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--action)]">
+                          <Truck className="size-3.5 shrink-0" />
+
+                          <span className="min-w-0 break-words">
+                            {t(
+                              "Carrier & Delivery",
+                              "អ្នកដឹកជញ្ជូន និងការដឹកជញ្ជូន"
+                            )}
+                          </span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openTrackingModal(selectedOrder)
+                          }
+                          className="
+                            shrink-0
+                            text-[11px]
+                            font-bold
+                            text-[var(--action)]
+                            hover:underline
+                          "
+                        >
+                          {t(
+                            "Edit Tracking",
+                            "កែតម្រូវការតាមដាន"
+                          )}
+                        </button>
+                      </div>
+
+                      <div className="space-y-1 text-xs text-[var(--muted-foreground)]">
+                        <p className="break-words">
+                          {t("Carrier", "អ្នកដឹកជញ្ជូន")}:{" "}
+                          <strong className="text-[var(--foreground)]">
+                            {selectedOrder.trackingCarrier ||
+                              t("Standard", "ស្តង់ដារ")}
+                          </strong>
+                        </p>
+
+                        <p className="break-all">
+                          {t("Tracking #", "លេខតាមដាន")}:{" "}
+                          <strong className="text-[var(--foreground)]">
+                            {selectedOrder.trackingNumber ||
+                              t("None", "គ្មាន")}
+                          </strong>
+                        </p>
+
+                        {selectedOrder.delivery?.driver ? (
+                          <p className="break-words">
+                            {t("Driver", "អ្នកដឹកជញ្ជូន")}:{" "}
+                            <strong className="text-[var(--foreground)]">
+                              {selectedOrder.delivery.driver.name ||
+                                t("Unnamed", "គ្មានឈ្មោះ")}
+                            </strong>
+
+                            {selectedOrder.delivery.driver.phone
+                              ? ` (${selectedOrder.delivery.driver.phone})`
+                              : ""}
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* DELIVERY LOCATION */}
+                  <section className="min-w-0 space-y-2">
+                    <h3 className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+                      {t(
+                        "Delivery Location",
+                        "ទីតាំងដឹកជញ្ជូន"
+                      )}
+                    </h3>
+
+                    <div className="min-w-0 overflow-hidden bg-[var(--surface-strong)]">
+                      <OrderDeliveryMap
+                        lat={selectedOrder.delivery?.lat}
+                        lng={selectedOrder.delivery?.lng}
+                        address={
+                          selectedOrder.shippingAddress ||
+                          selectedOrder.delivery?.address
+                        }
+                        deliveryNote={
+                          selectedOrder.note ||
+                          selectedOrder.delivery?.note
+                        }
+                        driver={selectedOrder.delivery?.driver}
+                        status={selectedOrder.status}
+                      />
+                    </div>
+
+                    {(selectedOrder.shippingAddress ||
+                      selectedOrder.delivery?.address) && (
+                        <div className="bg-[var(--surface-strong)] p-3 text-xs">
+                          <span className="font-semibold text-[var(--muted-foreground)]">
+                            {t("Address", "អាសយដ្ឋាន")}:
+                          </span>{" "}
+                          <span className="break-words text-[var(--foreground)]">
+                            {selectedOrder.shippingAddress ||
+                              selectedOrder.delivery?.address}
+                          </span>
+                        </div>
+                      )}
+                  </section>
+
+                  {/* ORDERED ITEMS */}
+                  <section className="min-w-0 space-y-2">
+                    <h3 className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+                      {t(
+                        "Ordered Items",
+                        "ទំនិញដែលបានបញ្ជាទិញ"
+                      )}
+                    </h3>
+
+                    <div className="w-full min-w-0 overflow-hidden bg-[var(--surface-strong)]">
+                      <table className="w-full table-fixed text-left text-[11px] sm:text-xs">
+                        <thead className="bg-[var(--surface-quiet)] uppercase text-[var(--muted-foreground)]">
+                          <tr>
+                            <th className="w-[42%] px-2.5 py-2.5 font-semibold sm:px-3">
+                              {t("Item", "ទំនិញ")}
+                            </th>
+
+                            <th className="w-[12%] px-2 py-2.5 text-center font-semibold sm:px-3">
+                              {t("Qty", "ចំនួន")}
+                            </th>
+
+                            <th className="w-[23%] px-2 py-2.5 text-right font-semibold sm:px-3">
+                              {t("Unit Price", "តម្លៃឯកតា")}
+                            </th>
+
+                            <th className="w-[23%] px-2 py-2.5 text-right font-semibold sm:px-3">
+                              {t("Line Total", "សរុបបន្ទាត់")}
+                            </th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                        </thead>
 
-                {/* Financial Totals */}
-                <div className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-quiet)] p-4 space-y-2 text-xs">
-                  <div className="flex justify-between text-[var(--muted-foreground)]">
-                    <span>Subtotal:</span>
-                    <span className="font-semibold text-[var(--foreground)]">{formatCurrency(selectedOrder.subtotal || selectedOrder.total)}</span>
-                  </div>
-                  {selectedOrder.shippingFee ? (
-                    <div className="flex justify-between text-[var(--muted-foreground)]">
-                      <span>Shipping Fee:</span>
-                      <span className="font-semibold text-[var(--foreground)]">{formatCurrency(selectedOrder.shippingFee)}</span>
-                    </div>
-                  ) : null}
-                  {selectedOrder.couponDiscount ? (
-                    <div className="flex justify-between text-rose-600 dark:text-rose-400">
-                      <span>Discount ({selectedOrder.couponCode || "Promo"}):</span>
-                      <span className="font-semibold">-{formatCurrency(selectedOrder.couponDiscount)}</span>
-                    </div>
-                  ) : null}
-                  <div className="border-t border-[var(--border-soft)] pt-2 flex justify-between text-sm font-bold text-[var(--foreground)]">
-                    <span>Grand Total:</span>
-                    <span className="text-base text-[var(--action)]">{formatCurrency(selectedOrder.total)}</span>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        ) : null}
-      </AnimatePresence>
+                        <tbody>
+                          {getOrderItems(selectedOrder).map(
+                            (item, i) => (
+                              <tr key={item.id || i}>
+                                <td className="min-w-0 px-2.5 py-2.5 sm:px-3">
+                                  <p className="break-words font-semibold text-[var(--foreground)]">
+                                    {item.productName ||
+                                      item.variantName ||
+                                      t("Product", "ផលិតផល")}
+                                  </p>
 
-      {/* Edit Carrier / Driver Tracking Modal */}
-      <AnimatePresence>
-        {trackingModal.open && trackingModal.order ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm" onClick={() => setTrackingModal((m) => ({ ...m, open: false }))}>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-6 shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
+                                  {item.variantName &&
+                                    item.variantName !==
+                                    "Default" &&
+                                    item.variantName !==
+                                    item.productName ? (
+                                    <p className="break-words text-[11px] text-[var(--muted-foreground)]">
+                                      {item.variantName}
+                                    </p>
+                                  ) : null}
+                                </td>
+
+                                <td className="px-2 py-2.5 text-center font-bold text-[var(--foreground)] sm:px-3">
+                                  {item.quantity}
+                                </td>
+
+                                <td className="break-all px-2 py-2.5 text-right text-[var(--muted-foreground)] sm:px-3">
+                                  {formatCurrency(item.unitPrice)}
+                                </td>
+
+                                <td className="break-all px-2 py-2.5 text-right font-bold text-[var(--foreground)] sm:px-3">
+                                  {formatCurrency(
+                                    item.lineTotal ||
+                                    item.quantity *
+                                    item.unitPrice
+                                  )}
+                                </td>
+                              </tr>
+                            )
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+
+                  {/* FINANCIAL TOTALS */}
+                  <section className="bg-[var(--surface-quiet)] p-4 space-y-2 text-xs">
+                    <div className="flex items-start justify-between gap-4 text-[var(--muted-foreground)]">
+                      <span>
+                        {t("Subtotal", "សរុបរង")}:
+                      </span>
+
+                      <span className="break-all text-right font-semibold text-[var(--foreground)]">
+                        {formatCurrency(
+                          selectedOrder.subtotal ||
+                          selectedOrder.total
+                        )}
+                      </span>
+                    </div>
+
+                    {selectedOrder.shippingFee ? (
+                      <div className="flex items-start justify-between gap-4 text-[var(--muted-foreground)]">
+                        <span>
+                          {t(
+                            "Shipping Fee",
+                            "ថ្លៃដឹកជញ្ជូន"
+                          )}
+                          :
+                        </span>
+
+                        <span className="break-all text-right font-semibold text-[var(--foreground)]">
+                          {formatCurrency(
+                            selectedOrder.shippingFee
+                          )}
+                        </span>
+                      </div>
+                    ) : null}
+
+                    {selectedOrder.couponDiscount ? (
+                      <div className="flex items-start justify-between gap-4 text-rose-600 dark:text-rose-400">
+                        <span className="break-words">
+                          {t("Discount", "បញ្ចុះតម្លៃ")} (
+                          {selectedOrder.couponCode ||
+                            t("Promo", "ប្រូម៉ូ")}
+                          ):
+                        </span>
+
+                        <span className="break-all text-right font-semibold">
+                          -
+                          {formatCurrency(
+                            selectedOrder.couponDiscount
+                          )}
+                        </span>
+                      </div>
+                    ) : null}
+
+                    <div className="flex items-start justify-between gap-4 pt-2 text-sm font-bold text-[var(--foreground)]">
+                      <span>
+                        {t(
+                          "Grand Total",
+                          "សរុបចុងក្រោយ"
+                        )}
+                        :
+                      </span>
+
+                      <span className="break-all text-right text-base text-[var(--action)] sm:text-lg">
+                        {formatCurrency(selectedOrder.total)}
+                      </span>
+                    </div>
+                  </section>
+                </div>
+              </motion.div>
+            </div>
+          ) : null}
+        </AnimatePresence>
+
+        {/* =========================================================
+            EDIT CARRIER / DRIVER TRACKING MODAL
+            ========================================================= */}
+        <AnimatePresence>
+          {trackingModal.open && trackingModal.order ? (
+            <div
+              className="
+                fixed
+                inset-0
+                z-[60]
+                flex
+                items-center
+                justify-center
+                overflow-y-auto
+                overflow-x-hidden
+                bg-black/60
+                px-2
+                py-3
+                backdrop-blur-[1px]
+                sm:px-4
+                sm:py-5
+              "
+              onClick={() =>
+                setTrackingModal((m) => ({
+                  ...m,
+                  open: false,
+                }))
+              }
+              style={{
+                scrollbarWidth: "none",
+                msOverflowStyle: "none",
+              }}
             >
-              <div className="flex items-center justify-between border-b border-[var(--border-soft)] pb-3">
-                <div className="flex items-center gap-2">
-                  <div className="flex size-8 items-center justify-center rounded-lg bg-[var(--action-subtle)] text-[var(--action)]">
-                    <Truck className="size-5" />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.985, y: 8 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.985, y: 8 }}
+                transition={{ duration: 0.18 }}
+                className="
+                  my-auto
+                  max-h-[94vh]
+                  w-full
+                  max-w-md
+                  min-w-0
+                  overflow-y-auto
+                  overflow-x-hidden
+                  bg-[var(--surface-strong)]
+                  p-4
+                  shadow-2xl
+                  sm:p-5
+                "
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  scrollbarWidth: "none",
+                  msOverflowStyle: "none",
+                }}
+              >
+                <div className="flex min-w-0 items-center justify-between gap-3 pb-3">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <div className="flex size-8 shrink-0 items-center justify-center bg-[var(--action-subtle)] text-[var(--action)]">
+                      <Truck className="size-5" />
+                    </div>
+
+                    <div className="min-w-0">
+                      <h3 className="break-words font-bold text-[var(--foreground)]">
+                        {t(
+                          "Carrier & Delivery Info",
+                          "ព័ត៌មានអ្នកដឹកជញ្ជូន និងការដឹកជញ្ជូន"
+                        )}
+                      </h3>
+
+                      <p className="break-all text-xs text-[var(--muted-foreground)]">
+                        {t("Order", "ការបញ្ជាទិញ")}{" "}
+                        {trackingModal.order.orderNumber ||
+                          trackingModal.order.id}
+                      </p>
+                    </div>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setTrackingModal((m) => ({
+                        ...m,
+                        open: false,
+                      }))
+                    }
+                    aria-label={t("Close", "បិទ")}
+                    className="
+                      flex
+                      size-8
+                      shrink-0
+                      items-center
+                      justify-center
+                      bg-[var(--surface-quiet)]
+                      text-[var(--muted-foreground)]
+                      hover:bg-[var(--surface-hover)]
+                      hover:text-[var(--foreground)]
+                    "
+                  >
+                    <X className="size-5" />
+                  </button>
+                </div>
+
+                <form
+                  onSubmit={saveTrackingInfo}
+                  className="mt-1 space-y-3"
+                >
                   <div>
-                    <h3 className="font-bold text-[var(--foreground)]">Carrier & Delivery Info</h3>
-                    <p className="text-xs text-[var(--muted-foreground)]">Order {trackingModal.order.orderNumber || trackingModal.order.id}</p>
-                  </div>
-                </div>
-                <button type="button" onClick={() => setTrackingModal((m) => ({ ...m, open: false }))} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
-                  <X className="size-5" />
-                </button>
-              </div>
+                    <label className="block text-xs font-semibold text-[var(--muted-foreground)]">
+                      {t(
+                        "Carrier Name",
+                        "ឈ្មោះអ្នកដឹកជញ្ជូន"
+                      )}
+                    </label>
 
-              <form onSubmit={saveTrackingInfo} className="mt-4 space-y-3">
-                <div>
-                  <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Carrier Name</label>
-                  <input
-                    type="text"
-                    value={trackingModal.carrier}
-                    onChange={(e) => setTrackingModal((m) => ({ ...m, carrier: e.target.value }))}
-                    className="app-input mt-1 w-full px-3 py-2 text-sm"
-                    placeholder="e.g. Standard, J&T Express, Virak Buntham, In-House"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Tracking Number</label>
-                  <input
-                    type="text"
-                    value={trackingModal.trackingNumber}
-                    onChange={(e) => setTrackingModal((m) => ({ ...m, trackingNumber: e.target.value }))}
-                    className="app-input mt-1 w-full px-3 py-2 text-sm"
-                    placeholder="e.g. VET-SR-998234"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Driver Name</label>
                     <input
                       type="text"
-                      value={trackingModal.driverName}
-                      onChange={(e) => setTrackingModal((m) => ({ ...m, driverName: e.target.value }))}
-                      className="app-input mt-1 w-full px-3 py-2 text-sm"
-                      placeholder="e.g. Sok Chea"
+                      value={trackingModal.carrier}
+                      onChange={(e) =>
+                        setTrackingModal((m) => ({
+                          ...m,
+                          carrier: e.target.value,
+                        }))
+                      }
+                      className="
+                        app-input
+                        mt-1
+                        w-full
+                        !rounded-none
+                        !border-0
+                        px-3
+                        py-2
+                        text-sm
+                        focus:outline-none
+                        focus:ring-2
+                        focus:ring-[var(--action)]
+                      "
+                      placeholder={t(
+                        "e.g. Standard, J&T Express, Virak Buntham, In-House",
+                        "ឧ. Standard, J&T Express, Virak Buntham, In-House"
+                      )}
                     />
                   </div>
+
                   <div>
-                    <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Driver Phone</label>
+                    <label className="block text-xs font-semibold text-[var(--muted-foreground)]">
+                      {t(
+                        "Tracking Number",
+                        "លេខតាមដាន"
+                      )}
+                    </label>
+
                     <input
-                      type="tel"
-                      value={trackingModal.driverPhone}
-                      onChange={(e) => setTrackingModal((m) => ({ ...m, driverPhone: e.target.value }))}
-                      className="app-input mt-1 w-full px-3 py-2 text-sm"
-                      placeholder="e.g. 012 345 678"
+                      type="text"
+                      value={trackingModal.trackingNumber}
+                      onChange={(e) =>
+                        setTrackingModal((m) => ({
+                          ...m,
+                          trackingNumber: e.target.value,
+                        }))
+                      }
+                      className="
+                        app-input
+                        mt-1
+                        w-full
+                        !rounded-none
+                        !border-0
+                        px-3
+                        py-2
+                        text-sm
+                        focus:outline-none
+                        focus:ring-2
+                        focus:ring-[var(--action)]
+                      "
+                      placeholder="e.g. VET-SR-998234"
                     />
                   </div>
-                </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Delivery Notes</label>
-                  <input
-                    type="text"
-                    value={trackingModal.deliveryNote}
-                    onChange={(e) => setTrackingModal((m) => ({ ...m, deliveryNote: e.target.value }))}
-                    className="app-input mt-1 w-full px-3 py-2 text-sm"
-                    placeholder="e.g. House near Wat Bo temple gate"
-                  />
-                </div>
+                  <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="min-w-0">
+                      <label className="block text-xs font-semibold text-[var(--muted-foreground)]">
+                        {t(
+                          "Driver Name",
+                          "ឈ្មោះអ្នកដឹកជញ្ជូន"
+                        )}
+                      </label>
 
-                <div>
-                  <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Estimated Delivery Date</label>
-                  <input
-                    type="date"
-                    value={trackingModal.scheduledAt}
-                    onChange={(e) => setTrackingModal((m) => ({ ...m, scheduledAt: e.target.value }))}
-                    className="app-input mt-1 w-full px-3 py-2 text-sm"
-                  />
-                </div>
+                      <input
+                        type="text"
+                        value={trackingModal.driverName}
+                        onChange={(e) =>
+                          setTrackingModal((m) => ({
+                            ...m,
+                            driverName: e.target.value,
+                          }))
+                        }
+                        className="
+                          app-input
+                          mt-1
+                          w-full
+                          !rounded-none
+                          !border-0
+                          px-3
+                          py-2
+                          text-sm
+                          focus:outline-none
+                          focus:ring-2
+                          focus:ring-[var(--action)]
+                        "
+                        placeholder={t(
+                          "e.g. Sok Chea",
+                          "ឧ. សុខជា"
+                        )}
+                      />
+                    </div>
 
-                {trackingModal.error ? <div className="rounded-xl bg-rose-500/10 p-3 text-xs text-rose-600 dark:text-rose-400">{trackingModal.error}</div> : null}
-                {trackingModal.success ? <div className="rounded-xl bg-emerald-500/10 p-3 text-xs text-emerald-600 dark:text-emerald-400">{trackingModal.success}</div> : null}
+                    <div className="min-w-0">
+                      <label className="block text-xs font-semibold text-[var(--muted-foreground)]">
+                        {t(
+                          "Driver Phone",
+                          "លេខទូរស័ព្ទអ្នកដឹកជញ្ជូន"
+                        )}
+                      </label>
 
-                <div className="flex gap-3 pt-2">
-                  <Button type="button" variant="outline" onClick={() => setTrackingModal((m) => ({ ...m, open: false }))} className="flex-1">
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={trackingModal.loading} className="flex-1">
-                    {trackingModal.loading ? "Saving..." : "Save Tracking"}
-                  </Button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        ) : null}
-      </AnimatePresence>
-    </div>
+                      <input
+                        type="tel"
+                        value={trackingModal.driverPhone}
+                        onChange={(e) =>
+                          setTrackingModal((m) => ({
+                            ...m,
+                            driverPhone: e.target.value,
+                          }))
+                        }
+                        className="
+                          app-input
+                          mt-1
+                          w-full
+                          !rounded-none
+                          !border-0
+                          px-3
+                          py-2
+                          text-sm
+                          focus:outline-none
+                          focus:ring-2
+                          focus:ring-[var(--action)]
+                        "
+                        placeholder="e.g. 012 345 678"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--muted-foreground)]">
+                      {t(
+                        "Delivery Notes",
+                        "កំណត់សម្គាល់ដឹកជញ្ជូន"
+                      )}
+                    </label>
+
+                    <input
+                      type="text"
+                      value={trackingModal.deliveryNote}
+                      onChange={(e) =>
+                        setTrackingModal((m) => ({
+                          ...m,
+                          deliveryNote: e.target.value,
+                        }))
+                      }
+                      className="
+                        app-input
+                        mt-1
+                        w-full
+                        !rounded-none
+                        !border-0
+                        px-3
+                        py-2
+                        text-sm
+                        focus:outline-none
+                        focus:ring-2
+                        focus:ring-[var(--action)]
+                      "
+                      placeholder={t(
+                        "e.g. House near Wat Bo temple gate",
+                        "ឧ. ផ្ទះជិតច្រកចូលវត្តបូ"
+                      )}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--muted-foreground)]">
+                      {t(
+                        "Estimated Delivery Date",
+                        "កាលបរិច្ឆេទដឹកជញ្ជូនប៉ាន់ស្មាន"
+                      )}
+                    </label>
+
+                    <input
+                      type="date"
+                      value={trackingModal.scheduledAt}
+                      onChange={(e) =>
+                        setTrackingModal((m) => ({
+                          ...m,
+                          scheduledAt: e.target.value,
+                        }))
+                      }
+                      className="
+                        app-input
+                        mt-1
+                        w-full
+                        !rounded-none
+                        !border-0
+                        px-3
+                        py-2
+                        text-sm
+                        focus:outline-none
+                        focus:ring-2
+                        focus:ring-[var(--action)]
+                      "
+                    />
+                  </div>
+
+                  {trackingModal.error ? (
+                    <div className="bg-rose-500/10 p-3 text-xs text-rose-600 dark:text-rose-400">
+                      {trackingModal.error}
+                    </div>
+                  ) : null}
+
+                  {trackingModal.success ? (
+                    <div className="bg-emerald-500/10 p-3 text-xs text-emerald-600 dark:text-emerald-400">
+                      {trackingModal.success}
+                    </div>
+                  ) : null}
+
+                  <div className="grid w-full grid-cols-2 gap-3 pt-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        setTrackingModal((m) => ({
+                          ...m,
+                          open: false,
+                        }))
+                      }
+                      className="
+                        !min-h-10
+                        !w-full
+                        !min-w-0
+                        !rounded-none
+                        !border-0
+                        bg-[var(--surface-quiet)]
+                        px-3
+                        text-center
+                        text-[var(--foreground)]
+                        hover:bg-[var(--surface-hover)]
+                      "
+                    >
+                      {t("Cancel", "បោះបង់")}
+                    </Button>
+
+                    <Button
+                      type="submit"
+                      disabled={trackingModal.loading}
+                      className="
+                        !min-h-10
+                        !w-full
+                        !min-w-0
+                        !rounded-none
+                        !border-0
+                        px-3
+                        text-center
+                      "
+                    >
+                      {trackingModal.loading
+                        ? t(
+                          "Saving...",
+                          "កំពុងរក្សាទុក..."
+                        )
+                        : t(
+                          "Save Tracking",
+                          "រក្សាទុកការតាមដាន"
+                        )}
+                    </Button>
+                  </div>
+                </form>
+              </motion.div>
+            </div>
+          ) : null}
+        </AnimatePresence>
+      </div>
+
+      {/* Page-local scrollbar cleanup */}
+      <style jsx global>{`
+        .admin-order-management-page,
+        .admin-order-management-page * {
+          scrollbar-width: none;
+          -ms-overflow-style: none;
+        }
+
+        .admin-order-management-page::-webkit-scrollbar,
+        .admin-order-management-page *::-webkit-scrollbar {
+          display: none;
+          width: 0;
+          height: 0;
+        }
+
+        .admin-order-management-page {
+          overflow-x: hidden !important;
+        }
+
+        .admin-order-management-page * {
+          max-width: 100%;
+        }
+      `}</style>
+    </>
   );
 }
 
