@@ -101,7 +101,7 @@ function ToggleSwitch({ checked, onChange, label }) {
 function isVariantProduct(product) {
   return Boolean(
     product &&
-      (product.hasVariants || (product.isVariant && product.variants && product.variants.length > 0)),
+    (product.hasVariants || (product.isVariant && product.variants && product.variants.length > 0)),
   );
 }
 
@@ -1039,72 +1039,113 @@ function AdminProductCard({ product, store, onQuickEdit, onFullEdit, onDelete, o
 
 export function AdminProductManagementPageView() {
   const store = useAppStore();
+
+  const language = String(store.language || "en").toLowerCase();
+  const isKhmer =
+    language === "km" ||
+    language.startsWith("km-") ||
+    language.startsWith("kh");
+
+  const t = (english, khmer) => (isKhmer ? khmer : english);
+
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
   const [csvText, setCsvText] = useState("");
   const [csvMessage, setCsvMessage] = useState("");
   const [showCsvPanel, setShowCsvPanel] = useState(false);
+
   const [quickEdit, setQuickEdit] = useState(null);
   const [quickPrice, setQuickPrice] = useState("0");
   const [quickStock, setQuickStock] = useState("0");
   const [quickStatus, setQuickStatus] = useState("Active");
   const [quickImage, setQuickImage] = useState("");
+
   const [fullEdit, setFullEdit] = useState(null);
   const [fullSaving, setFullSaving] = useState(false);
   const [fullEditError, setFullEditError] = useState("");
+
   const editScanner = useCameraBarcodeScanner({
-    onDetected: (code) => setFullEdit((current) => (current ? { ...current, barcode: code } : current)),
+    onDetected: (code) =>
+      setFullEdit((current) =>
+        current ? { ...current, barcode: code } : current,
+      ),
   });
+
   const [restock, setRestock] = useState(null);
   const [restockAmount, setRestockAmount] = useState("10");
+
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+
   const [page, setPage] = useState(1);
+
   const PAGE_SIZE = 9;
 
   const products = useMemo(() => {
     const lower = query.trim().toLowerCase();
 
+    const matchesSearch = (value) =>
+      String(value ?? "").toLowerCase().includes(lower);
+
     let list = store.products.filter((product) => {
-      if (
-        lower &&
-        ![
-          product.name,
-          product.category,
-          product.sku,
-          product.barcode,
-          product.description,
-        ].some((value) => value?.toLowerCase().includes(lower)) &&
-        !(product.variants || []).some(
+      if (lower) {
+        const productMatches =
+          [
+            product.name,
+            product.category,
+            product.sku,
+            product.barcode,
+            product.description,
+          ].some(matchesSearch);
+
+        const variantMatches = (product.variants || []).some(
           (variant) =>
-            variant.sku?.toLowerCase().includes(lower) || variant.barcode?.toLowerCase().includes(lower)
-        )
-      ) {
-        return false;
+            matchesSearch(variant.sku) ||
+            matchesSearch(variant.barcode),
+        );
+
+        if (!productMatches && !variantMatches) {
+          return false;
+        }
       }
+
       if (statusFilter === "active" && !product.isActive) {
         return false;
       }
+
       if (statusFilter === "drafts" && product.isActive) {
         return false;
       }
-      if (statusFilter === "lowStock" && getProductTotalStock(product) > 8) {
+
+      if (
+        statusFilter === "lowStock" &&
+        getProductTotalStock(product) > 8
+      ) {
         return false;
       }
+
       return true;
     });
 
     list = [...list].sort((a, b) => {
       switch (sortBy) {
         case "az":
-          return a.name.localeCompare(b.name);
+          return String(a.name || "").localeCompare(
+            String(b.name || ""),
+          );
+
         case "priceLow":
           return getProductMinPrice(a) - getProductMinPrice(b);
+
         case "priceHigh":
           return getProductMinPrice(b) - getProductMinPrice(a);
+
         case "newest":
         default:
-          return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+          return (
+            new Date(b.createdAt || 0) -
+            new Date(a.createdAt || 0)
+          );
       }
     });
 
@@ -1115,32 +1156,68 @@ export function AdminProductManagementPageView() {
     setPage(1);
   }, [query, statusFilter, sortBy]);
 
-  const totalPages = Math.max(Math.ceil(products.length / PAGE_SIZE), 1);
+  const totalPages = Math.max(
+    Math.ceil(products.length / PAGE_SIZE),
+    1,
+  );
+
   const safePage = Math.min(page, totalPages);
-  const pageProducts = products.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
-  const startIndex = products.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1;
-  const endIndex = Math.min(safePage * PAGE_SIZE, products.length);
+
+  const pageProducts = products.slice(
+    (safePage - 1) * PAGE_SIZE,
+    safePage * PAGE_SIZE,
+  );
+
+  const startIndex =
+    products.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1;
+
+  const endIndex = Math.min(
+    safePage * PAGE_SIZE,
+    products.length,
+  );
 
   const pageNumbers = [];
-  for (let i = 1; i <= totalPages; i++) {
-    if (i === 1 || i === totalPages || Math.abs(i - safePage) <= 1) {
+
+  for (let i = 1; i <= totalPages; i += 1) {
+    if (
+      i === 1 ||
+      i === totalPages ||
+      Math.abs(i - safePage) <= 1
+    ) {
       pageNumbers.push(i);
-    } else if (pageNumbers[pageNumbers.length - 1] !== "...") {
+    } else if (
+      pageNumbers[pageNumbers.length - 1] !== "..."
+    ) {
       pageNumbers.push("...");
     }
   }
 
   const filterChips = [
-    { key: "all", label: `All Products (${store.products.length})` },
-    { key: "active", label: "Active" },
-    { key: "drafts", label: "Drafts" },
-    { key: "lowStock", label: "Low Stock" },
+    {
+      key: "all",
+      label: t(
+        `All Products (${store.products.length})`,
+        `ផលិតផលទាំងអស់ (${store.products.length})`,
+      ),
+    },
+    {
+      key: "active",
+      label: t("Active", "សកម្ម"),
+    },
+    {
+      key: "drafts",
+      label: t("Drafts", "ព្រាង"),
+    },
+    {
+      key: "lowStock",
+      label: t("Low Stock", "ស្តុកទាប"),
+    },
   ];
 
   function openQuickEdit(product) {
     setQuickEdit(product);
-    setQuickPrice(String(product.price));
-    setQuickStock(String(product.stock));
+    setQuickPrice(String(product.price ?? 0));
+    setQuickStock(String(product.stock ?? 0));
     setQuickStatus(product.isActive ? "Active" : "Draft");
     setQuickImage(product.image || "");
   }
@@ -1149,12 +1226,14 @@ export function AdminProductManagementPageView() {
     if (!quickEdit) {
       return;
     }
+
     store.updateProduct(quickEdit.id, {
-      price: Number(quickPrice) || 0,
-      stock: Number(quickStock) || 0,
+      price: Math.max(Number(quickPrice) || 0, 0),
+      stock: Math.max(Number(quickStock) || 0, 0),
       isActive: quickStatus === "Active",
       image: quickImage,
     });
+
     setQuickEdit(null);
   }
 
@@ -1168,11 +1247,14 @@ export function AdminProductManagementPageView() {
       description: product.description || "",
       image: product.image || "",
       price: String(product.price ?? 0),
-      discountPercent: String(product.discountPercent ?? 0),
+      discountPercent: String(
+        product.discountPercent ?? 0,
+      ),
       stock: String(product.stock ?? 0),
       minStockAlert: String(product.minStockAlert ?? 5),
       isActive: product.isActive ?? true,
     });
+
     setFullEditError("");
   }
 
@@ -1180,49 +1262,129 @@ export function AdminProductManagementPageView() {
     if (!fullEdit) {
       return;
     }
+
     setFullSaving(true);
+    setFullEditError("");
+
     try {
-      const result = await store.updateProduct(fullEdit.id, {
-        name: fullEdit.name,
-        category: fullEdit.category,
-        sku: fullEdit.sku,
-        barcode: fullEdit.barcode,
-        description: fullEdit.description,
-        image: fullEdit.image,
-        price: Number(fullEdit.price) || 0,
-        discountPercent: Number(fullEdit.discountPercent) || 0,
-        stock: Number(fullEdit.stock) || 0,
-        minStockAlert: Number(fullEdit.minStockAlert) || 5,
-        isActive: fullEdit.isActive,
-      });
+      const price = Math.max(
+        Number(fullEdit.price) || 0,
+        0,
+      );
+
+      const discountPercent = Math.min(
+        Math.max(Number(fullEdit.discountPercent) || 0, 0),
+        100,
+      );
+
+      const stock = Math.max(
+        Number(fullEdit.stock) || 0,
+        0,
+      );
+
+      const minStockAlert = Math.max(
+        Number(fullEdit.minStockAlert) || 0,
+        0,
+      );
+
+      const result = await store.updateProduct(
+        fullEdit.id,
+        {
+          name: fullEdit.name,
+          category: fullEdit.category,
+          sku: fullEdit.sku,
+          barcode: fullEdit.barcode,
+          description: fullEdit.description,
+          image: fullEdit.image,
+          price,
+          discountPercent,
+          stock,
+          minStockAlert,
+          isActive: fullEdit.isActive,
+        },
+      );
+
       if (result && result.ok === false) {
-        setFullEditError(result.error || "Unable to update product.");
+        setFullEditError(
+          result.error ||
+          t(
+            "Unable to update product.",
+            "មិនអាចធ្វើបច្ចុប្បន្នភាពផលិតផលបានទេ។",
+          ),
+        );
         return;
       }
+
       setFullEdit(null);
+    } catch (error) {
+      setFullEditError(
+        t(
+          "Unable to update product.",
+          "មិនអាចធ្វើបច្ចុប្បន្នភាពផលិតផលបានទេ។",
+        ),
+      );
     } finally {
       setFullSaving(false);
     }
   }
 
   async function handleImport() {
-    const result = await store.importProductsCsv(csvText);
-    setCsvMessage(result.message);
-    if (result.success) {
-      setCsvText("");
+    try {
+      const result = await store.importProductsCsv(csvText);
+
+      setCsvMessage(
+        result.message ||
+        t(
+          "Import completed.",
+          "ការនាំចូលបានបញ្ចប់។",
+        ),
+      );
+
+      if (result.success) {
+        setCsvText("");
+      }
+    } catch (error) {
+      setCsvMessage(
+        t(
+          "Unable to import products.",
+          "មិនអាចនាំចូលផលិតផលបានទេ។",
+        ),
+      );
     }
   }
 
   function handleCsvFile(event) {
     const file = event.target.files?.[0];
+
     if (!file) {
       return;
     }
-    file.text().then(setCsvText);
+
+    file
+      .text()
+      .then((text) => {
+        setCsvText(text);
+        setCsvMessage("");
+      })
+      .catch(() => {
+        setCsvMessage(
+          t(
+            "Unable to read the CSV file.",
+            "មិនអាចអានឯកសារ CSV បានទេ។",
+          ),
+        );
+      });
+  }
+
+  function escapeCsvValue(value) {
+    const text = String(value ?? "");
+    return `"${text.replace(/"/g, '""')}"`;
   }
 
   function handleExport() {
-    const header = "name,category,description,price,stock,imageUrl,discountPercent,isActive";
+    const header =
+      "name,category,description,price,stock,imageUrl,discountPercent,isActive";
+
     const rows = store.products.map((product) =>
       [
         product.name,
@@ -1233,22 +1395,49 @@ export function AdminProductManagementPageView() {
         product.image,
         product.discountPercent,
         product.isActive,
-      ].join(","),
+      ]
+        .map(escapeCsvValue)
+        .join(","),
     );
-    const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv;charset=utf-8;" });
+
+    const blob = new Blob(
+      [[header, ...rows].join("\n")],
+      {
+        type: "text/csv;charset=utf-8;",
+      },
+    );
+
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
+
     link.href = url;
     link.download = "products-export.csv";
+
+    document.body.appendChild(link);
     link.click();
-    URL.revokeObjectURL(url);
+    document.body.removeChild(link);
+
+    window.setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 0);
   }
 
   function confirmRestock() {
     if (!restock) {
       return;
     }
-    store.restockProduct(restock.id, Number(restockAmount) || 0);
+
+    const amount = Math.max(
+      Number(restockAmount) || 0,
+      0,
+    );
+
+    if (!amount) {
+      return;
+    }
+
+    store.restockProduct(restock.id, amount);
+
     setRestock(null);
     setRestockAmount("10");
   }
@@ -1257,501 +1446,914 @@ export function AdminProductManagementPageView() {
     if (!deleteConfirm) {
       return;
     }
+
     store.deleteProduct(deleteConfirm.id);
     setDeleteConfirm(null);
   }
 
   return (
-    <div className="space-y-8">
-      {/* Page Header */}
-      <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
-        <div>
-          <h1 className="text-4xl font-extrabold tracking-tight text-[var(--foreground)]">Product Management</h1>
-          <p className="mt-2 text-lg text-[var(--muted-foreground)]">Manage your premium organic inventory and catalog.</p>
-        </div>
-        <Link
-          href="/admin/add-product"
-          className="inline-flex items-center gap-3 rounded-full bg-[var(--action)] px-8 py-4 font-bold text-[var(--action-foreground)] shadow-lg shadow-[var(--action)]/20 transition-all hover:-translate-y-0.5 hover:shadow-xl active:scale-95"
-        >
-          <Plus className="size-5" />
-          Add New Product
-        </Link>
-      </div>
-
-      {/* Filter & Sort Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3 overflow-x-auto pb-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-          {filterChips.map((chip) => (
-            <button
-              key={chip.key}
-              type="button"
-              onClick={() => setStatusFilter(chip.key)}
-              className={cn(
-                "whitespace-nowrap rounded-full px-5 py-2 text-sm font-semibold transition-colors",
-                statusFilter === chip.key
-                  ? "bg-[var(--action)] text-[var(--action-foreground)]"
-                  : "bg-[var(--surface-quiet)] text-[var(--muted-foreground)] hover:bg-[var(--surface-quiet)]"
+    <div
+      className="mx-auto w-full min-w-0 max-w-[1440px] overflow-x-hidden px-3 py-4 sm:px-5 sm:py-6 lg:px-8 lg:py-8 [&_*]:rounded-none"
+    >
+      <div className="min-w-0 space-y-6">
+        {/* Page Header */}
+        <section className="flex min-w-0 flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="min-w-0">
+            <h1 className="break-words text-2xl font-extrabold tracking-tight text-[var(--foreground)] sm:text-3xl">
+              {t(
+                "Product Management",
+                "ការគ្រប់គ្រងផលិតផល",
               )}
-            >
-              {chip.label}
-            </button>
-          ))}
-          <div className="mx-2 h-6 w-px bg-[var(--surface-quiet)]/30" />
-          <button
-            type="button"
-            onClick={() => setShowCsvPanel((value) => !value)}
-            className="flex items-center gap-1 text-sm font-bold text-[var(--action)]"
-          >
-            <SlidersHorizontal className="size-4" />
-            Import / Export
-          </button>
-        </div>
+            </h1>
 
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search products..."
-              className="w-52 rounded-full border-none bg-[var(--surface-soft)] py-2 pl-10 pr-4 text-sm outline-none transition-all focus:ring-2 focus:ring-[var(--action)]"
-            />
+            <p className="mt-1 break-words text-sm text-[var(--muted-foreground)] sm:text-base">
+              {t(
+                "Manage your premium organic inventory and catalog.",
+                "គ្រប់គ្រងស្តុក និងកាតាឡុកផលិតផលរបស់អ្នក។",
+              )}
+            </p>
           </div>
-          <span className="text-sm font-medium text-[var(--muted-foreground)]">Sort by:</span>
-          <select
-            value={sortBy}
-            onChange={(event) => setSortBy(event.target.value)}
-            className="cursor-pointer rounded-full border-none bg-[var(--surface-soft)] px-4 py-2 text-sm font-semibold outline-none transition-all focus:ring-2 focus:ring-[var(--action)]"
-          >
-            <option value="newest">Newest first</option>
-            <option value="az">Alphabetical (A-Z)</option>
-            <option value="priceLow">Price (Low to High)</option>
-            <option value="priceHigh">Price (High to Low)</option>
-          </select>
-        </div>
-      </div>
 
-      {/* CSV Import / Export Panel (collapsible) */}
-      {showCsvPanel ? (
-        <div className="rounded-lg border border-[var(--border-strong)] bg-[var(--surface-strong)] p-6 shadow-[var(--shadow-card)]">
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold text-[var(--foreground)]">CSV import / export</h2>
-                <p className="mt-1 text-sm text-[var(--muted-foreground)]">Import products in bulk or export the current catalog.</p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <label className="inline-flex cursor-pointer items-center justify-center rounded-full border border-[var(--border-strong)] bg-[var(--surface-strong)] px-4 py-2 text-sm font-semibold text-[var(--foreground)]">
-                  Load CSV
-                  <input type="file" accept=".csv,text/csv" onChange={handleCsvFile} className="hidden" />
-                </label>
+          <Link
+            href="/admin/add-product"
+            className="inline-flex w-full shrink-0 items-center justify-center gap-2 bg-[var(--action)] px-5 py-2.5 text-sm font-bold text-[var(--action-foreground)] shadow-lg shadow-[var(--action)]/20 transition-all hover:-translate-y-0.5 hover:opacity-90 active:scale-[0.98] sm:w-auto"
+          >
+            <Plus className="size-4" />
+
+            {t(
+              "Add New Product",
+              "បន្ថែមផលិតផលថ្មី",
+            )}
+          </Link>
+        </section>
+
+        {/* Filter + Sort Toolbar */}
+        <section className="min-w-0 border-b border-[var(--border-soft)] pb-5">
+          <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            {/* Filter Chips */}
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:gap-2">
+              {filterChips.map((chip) => (
                 <button
+                  key={chip.key}
                   type="button"
-                  onClick={handleExport}
-                  className="rounded-full border border-[var(--border-strong)] bg-[var(--surface-strong)] px-4 py-2 text-sm font-semibold text-[var(--foreground)]"
+                  onClick={() =>
+                    setStatusFilter(chip.key)
+                  }
+                  className={cn(
+                    "max-w-full px-3.5 py-2 text-xs font-semibold transition-colors sm:px-4",
+                    statusFilter === chip.key
+                      ? "bg-[var(--action)] text-[var(--action-foreground)]"
+                      : "bg-[var(--surface-quiet)] text-[var(--muted-foreground)] hover:bg-[var(--surface-quiet)]",
+                  )}
                 >
-                  Export CSV
+                  <span className="break-words">
+                    {chip.label}
+                  </span>
                 </button>
-              </div>
-            </div>
-            <textarea
-              value={csvText}
-              onChange={(event) => setCsvText(event.target.value)}
-              placeholder="Paste product CSV here"
-              className="min-h-24 w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--action)]"
-            />
-            <div className="flex flex-wrap items-center gap-3">
+              ))}
+
+              <div className="mx-1 hidden h-6 w-px bg-[var(--surface-quiet)]/30 sm:block" />
+
               <button
                 type="button"
-                onClick={handleImport}
-                className="rounded-full bg-[var(--action)] px-6 py-2.5 text-sm font-bold text-[var(--action-foreground)] transition hover:opacity-90"
+                onClick={() =>
+                  setShowCsvPanel((value) => !value)
+                }
+                className="inline-flex min-w-0 items-center gap-1.5 px-2.5 py-2 text-xs font-bold text-[var(--action)] transition-colors hover:opacity-80"
               >
-                Import Products
+                <SlidersHorizontal className="size-3.5 shrink-0" />
+
+                <span className="break-words">
+                  {t(
+                    "Import / Export",
+                    "នាំចូល / នាំចេញ",
+                  )}
+                </span>
               </button>
-              {csvMessage ? <p className="text-sm text-[var(--muted-foreground)]">{csvMessage}</p> : null}
             </div>
-          </div>
-        </div>
-      ) : null}
 
-      {/* Product Grid */}
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-        {pageProducts.map((product) => (
-          <AdminProductCard
-            key={product.id}
-            product={product}
-            store={store}
-            onQuickEdit={openQuickEdit}
-            onFullEdit={openFullEdit}
-            onDelete={setDeleteConfirm}
-            onRestock={setRestock}
-          />
-        ))}
+            {/* Search + Sort */}
+            <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] lg:w-auto lg:min-w-[28rem]">
+              <div className="relative min-w-0">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
 
-        {/* Add New Product Empty State Card */}
-        <Link
-          href="/admin/add-product"
-          className="group flex min-h-[400px] flex-col items-center justify-center rounded-lg border-2 border-dashed border-[var(--border-strong)] p-8 transition-all hover:border-[var(--action)]/40 hover:bg-[var(--surface-soft)]"
-        >
-          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--action-surface)] text-[var(--action-on-muted)] transition-transform group-hover:scale-110">
-            <Plus className="size-8" />
-          </div>
-          <span className="text-xl font-bold text-[var(--foreground)]">Add New Product</span>
-          <p className="mt-2 max-w-[200px] text-center text-sm text-[var(--muted-foreground)]">
-            Click to create a new entry in your organic catalog.
-          </p>
-        </Link>
-      </div>
-
-      {/* Pagination */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-[var(--border-soft)] pt-8">
-        <span className="text-sm text-[var(--muted-foreground)]">
-          Showing {startIndex} to {endIndex} of {products.length} products
-        </span>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setPage(Math.max(safePage - 1, 1))}
-            disabled={safePage <= 1}
-            className="rounded-full p-2 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface-quiet)] disabled:opacity-30"
-            aria-label="Previous page"
-          >
-            <ChevronLeft className="size-4" />
-          </button>
-          {pageNumbers.map((number, index) =>
-            number === "..." ? (
-              <span key={`ellipsis-${index}`} className="text-[var(--muted-foreground)]">
-                ...
-              </span>
-            ) : (
-              <button
-                key={number}
-                type="button"
-                onClick={() => setPage(number)}
-                className={cn(
-                  "h-8 w-8 rounded-full text-sm font-bold transition-colors",
-                  safePage === number
-                    ? "bg-[var(--action)] text-[var(--action-foreground)]"
-                    : "text-[var(--muted-foreground)] hover:bg-[var(--surface-quiet)]"
-                )}
-              >
-                {number}
-              </button>
-            ),
-          )}
-          <button
-            type="button"
-            onClick={() => setPage(Math.min(safePage + 1, totalPages))}
-            disabled={safePage >= totalPages}
-            className="rounded-full p-2 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface-quiet)] disabled:opacity-30"
-            aria-label="Next page"
-          >
-            <ChevronRight className="size-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* Quick Edit Modal */}
-      {quickEdit ? (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setQuickEdit(null)} />
-          <div className="relative w-full max-w-md rounded-lg border border-[var(--border-soft)] bg-[var(--surface-strong)] p-6 shadow-[var(--shadow-strong)]">
-            <h2 className="mb-6 text-2xl font-bold text-[var(--foreground)]">Quick Edit</h2>
-            <div className="space-y-4">
-              <ProductImageEditor image={quickImage} onImageChange={setQuickImage} store={store} />
-              <div>
-                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Price (USD)</label>
                 <input
-                  value={quickPrice}
-                  onChange={(event) => setQuickPrice(event.target.value)}
-                  type="number"
-                  className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
+                  value={query}
+                  onChange={(event) =>
+                    setQuery(event.target.value)
+                  }
+                  placeholder={t(
+                    "Search products...",
+                    "ស្វែងរកផលិតផល...",
+                  )}
+                  className="h-9 w-full min-w-0 border-none bg-[var(--surface-soft)] py-2 pl-10 pr-4 text-xs font-medium text-[var(--foreground)] outline-none transition-all focus:ring-2 focus:ring-[var(--action)]"
                 />
               </div>
-              <div>
-                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Stock Level</label>
-                <input
-                  value={quickStock}
-                  onChange={(event) => setQuickStock(event.target.value)}
-                  type="number"
-                  className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
-                />
+
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="shrink-0 text-xs font-medium text-[var(--muted-foreground)]">
+                  {t("Sort by:", "តម្រៀបតាម៖")}
+                </span>
+
+                <select
+                  value={sortBy}
+                  onChange={(event) =>
+                    setSortBy(event.target.value)
+                  }
+                  className="h-9 min-w-0 flex-1 cursor-pointer border-none bg-[var(--surface-soft)] px-3 py-2 text-xs font-semibold text-[var(--foreground)] outline-none transition-all focus:ring-2 focus:ring-[var(--action)] sm:w-auto sm:flex-none"
+                >
+                  <option value="newest">
+                    {t(
+                      "Newest first",
+                      "ថ្មីបំផុតមុន",
+                    )}
+                  </option>
+
+                  <option value="az">
+                    {t(
+                      "Alphabetical (A-Z)",
+                      "តាមអក្ខរក្រម (A-Z)",
+                    )}
+                  </option>
+
+                  <option value="priceLow">
+                    {t(
+                      "Price (Low to High)",
+                      "តម្លៃ (ទាបទៅខ្ពស់)",
+                    )}
+                  </option>
+
+                  <option value="priceHigh">
+                    {t(
+                      "Price (High to Low)",
+                      "តម្លៃ (ខ្ពស់ទៅទាប)",
+                    )}
+                  </option>
+                </select>
               </div>
-              <div>
-                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Status</label>
-                <AppSelect
-                  value={quickStatus}
-                  onChange={setQuickStatus}
-                  options={["Active", "Draft", "Archived"]}
-                  aria-label="Product status"
-                  className="w-full"
-                />
-              </div>
-            </div>
-            <div className="mt-8 flex gap-3">
-              <button
-                type="button"
-                onClick={() => setQuickEdit(null)}
-                className="flex-1 rounded-xl bg-[var(--surface-quiet)] py-3 font-bold text-[var(--foreground)] transition-colors hover:bg-[var(--surface-quiet)]"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={saveQuickEdit}
-                className="flex-1 rounded-xl bg-[var(--action)] py-3 font-bold text-[var(--action-foreground)] shadow-lg shadow-[var(--action)]/20 transition-colors hover:opacity-90"
-              >
-                Save Changes
-              </button>
             </div>
           </div>
-        </div>
-      ) : null}
+        </section>
 
-      {/* Full Edit Modal */}
-      {fullEdit ? (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setFullEdit(null)} />
-          <div className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-[var(--border-soft)] bg-[var(--surface-strong)] p-6 shadow-[var(--shadow-strong)]">
-            <h2 className="mb-6 text-2xl font-bold text-[var(--foreground)]">Full Edit</h2>
-            {fullEditError ? (
-              <div className="mb-4 rounded-xl bg-[#fa746f]/20 px-4 py-3 text-sm font-semibold text-[#6e0a12]">
-                {fullEditError}
-              </div>
-            ) : null}
-            <BarcodeScannerModal
-              open={editScanner.open}
-              status={editScanner.status}
-              errorMessage={editScanner.errorMessage}
-              videoRef={editScanner.videoRef}
-              onClose={editScanner.close}
-              onRetry={editScanner.retry}
-              torchSupported={editScanner.torchSupported}
-              torchOn={editScanner.torchOn}
-              onToggleTorch={editScanner.toggleTorch}
-              onToggleCameraFacing={editScanner.toggleCameraFacing}
-            />
-            <div className="space-y-4">
-              <ProductImageEditor
-                image={fullEdit.image}
-                onImageChange={(value) => setFullEdit((current) => ({ ...current, image: value }))}
-                store={store}
-              />
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Product Name</label>
-                  <input
-                    value={fullEdit.name}
-                    onChange={(event) => setFullEdit((current) => ({ ...current, name: event.target.value }))}
-                    className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
-                  />
+        {/* CSV Import / Export */}
+        {showCsvPanel ? (
+          <section className="min-w-0 border border-[var(--border-strong)] bg-[var(--surface-strong)] p-4 shadow-[var(--shadow-card)] sm:p-5 lg:p-6">
+            <div className="min-w-0 space-y-4">
+              <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <h2 className="break-words text-base font-semibold text-[var(--foreground)] sm:text-lg">
+                    {t(
+                      "CSV import / export",
+                      "នាំចូល / នាំចេញ CSV",
+                    )}
+                  </h2>
+
+                  <p className="mt-1 break-words text-xs text-[var(--muted-foreground)] sm:text-sm">
+                    {t(
+                      "Import products in bulk or export the current catalog.",
+                      "នាំចូលផលិតផលជាច្រើនក្នុងពេលតែមួយ ឬនាំចេញកាតាឡុកបច្ចុប្បន្ន។",
+                    )}
+                  </p>
                 </div>
-                <div>
-                  <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Category</label>
-                  <AppSelect
-                    value={fullEdit.category}
-                    onChange={(value) => setFullEdit((current) => ({ ...current, category: value }))}
-                    options={PRODUCT_CATEGORY_OPTIONS}
-                    aria-label="Product category"
-                    className="w-full"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">SKU</label>
-                <input
-                  value={fullEdit.sku}
-                  onChange={(event) => setFullEdit((current) => ({ ...current, sku: event.target.value }))}
-                  placeholder="ATR-VEG-001"
-                  className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Barcode</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    value={fullEdit.barcode}
-                    onChange={(event) => setFullEdit((current) => ({ ...current, barcode: event.target.value }))}
-                    placeholder="Scan or enter barcode (e.g. 8850001234567)"
-                    inputMode="text"
-                    autoComplete="off"
-                    className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 tracking-wider focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
-                  />
+
+                <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
+                  <label className="inline-flex min-w-0 cursor-pointer items-center justify-center bg-[var(--surface-strong)] px-4 py-2 text-xs font-semibold text-[var(--foreground)] transition-colors hover:bg-[var(--surface-soft)] sm:text-sm">
+                    {t(
+                      "Load CSV",
+                      "បញ្ចូល CSV",
+                    )}
+
+                    <input
+                      type="file"
+                      accept=".csv,text/csv"
+                      onChange={handleCsvFile}
+                      className="hidden"
+                    />
+                  </label>
+
                   <button
                     type="button"
-                    onClick={editScanner.openScanner}
-                    className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[var(--action)] px-4 py-3 text-xs font-extrabold text-[var(--action-foreground)] transition-all hover:opacity-90 active:scale-[0.98]"
+                    onClick={handleExport}
+                    className="inline-flex min-w-0 items-center justify-center bg-[var(--surface-strong)] px-4 py-2 text-xs font-semibold text-[var(--foreground)] transition-colors hover:bg-[var(--surface-soft)] sm:text-sm"
                   >
-                    <ScanLine className="size-4" />
-                    Scan
+                    {t(
+                      "Export CSV",
+                      "នាំចេញ CSV",
+                    )}
                   </button>
                 </div>
               </div>
-              <div>
-                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Description</label>
-                <textarea
-                  value={fullEdit.description}
-                  onChange={(event) => setFullEdit((current) => ({ ...current, description: event.target.value }))}
-                  rows={3}
-                  className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
-                />
+
+              <textarea
+                value={csvText}
+                onChange={(event) =>
+                  setCsvText(event.target.value)
+                }
+                placeholder={t(
+                  "Paste product CSV here",
+                  "បិទភ្ជាប់ CSV ផលិតផលនៅទីនេះ",
+                )}
+                className="min-h-28 w-full min-w-0 resize-y border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 text-xs text-[var(--foreground)] outline-none transition focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)] sm:text-sm"
+              />
+
+              <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
+                <button
+                  type="button"
+                  onClick={handleImport}
+                  className="inline-flex items-center justify-center bg-[var(--action)] px-5 py-2.5 text-xs font-bold text-[var(--action-foreground)] transition hover:opacity-90 sm:w-auto sm:text-sm"
+                >
+                  {t(
+                    "Import Products",
+                    "នាំចូលផលិតផល",
+                  )}
+                </button>
+
+                {csvMessage ? (
+                  <p className="min-w-0 break-words text-xs text-[var(--muted-foreground)] sm:text-sm">
+                    {csvMessage}
+                  </p>
+                ) : null}
               </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            </div>
+          </section>
+        ) : null}
+
+        {/* Product Grid */}
+        <section className="min-w-0">
+          <div className="grid min-w-0 grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3 lg:gap-6">
+            {pageProducts.map((product) => (
+              <AdminProductCard
+                key={product.id}
+                product={product}
+                store={store}
+                onQuickEdit={openQuickEdit}
+                onFullEdit={openFullEdit}
+                onDelete={setDeleteConfirm}
+                onRestock={setRestock}
+              />
+            ))}
+
+            {/* Add New Product */}
+            <Link
+              href="/admin/add-product"
+              className="group flex min-h-[360px] min-w-0 flex-col items-center justify-center border-2 border-dashed border-[var(--border-strong)] p-6 text-center transition-all hover:border-[var(--action)]/40 hover:bg-[var(--surface-soft)] sm:min-h-[400px] sm:p-8"
+            >
+              <div className="mb-4 flex h-16 w-16 items-center justify-center bg-[var(--action-surface)] text-[var(--action-on-muted)] transition-transform group-hover:scale-110">
+                <Plus className="size-8" />
+              </div>
+
+              <span className="break-words text-lg font-bold text-[var(--foreground)] sm:text-xl">
+                {t(
+                  "Add New Product",
+                  "បន្ថែមផលិតផលថ្មី",
+                )}
+              </span>
+
+              <p className="mt-2 max-w-[240px] break-words text-xs text-[var(--muted-foreground)] sm:text-sm">
+                {t(
+                  "Click to create a new entry in your organic catalog.",
+                  "ចុចដើម្បីបង្កើតផលិតផលថ្មីនៅក្នុងកាតាឡុករបស់អ្នក។",
+                )}
+              </p>
+            </Link>
+          </div>
+        </section>
+
+        {/* Pagination */}
+        <section className="min-w-0 border-t border-[var(--border-soft)] pt-5">
+          <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <span className="min-w-0 break-words text-xs text-[var(--muted-foreground)] sm:text-sm">
+              {t(
+                `Showing ${startIndex} to ${endIndex} of ${products.length} products`,
+                `បង្ហាញពី ${startIndex} ដល់ ${endIndex} នៃផលិតផល ${products.length}`,
+              )}
+            </span>
+
+            <div className="flex min-w-0 flex-wrap items-center gap-1">
+              <button
+                type="button"
+                onClick={() =>
+                  setPage(Math.max(safePage - 1, 1))
+                }
+                disabled={safePage <= 1}
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface-quiet)] disabled:opacity-30"
+                aria-label={t(
+                  "Previous page",
+                  "ទំព័រមុន",
+                )}
+              >
+                <ChevronLeft className="size-4" />
+              </button>
+
+              {pageNumbers.map((number, index) =>
+                number === "..." ? (
+                  <span
+                    key={`ellipsis-${index}`}
+                    className="px-1.5 text-xs text-[var(--muted-foreground)]"
+                  >
+                    ...
+                  </span>
+                ) : (
+                  <button
+                    key={number}
+                    type="button"
+                    onClick={() => setPage(number)}
+                    className={cn(
+                      "inline-flex h-8 w-8 shrink-0 items-center justify-center text-xs font-bold transition-colors",
+                      safePage === number
+                        ? "bg-[var(--action)] text-[var(--action-foreground)]"
+                        : "text-[var(--muted-foreground)] hover:bg-[var(--surface-quiet)]",
+                    )}
+                  >
+                    {number}
+                  </button>
+                ),
+              )}
+
+              <button
+                type="button"
+                onClick={() =>
+                  setPage(
+                    Math.min(
+                      safePage + 1,
+                      totalPages,
+                    ),
+                  )
+                }
+                disabled={safePage >= totalPages}
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface-quiet)] disabled:opacity-30"
+                aria-label={t(
+                  "Next page",
+                  "ទំព័របន្ទាប់",
+                )}
+              >
+                <ChevronRight className="size-4" />
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* Quick Edit Modal */}
+        {quickEdit ? (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-x-hidden overflow-y-auto p-3 sm:p-4">
+            <div
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => setQuickEdit(null)}
+            />
+
+            <div className="relative my-auto max-h-[92vh] w-full min-w-0 max-w-md overflow-x-hidden overflow-y-auto border border-[var(--border-soft)] bg-[var(--surface-strong)] p-4 shadow-[var(--shadow-strong)] sm:p-6">
+              <h2 className="mb-5 break-words text-xl font-bold text-[var(--foreground)] sm:text-2xl">
+                {t("Quick Edit", "កែសម្រួលរហ័ស")}
+              </h2>
+
+              <div className="space-y-4">
+                <ProductImageEditor
+                  image={quickImage}
+                  onImageChange={setQuickImage}
+                  store={store}
+                />
+
                 <div>
-                  <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Price (USD)</label>
+                  <label className="mb-2 block break-words text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+                    {t(
+                      "Price (USD)",
+                      "តម្លៃ (USD)",
+                    )}
+                  </label>
+
                   <input
-                    value={fullEdit.price}
-                    onChange={(event) => setFullEdit((current) => ({ ...current, price: event.target.value }))}
+                    value={quickPrice}
+                    onChange={(event) =>
+                      setQuickPrice(event.target.value)
+                    }
                     type="number"
                     min="0"
                     step="0.01"
-                    className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
+                    className="w-full min-w-0 border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 text-sm text-[var(--foreground)] outline-none focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
                   />
                 </div>
+
                 <div>
-                  <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Discount %</label>
+                  <label className="mb-2 block break-words text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+                    {t(
+                      "Stock Level",
+                      "កម្រិតស្តុក",
+                    )}
+                  </label>
+
                   <input
-                    value={fullEdit.discountPercent}
-                    onChange={(event) => setFullEdit((current) => ({ ...current, discountPercent: event.target.value }))}
+                    value={quickStock}
+                    onChange={(event) =>
+                      setQuickStock(event.target.value)
+                    }
                     type="number"
                     min="0"
-                    max="100"
-                    step="1"
-                    className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
+                    className="w-full min-w-0 border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 text-sm text-[var(--foreground)] outline-none focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
                   />
                 </div>
+
                 <div>
-                  <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Stock</label>
-                  <input
-                    value={fullEdit.stock}
-                    onChange={(event) => setFullEdit((current) => ({ ...current, stock: event.target.value }))}
-                    type="number"
-                    min="0"
-                    className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Low Stock Alert</label>
-                  <input
-                    value={fullEdit.minStockAlert}
-                    onChange={(event) => setFullEdit((current) => ({ ...current, minStockAlert: event.target.value }))}
-                    type="number"
-                    min="0"
-                    className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
-                  />
-                </div>
-                <div>
-                  <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Status</label>
+                  <label className="mb-2 block break-words text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+                    {t("Status", "ស្ថានភាព")}
+                  </label>
+
                   <AppSelect
-                    value={fullEdit.isActive ? "Active" : "Draft"}
-                    onChange={(value) => setFullEdit((current) => ({ ...current, isActive: value === "Active" }))}
-                    options={["Active", "Draft"]}
-                    aria-label="Product status"
+                    value={quickStatus}
+                    onChange={setQuickStatus}
+                    options={["Active", "Draft", "Archived"]}
+                    aria-label={t(
+                      "Product status",
+                      "ស្ថានភាពផលិតផល",
+                    )}
                     className="w-full"
                   />
                 </div>
               </div>
-            </div>
-            <div className="mt-8 flex gap-3">
-              <button
-                type="button"
-                onClick={() => setFullEdit(null)}
-                className="flex-1 rounded-xl bg-[var(--surface-quiet)] py-3 font-bold text-[var(--foreground)] transition-colors hover:bg-[var(--surface-quiet)]"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={saveFullEdit}
-                disabled={fullSaving}
-                className="flex-1 rounded-xl bg-[var(--action)] py-3 font-bold text-[var(--action-foreground)] shadow-lg shadow-[var(--action)]/20 transition-colors hover:opacity-90 disabled:opacity-50"
-              >
-                {fullSaving ? "Saving..." : "Save Changes"}
-              </button>
+
+              <div className="mt-7 grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setQuickEdit(null)}
+                  className="min-w-0 bg-[var(--surface-quiet)] px-4 py-3 text-sm font-bold text-[var(--foreground)] transition-colors hover:opacity-90"
+                >
+                  {t("Cancel", "បោះបង់")}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={saveQuickEdit}
+                  className="min-w-0 bg-[var(--action)] px-4 py-3 text-sm font-bold text-[var(--action-foreground)] shadow-lg shadow-[var(--action)]/20 transition-colors hover:opacity-90"
+                >
+                  {t(
+                    "Save Changes",
+                    "រក្សាទុកការកែប្រែ",
+                  )}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
 
-      {/* Restock Modal */}
-      {restock ? (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setRestock(null)} />
-          <div className="relative w-full max-w-md rounded-lg border border-[var(--border-soft)] bg-[var(--surface-strong)] p-6 shadow-[var(--shadow-strong)]">
-            <h2 className="mb-2 text-2xl font-bold text-[var(--foreground)]">Restock</h2>
-            <p className="text-sm text-[var(--muted-foreground)]">Add stock to {restock.name}</p>
-            <div className="mt-6 space-y-4">
-              <div>
-                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Quantity to add</label>
-                <input
-                  value={restockAmount}
-                  onChange={(event) => setRestockAmount(event.target.value)}
-                  type="number"
-                  min="1"
-                  className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
+        {/* Full Edit Modal */}
+        {fullEdit ? (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-x-hidden overflow-y-auto p-3 sm:p-4">
+            <div
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => setFullEdit(null)}
+            />
+
+            <div className="relative my-auto max-h-[92vh] w-full min-w-0 max-w-2xl overflow-x-hidden overflow-y-auto border border-[var(--border-soft)] bg-[var(--surface-strong)] p-4 shadow-[var(--shadow-strong)] sm:p-6">
+              <h2 className="mb-5 break-words text-xl font-bold text-[var(--foreground)] sm:text-2xl">
+                {t("Full Edit", "កែសម្រួលពេញលេញ")}
+              </h2>
+
+              {fullEditError ? (
+                <div className="mb-4 break-words bg-[#fa746f]/20 px-4 py-3 text-sm font-semibold text-[#6e0a12]">
+                  {fullEditError}
+                </div>
+              ) : null}
+
+              <BarcodeScannerModal
+                open={editScanner.open}
+                status={editScanner.status}
+                errorMessage={editScanner.errorMessage}
+                videoRef={editScanner.videoRef}
+                onClose={editScanner.close}
+                onRetry={editScanner.retry}
+                torchSupported={editScanner.torchSupported}
+                torchOn={editScanner.torchOn}
+                onToggleTorch={editScanner.toggleTorch}
+                onToggleCameraFacing={
+                  editScanner.toggleCameraFacing
+                }
+              />
+
+              <div className="space-y-4">
+                <ProductImageEditor
+                  image={fullEdit.image}
+                  onImageChange={(value) =>
+                    setFullEdit((current) => ({
+                      ...current,
+                      image: value,
+                    }))
+                  }
+                  store={store}
                 />
-              </div>
-              <div className="flex gap-2">
-                {[5, 10, 20].map((amount) => (
-                  <button
-                    key={amount}
-                    type="button"
-                    onClick={() => setRestockAmount(String(amount))}
-                    className="rounded-full bg-[var(--surface-quiet)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] transition-colors hover:bg-[var(--surface-quiet)]"
-                  >
-                    +{amount}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="mt-8 flex gap-3">
-              <button
-                type="button"
-                onClick={() => setRestock(null)}
-                className="flex-1 rounded-xl bg-[var(--surface-quiet)] py-3 font-bold text-[var(--foreground)] transition-colors hover:bg-[var(--surface-quiet)]"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={confirmRestock}
-                className="flex-1 rounded-xl bg-[var(--action)] py-3 font-bold text-[var(--action-foreground)] shadow-lg shadow-[var(--action)]/20 transition-colors hover:opacity-90"
-              >
-                Restock
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
 
-      {/* Delete Confirm Modal */}
-      {deleteConfirm ? (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setDeleteConfirm(null)} />
-          <div className="relative w-full max-w-md rounded-lg border border-[var(--border-soft)] bg-[var(--surface-strong)] p-6 shadow-[var(--shadow-strong)]">
-            <h2 className="mb-2 text-2xl font-bold text-[var(--foreground)]">Delete product?</h2>
-            <p className="text-sm text-[var(--muted-foreground)]">This will remove &quot;{deleteConfirm.name}&quot; from the catalog.</p>
-            <div className="mt-8 flex gap-3">
-              <button
-                type="button"
-                onClick={() => setDeleteConfirm(null)}
-                className="flex-1 rounded-xl bg-[var(--surface-quiet)] py-3 font-bold text-[var(--foreground)] transition-colors hover:bg-[var(--surface-quiet)]"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={confirmDelete}
-                className="flex-1 rounded-xl bg-[#a83836] py-3 font-bold text-[#fff7f6] shadow-lg shadow-[#a83836]/20 transition-colors hover:opacity-90"
-              >
-                Delete
-              </button>
+                <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="min-w-0">
+                    <label className="mb-2 block break-words text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+                      {t(
+                        "Product Name",
+                        "ឈ្មោះផលិតផល",
+                      )}
+                    </label>
+
+                    <input
+                      value={fullEdit.name}
+                      onChange={(event) =>
+                        setFullEdit((current) => ({
+                          ...current,
+                          name: event.target.value,
+                        }))
+                      }
+                      className="w-full min-w-0 border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 text-sm text-[var(--foreground)] outline-none focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
+                    />
+                  </div>
+
+                  <div className="min-w-0">
+                    <label className="mb-2 block break-words text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+                      {t(
+                        "Category",
+                        "ប្រភេទ",
+                      )}
+                    </label>
+
+                    <AppSelect
+                      value={fullEdit.category}
+                      onChange={(value) =>
+                        setFullEdit((current) => ({
+                          ...current,
+                          category: value,
+                        }))
+                      }
+                      options={PRODUCT_CATEGORY_OPTIONS}
+                      aria-label={t(
+                        "Product category",
+                        "ប្រភេទផលិតផល",
+                      )}
+                      className="w-full"
+                    />
+                  </div>
+                </div>
+
+                <div className="min-w-0">
+                  <label className="mb-2 block break-words text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+                    SKU
+                  </label>
+
+                  <input
+                    value={fullEdit.sku}
+                    onChange={(event) =>
+                      setFullEdit((current) => ({
+                        ...current,
+                        sku: event.target.value,
+                      }))
+                    }
+                    placeholder="ATR-VEG-001"
+                    className="w-full min-w-0 border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 text-sm text-[var(--foreground)] outline-none focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
+                  />
+                </div>
+
+                <div className="min-w-0">
+                  <label className="mb-2 block break-words text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+                    {t(
+                      "Barcode",
+                      "បាកូដ",
+                    )}
+                  </label>
+
+                  <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
+                    <input
+                      value={fullEdit.barcode}
+                      onChange={(event) =>
+                        setFullEdit((current) => ({
+                          ...current,
+                          barcode: event.target.value,
+                        }))
+                      }
+                      placeholder={t(
+                        "Scan or enter barcode (e.g. 8850001234567)",
+                        "ស្កេន ឬបញ្ចូលបាកូដ",
+                      )}
+                      inputMode="text"
+                      autoComplete="off"
+                      className="w-full min-w-0 border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 text-sm tracking-wider text-[var(--foreground)] outline-none focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={editScanner.openScanner}
+                      className="inline-flex shrink-0 items-center justify-center gap-1.5 bg-[var(--action)] px-4 py-3 text-xs font-extrabold text-[var(--action-foreground)] transition-all hover:opacity-90 active:scale-[0.98]"
+                    >
+                      <ScanLine className="size-4" />
+
+                      {t(
+                        "Scan",
+                        "ស្កេន",
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="min-w-0">
+                  <label className="mb-2 block break-words text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+                    {t(
+                      "Description",
+                      "ពិពណ៌នា",
+                    )}
+                  </label>
+
+                  <textarea
+                    value={fullEdit.description}
+                    onChange={(event) =>
+                      setFullEdit((current) => ({
+                        ...current,
+                        description: event.target.value,
+                      }))
+                    }
+                    rows={3}
+                    className="w-full min-w-0 resize-y border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 text-sm text-[var(--foreground)] outline-none focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
+                  />
+                </div>
+
+                <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div className="min-w-0">
+                    <label className="mb-2 block break-words text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+                      {t(
+                        "Price (USD)",
+                        "តម្លៃ (USD)",
+                      )}
+                    </label>
+
+                    <input
+                      value={fullEdit.price}
+                      onChange={(event) =>
+                        setFullEdit((current) => ({
+                          ...current,
+                          price: event.target.value,
+                        }))
+                      }
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="w-full min-w-0 border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 text-sm text-[var(--foreground)] outline-none focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
+                    />
+                  </div>
+
+                  <div className="min-w-0">
+                    <label className="mb-2 block break-words text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+                      {t(
+                        "Discount %",
+                        "បញ្ចុះតម្លៃ %",
+                      )}
+                    </label>
+
+                    <input
+                      value={fullEdit.discountPercent}
+                      onChange={(event) =>
+                        setFullEdit((current) => ({
+                          ...current,
+                          discountPercent:
+                            event.target.value,
+                        }))
+                      }
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      className="w-full min-w-0 border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 text-sm text-[var(--foreground)] outline-none focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
+                    />
+                  </div>
+
+                  <div className="min-w-0">
+                    <label className="mb-2 block break-words text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+                      {t(
+                        "Stock",
+                        "ស្តុក",
+                      )}
+                    </label>
+
+                    <input
+                      value={fullEdit.stock}
+                      onChange={(event) =>
+                        setFullEdit((current) => ({
+                          ...current,
+                          stock: event.target.value,
+                        }))
+                      }
+                      type="number"
+                      min="0"
+                      className="w-full min-w-0 border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 text-sm text-[var(--foreground)] outline-none focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="min-w-0">
+                    <label className="mb-2 block break-words text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+                      {t(
+                        "Low Stock Alert",
+                        "ការជូនដំណឹងស្តុកទាប",
+                      )}
+                    </label>
+
+                    <input
+                      value={fullEdit.minStockAlert}
+                      onChange={(event) =>
+                        setFullEdit((current) => ({
+                          ...current,
+                          minStockAlert:
+                            event.target.value,
+                        }))
+                      }
+                      type="number"
+                      min="0"
+                      className="w-full min-w-0 border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 text-sm text-[var(--foreground)] outline-none focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
+                    />
+                  </div>
+
+                  <div className="min-w-0">
+                    <label className="mb-2 block break-words text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+                      {t(
+                        "Status",
+                        "ស្ថានភាព",
+                      )}
+                    </label>
+
+                    <AppSelect
+                      value={
+                        fullEdit.isActive
+                          ? "Active"
+                          : "Draft"
+                      }
+                      onChange={(value) =>
+                        setFullEdit((current) => ({
+                          ...current,
+                          isActive:
+                            value === "Active",
+                        }))
+                      }
+                      options={["Active", "Draft"]}
+                      aria-label={t(
+                        "Product status",
+                        "ស្ថានភាពផលិតផល",
+                      )}
+                      className="w-full"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-7 grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setFullEdit(null)}
+                  className="min-w-0 bg-[var(--surface-quiet)] px-4 py-3 text-sm font-bold text-[var(--foreground)] transition-colors hover:opacity-90"
+                >
+                  {t("Cancel", "បោះបង់")}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={saveFullEdit}
+                  disabled={fullSaving}
+                  className="min-w-0 bg-[var(--action)] px-4 py-3 text-sm font-bold text-[var(--action-foreground)] shadow-lg shadow-[var(--action)]/20 transition-colors hover:opacity-90 disabled:opacity-50"
+                >
+                  {fullSaving
+                    ? t(
+                      "Saving...",
+                      "កំពុងរក្សាទុក...",
+                    )
+                    : t(
+                      "Save Changes",
+                      "រក្សាទុកការកែប្រែ",
+                    )}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+
+        {/* Restock Modal */}
+        {restock ? (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-x-hidden overflow-y-auto p-3 sm:p-4">
+            <div
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => setRestock(null)}
+            />
+
+            <div className="relative my-auto w-full min-w-0 max-w-md border border-[var(--border-soft)] bg-[var(--surface-strong)] p-4 shadow-[var(--shadow-strong)] sm:p-6">
+              <h2 className="break-words text-xl font-bold text-[var(--foreground)] sm:text-2xl">
+                {t("Restock", "បន្ថែមស្តុក")}
+              </h2>
+
+              <p className="mt-1 break-words text-sm text-[var(--muted-foreground)]">
+                {t(
+                  `Add stock to ${restock.name}`,
+                  `បន្ថែមស្តុកទៅ ${restock.name}`,
+                )}
+              </p>
+
+              <div className="mt-6 space-y-4">
+                <div>
+                  <label className="mb-2 block break-words text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+                    {t(
+                      "Quantity to add",
+                      "ចំនួនដែលត្រូវបន្ថែម",
+                    )}
+                  </label>
+
+                  <input
+                    value={restockAmount}
+                    onChange={(event) =>
+                      setRestockAmount(
+                        event.target.value,
+                      )
+                    }
+                    type="number"
+                    min="1"
+                    className="w-full min-w-0 border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 text-sm text-[var(--foreground)] outline-none focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
+                  />
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {[5, 10, 20].map((amount) => (
+                    <button
+                      key={amount}
+                      type="button"
+                      onClick={() =>
+                        setRestockAmount(
+                          String(amount),
+                        )
+                      }
+                      className="bg-[var(--surface-quiet)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] transition-colors hover:opacity-90"
+                    >
+                      +{amount}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-7 grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setRestock(null)}
+                  className="min-w-0 bg-[var(--surface-quiet)] px-4 py-3 text-sm font-bold text-[var(--foreground)] transition-colors hover:opacity-90"
+                >
+                  {t("Cancel", "បោះបង់")}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={confirmRestock}
+                  className="min-w-0 bg-[var(--action)] px-4 py-3 text-sm font-bold text-[var(--action-foreground)] shadow-lg shadow-[var(--action)]/20 transition-colors hover:opacity-90"
+                >
+                  {t("Restock", "បន្ថែមស្តុក")}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {/* Delete Confirm Modal */}
+        {deleteConfirm ? (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-x-hidden overflow-y-auto p-3 sm:p-4">
+            <div
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() =>
+                setDeleteConfirm(null)
+              }
+            />
+
+            <div className="relative my-auto w-full min-w-0 max-w-md border border-[var(--border-soft)] bg-[var(--surface-strong)] p-4 shadow-[var(--shadow-strong)] sm:p-6">
+              <h2 className="break-words text-xl font-bold text-[var(--foreground)] sm:text-2xl">
+                {t(
+                  "Delete product?",
+                  "លុបផលិតផល?",
+                )}
+              </h2>
+
+              <p className="mt-2 break-words text-sm text-[var(--muted-foreground)]">
+                {t(
+                  `This will remove "${deleteConfirm.name}" from the catalog.`,
+                  `វានឹងលុប "${deleteConfirm.name}" ចេញពីកាតាឡុក។`,
+                )}
+              </p>
+
+              <div className="mt-7 grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDeleteConfirm(null)
+                  }
+                  className="min-w-0 bg-[var(--surface-quiet)] px-4 py-3 text-sm font-bold text-[var(--foreground)] transition-colors hover:opacity-90"
+                >
+                  {t("Cancel", "បោះបង់")}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={confirmDelete}
+                  className="min-w-0 bg-[#a83836] px-4 py-3 text-sm font-bold text-[#fff7f6] shadow-lg shadow-[#a83836]/20 transition-colors hover:opacity-90"
+                >
+                  {t("Delete", "លុប")}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
