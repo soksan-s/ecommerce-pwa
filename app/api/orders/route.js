@@ -1,5 +1,5 @@
 import { fail, handleRouteError, ok } from "@/lib/api-response";
-import { calculateDeposits, createAuditLog, createInventoryMovement } from "@/lib/business-events";
+import { calculateDeposits, createAuditLog, createInventoryMovement, createNotification } from "@/lib/business-events";
 import { canAccessPOS, getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { serializeOrder } from "@/lib/serializers";
@@ -484,6 +484,36 @@ export async function POST(request) {
       maxWait: 15000,
       timeout: 30000,
     });
+
+    // ── Post-transaction: fire ORDER_PLACED notifications (best-effort) ──
+    try {
+      const orderRef = order.orderNumber || order.id;
+      const notifData = { orderId: order.id, orderNumber: orderRef, channel: "ONLINE" };
+
+      // Notify the customer who placed the order
+      if (user?.id) {
+        await createNotification(prisma, {
+          userId: user.id,
+          type: "ORDER_PLACED",
+          title: "Order Received",
+          message: `Your order #${orderRef} has been received and is pending confirmation.`,
+          data: notifData,
+        });
+      }
+
+      // Notify the branch cashiers (branchId-scoped)
+      if (branchId) {
+        await createNotification(prisma, {
+          branchId,
+          type: "ORDER_PLACED",
+          title: "New Online Order",
+          message: `New online order #${orderRef} received.`,
+          data: notifData,
+        });
+      }
+    } catch (notifError) {
+      console.error("[orders] ORDER_PLACED notification error:", notifError?.message);
+    }
 
     return ok({
       data: serializeOrder(order),

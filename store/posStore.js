@@ -8,6 +8,8 @@ export const usePosStore = create((set, get) => ({
   cashierName: "",
   pendingSyncCount: 0,
   catalogVersion: 0,
+  // Local POS notifications (offline events, stock warnings, sync status)
+  localNotifications: [],
   addToCart(product, variant = null) {
     const currentCart = get().cart;
     const v = variant || (Array.isArray(product.variants) && product.variants.length === 1 ? product.variants[0] : null);
@@ -18,6 +20,11 @@ export const usePosStore = create((set, get) => ({
     const sku = v?.sku || product.sku || product.id;
 
     if (stock <= 0) {
+      get().addLocalNotification({
+        type: "warning",
+        title: "Out of Stock",
+        message: `${name} is currently out of stock.`,
+      });
       return;
     }
 
@@ -28,6 +35,11 @@ export const usePosStore = create((set, get) => ({
     if (existingIndex >= 0) {
       const existing = currentCart[existingIndex];
       if (existing.qty >= existing.stock) {
+        get().addLocalNotification({
+          type: "warning",
+          title: "Stock Limit Reached",
+          message: `${name}: Maximum available quantity (${existing.stock}) reached in cart.`,
+        });
         return;
       }
 
@@ -167,5 +179,26 @@ export const usePosStore = create((set, get) => ({
   },
   incrementCatalogVersion() {
     set({ catalogVersion: get().catalogVersion + 1 });
+  },
+  // ─── Local POS notification helpers ─────────────────────────────────────
+  addLocalNotification({ type = "info", title, message, receiptNumber = null }) {
+    const id = `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    set({
+      localNotifications: [
+        { id, type, title, message, receiptNumber, createdAt: new Date().toISOString(), isRead: false },
+        ...get().localNotifications.slice(0, 49), // keep max 50
+      ],
+    });
+    return id;
+  },
+  dismissLocalNotification(id) {
+    set({
+      localNotifications: get().localNotifications.map((n) =>
+        n.id === id ? { ...n, isRead: true } : n
+      ),
+    });
+  },
+  clearLocalNotifications() {
+    set({ localNotifications: [] });
   },
 }));

@@ -15,7 +15,7 @@ const QUICK_REASONS = [
 
 function RepriceModalForm({ item, settings, displayCurrency, onClose, onApply, onReset }) {
   const activeCurrency = displayCurrency || settings?.currency?.primaryCurrency || "USD";
-  const exchangeRate = settings?.currency?.exchangeRate || 4100;
+  const exchangeRate = settings?.currency?.exchangeRate || 4000;
 
   const originalPrice = item.originalPrice !== undefined ? item.originalPrice : item.price;
   const isCurrentlyOverridden = Boolean(item.isOverridden && item.price !== originalPrice);
@@ -33,7 +33,9 @@ function RepriceModalForm({ item, settings, displayCurrency, onClose, onApply, o
 
   function handleSubmit(e) {
     e?.preventDefault();
-    const num = parseFloat(inputValue);
+    // const num = parseFloat(inputValue);
+    const cleanVal = String(inputValue || "").replace(/,/g, "").trim();
+    const num = parseFloat(cleanVal);
 
     if (isNaN(num) || num <= 0) {
       setError("Please enter a valid price greater than 0.");
@@ -56,7 +58,7 @@ function RepriceModalForm({ item, settings, displayCurrency, onClose, onApply, o
   }
 
   return (
-    <div 
+    <div
       className="w-full max-w-md rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-5 text-[var(--foreground)] shadow-2xl transition-colors"
       onClick={(e) => e.stopPropagation()}
     >
@@ -104,7 +106,7 @@ function RepriceModalForm({ item, settings, displayCurrency, onClose, onApply, o
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+      <form noValidate onSubmit={handleSubmit} className="mt-4 space-y-4">
         {/* New Price Input */}
         <div>
           <label className="block text-xs font-bold text-[var(--foreground)] mb-1.5">
@@ -116,8 +118,10 @@ function RepriceModalForm({ item, settings, displayCurrency, onClose, onApply, o
             </span>
             <input
               type="number"
-              step={activeCurrency === "USD" ? "0.01" : "100"}
-              min="0.01"
+              // step={activeCurrency === "USD" ? "0.01" : "100"}
+              // min="0.01"
+              step="any"
+              min="0"
               autoFocus
               value={inputValue}
               onChange={(e) => {
@@ -155,11 +159,10 @@ function RepriceModalForm({ item, settings, displayCurrency, onClose, onApply, o
                 key={r}
                 type="button"
                 onClick={() => setReason(r)}
-                className={`rounded-lg px-2 py-0.5 text-[10px] font-bold transition-colors ${
-                  reason === r
-                    ? "bg-[var(--pos-action)] text-[var(--pos-action-fg)]"
-                    : "bg-[var(--surface-soft)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] border border-[var(--border-soft)]"
-                }`}
+                className={`rounded-lg px-2 py-0.5 text-[10px] font-bold transition-colors ${reason === r
+                  ? "bg-[var(--pos-action)] text-[var(--pos-action-fg)]"
+                  : "bg-[var(--surface-soft)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] border border-[var(--border-soft)]"
+                  }`}
               >
                 {r}
               </button>

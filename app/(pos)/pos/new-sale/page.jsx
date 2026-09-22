@@ -188,6 +188,7 @@ export default function NewSalePage() {
   const cashierName = usePosStore((state) => state.cashierName);
   const pendingSyncCount = usePosStore((state) => state.pendingSyncCount);
   const setPendingSyncCount = usePosStore((state) => state.setPendingSyncCount);
+  const addLocalNotification = usePosStore((state) => state.addLocalNotification);
 
   const cart = Array.isArray(cartState) ? cartState : [];
   const heldSales = Array.isArray(heldSalesState) ? heldSalesState : [];
@@ -499,6 +500,12 @@ export default function NewSalePage() {
             method: "POST",
             body: JSON.stringify(transaction),
           });
+          addLocalNotification({
+            type: "info",
+            title: "Sale Saved Offline",
+            message: `Sale #${receiptNumber} saved offline. Will sync when online.`,
+            receiptNumber,
+          });
         }
       } catch {
         // Fall back to queue if network error occurs
@@ -507,12 +514,24 @@ export default function NewSalePage() {
           method: "POST",
           body: JSON.stringify(transaction),
         });
+        addLocalNotification({
+          type: "info",
+          title: "Sale Saved Offline",
+          message: `Sale #${receiptNumber} saved offline. Will sync when online.`,
+          receiptNumber,
+        });
       }
     } else {
       await addToQueue({
         url: "/api/pos/transaction",
         method: "POST",
         body: JSON.stringify(transaction),
+      });
+      addLocalNotification({
+        type: "info",
+        title: "Sale Saved Offline",
+        message: `Sale #${receiptNumber} saved offline. Will sync when online.`,
+        receiptNumber,
       });
     }
 

@@ -58,21 +58,21 @@ import { cn } from "@/lib/utils";
 // Navigation Config (v0 Sales Operations Style)
 // ─────────────────────────────────────────────────────────────────────────────
 const adminTabs = [
-  { key: "dashboard", label: "Overview",      translationKey: "nav_overview",  icon: LayoutDashboard, group: "overview" },
-  { key: "sales",     label: "Reports",       translationKey: "nav_reports",   icon: BarChart3,       group: "overview" },
-  { key: "products",  label: "Products",      translationKey: "nav_products",  icon: Boxes,           group: "catalog" },
-  { key: "inventory", label: "Inventory",     translationKey: "nav_inventory", icon: ClipboardList,   group: "catalog" },
-  { key: "orders",    label: "Orders",        translationKey: "nav_orders",    icon: ReceiptText,     group: "operations" },
-  { key: "coupons",   label: "Coupons",       translationKey: "nav_coupons",   icon: Ticket,          group: "operations" },
-  { key: "support",   label: "Support Inbox", translationKey: "nav_support",   icon: LifeBuoy,        group: "operations" },
-  { key: "users",     label: "Team & Roles",  translationKey: "nav_users",     icon: Users,           group: "settings" },
+  { key: "dashboard", label: "Overview", translationKey: "nav_overview", icon: LayoutDashboard, group: "overview" },
+  { key: "sales", label: "Reports", translationKey: "nav_reports", icon: BarChart3, group: "overview" },
+  { key: "products", label: "Products", translationKey: "nav_products", icon: Boxes, group: "catalog" },
+  { key: "inventory", label: "Inventory", translationKey: "nav_inventory", icon: ClipboardList, group: "catalog" },
+  { key: "orders", label: "Orders", translationKey: "nav_orders", icon: ReceiptText, group: "operations" },
+  { key: "coupons", label: "Coupons", translationKey: "nav_coupons", icon: Ticket, group: "operations" },
+  { key: "support", label: "Support Inbox", translationKey: "nav_support", icon: LifeBuoy, group: "operations" },
+  { key: "users", label: "Team & Roles", translationKey: "nav_users", icon: Users, group: "settings" },
 ];
 
 const tabGroups = [
-  { key: "overview",   label: "Overview",         translationKey: "group_overview" },
-  { key: "catalog",    label: "Catalog & Stock",  translationKey: "group_catalog" },
-  { key: "operations", label: "Sales & Support",  translationKey: "group_operations" },
-  { key: "settings",   label: "Administration",   translationKey: "group_settings" },
+  { key: "overview", label: "Overview", translationKey: "group_overview" },
+  { key: "catalog", label: "Catalog & Stock", translationKey: "group_catalog" },
+  { key: "operations", label: "Sales & Support", translationKey: "group_operations" },
+  { key: "settings", label: "Administration", translationKey: "group_settings" },
 ];
 
 function resolveAdminTab(value) {
@@ -412,7 +412,7 @@ function TopHeader({
       </div>
 
       {/* Search Input / Command Hint */}
-      <div className="hidden md:flex items-center">
+      {/* <div className="hidden md:flex items-center">
         <div className="relative w-64 lg:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[var(--muted-foreground)]" />
           <input
@@ -426,7 +426,7 @@ function TopHeader({
             <span>Ctrl K</span>
           </div>
         </div>
-      </div>
+      </div> */}
 
       {/* Header Actions */}
       <div className="flex items-center gap-2">
@@ -690,14 +690,14 @@ export function AdminShell({ user, initialTab = "dashboard" }) {
 
   function renderContent() {
     switch (selectedTab) {
-      case "products":  return <AdminProductManagementPageView />;
+      case "products": return <AdminProductManagementPageView />;
       case "inventory": return <AdminInventoryPageView />;
-      case "orders":    return <AdminOrderManagementPageView />;
-      case "sales":     return <AdminReportsPageView />;
-      case "coupons":   return <AdminCouponsPageView />;
-      case "support":   return <AdminSupportInboxPageView user={user} />;
-      case "users":     return <AdminUsersPageView currentUserId={user?.id} />;
-      default:          return <AdminDashboardPageView />;
+      case "orders": return <AdminOrderManagementPageView />;
+      case "sales": return <AdminReportsPageView />;
+      case "coupons": return <AdminCouponsPageView />;
+      case "support": return <AdminSupportInboxPageView user={user} />;
+      case "users": return <AdminUsersPageView currentUserId={user?.id} />;
+      default: return <AdminDashboardPageView />;
     }
   }
 
@@ -708,7 +708,7 @@ export function AdminShell({ user, initialTab = "dashboard" }) {
     const pendingOrders = store.orders.filter((o) => o.status === "pending").length;
     const alerts = [];
     if (openComplaints > 0) alerts.push({ title: "Customer complaints need attention", message: `${openComplaints} support ticket${openComplaints === 1 ? "" : "s"} still need admin action.`, tone: "danger" });
-    if (lowStock > 0)       alerts.push({ title: "Low stock warning", message: `${lowStock} product${lowStock === 1 ? "" : "s"} are running low and may need restocking.`, tone: lowStock >= 5 ? "danger" : "warning" });
+    if (lowStock > 0) alerts.push({ title: "Low stock warning", message: `${lowStock} product${lowStock === 1 ? "" : "s"} are running low and may need restocking.`, tone: lowStock >= 5 ? "danger" : "warning" });
     if (pendingOrders >= 8) alerts.push({ title: "Pending orders are building up", message: `${pendingOrders} orders are still pending. Review fulfillment so delivery does not slip.`, tone: "warning" });
     return alerts;
   }, [store.orders, store.products, store.supportTickets]);
