@@ -403,237 +403,730 @@ function ChartCard({ title, onExpand, children, delay }) {
   );
 }
 
+
 export function AdminDashboardPageView() {
   const store = useAppStore();
+
   const [range, setRange] = useState("sevenDays");
-  const [customStart, setCustomStart] = useState(() => toDateInputValue(addDays(new Date(), -6)));
-  const [customEnd, setCustomEnd] = useState(() => toDateInputValue(new Date()));
+  const [customStart, setCustomStart] = useState(() =>
+    toDateInputValue(addDays(new Date(), -6))
+  );
+  const [customEnd, setCustomEnd] = useState(() =>
+    toDateInputValue(new Date())
+  );
   const [expandedChart, setExpandedChart] = useState("");
+
   const productsCount = store.products.length;
-  const totalStock = store.products.reduce((sum, product) => sum + product.stock, 0);
-  const revenue = store.orders.filter((order) => order.status !== "cancelled").reduce((sum, order) => sum + order.total, 0);
-  const pending = store.orders.filter((order) => order.status === "pending").length;
-  const complaints = store.supportTickets.filter((ticket) => ticket.status !== "closed").length;
-  const lowStock = store.products.filter((product) => product.stock <= 5).length;
-  const rangeConfig = useMemo(() => getDashboardRangeConfig(range, customStart, customEnd), [range, customStart, customEnd]);
-  const filteredOrders = useMemo(() => filterOrdersForRange(store.orders, rangeConfig), [store.orders, rangeConfig]);
-  const revenueSeries = useMemo(() => buildRangeSeries(filteredOrders, rangeConfig), [filteredOrders, rangeConfig]);
-  const topProducts = useMemo(() => buildTopProducts(filteredOrders), [filteredOrders]);
+
+  const totalStock = store.products.reduce(
+    (sum, product) => sum + product.stock,
+    0
+  );
+
+  const revenue = store.orders
+    .filter((order) => order.status !== "cancelled")
+    .reduce((sum, order) => sum + order.total, 0);
+
+  const pending = store.orders.filter(
+    (order) => order.status === "pending"
+  ).length;
+
+  const complaints = store.supportTickets.filter(
+    (ticket) => ticket.status !== "closed"
+  ).length;
+
+  const lowStock = store.products.filter(
+    (product) => product.stock <= 5
+  ).length;
+
+  const rangeConfig = useMemo(
+    () => getDashboardRangeConfig(range, customStart, customEnd),
+    [range, customStart, customEnd]
+  );
+
+  const filteredOrders = useMemo(
+    () => filterOrdersForRange(store.orders, rangeConfig),
+    [store.orders, rangeConfig]
+  );
+
+  const revenueSeries = useMemo(
+    () => buildRangeSeries(filteredOrders, rangeConfig),
+    [filteredOrders, rangeConfig]
+  );
+
+  const topProducts = useMemo(
+    () => buildTopProducts(filteredOrders),
+    [filteredOrders]
+  );
+
+  const isKhmer =
+    store.language === "km" ||
+    store.language === "kh" ||
+    store.language === "khmer";
+
+  const ui = {
+    overview: isKhmer ? "ទិដ្ឋភាពទូទៅ" : "Overview",
+    beverageSubtitle: isKhmer
+      ? "លក់ដុំ និងរាយភេសជ្ជៈ"
+      : "Beverage Wholesale & Retail",
+
+    products: isKhmer ? "ផលិតផល" : "Products",
+    totalStock: isKhmer ? "ស្តុកសរុប" : "Total Stock",
+    lowStock: isKhmer ? "ស្តុកទាប" : "Low Stock",
+    complaints: isKhmer ? "បណ្តឹងអតិថិជន" : "Complaints",
+    pendingOrders: isKhmer ? "ការបញ្ជាទិញរង់ចាំ" : "Pending Orders",
+    revenue: isKhmer ? "ចំណូល" : "Revenue",
+
+    productsDetail: isKhmer
+      ? "ផលិតផលសរុបក្នុងហាង"
+      : "Catalog items across store",
+    stockDetail: isKhmer
+      ? "ចំនួនឯកតាស្តុកសរុប"
+      : "Stock units for all items",
+    lowStockDetail: isKhmer
+      ? "ផលិតផលជិតអស់ស្តុក"
+      : "Products close to running out",
+    complaintDetail: isKhmer
+      ? "សំបុត្រគាំទ្រដែលត្រូវការដោះស្រាយ"
+      : "Support tickets pending",
+    pendingDetail: isKhmer
+      ? "កំពុងរង់ចាំការពិនិត្យ"
+      : "Waiting manual review",
+    revenueDetail: isKhmer
+      ? "ចំណូលពីការបញ្ជាទិញដែលមិនបានបោះបង់"
+      : "Non-cancelled orders",
+
+    activeAlerts: isKhmer ? "ការជូនដំណឹងសកម្ម" : "Active alerts",
+    startDate: isKhmer ? "កាលបរិច្ឆេទចាប់ផ្តើម" : "Start date",
+    endDate: isKhmer ? "កាលបរិច្ឆេទបញ្ចប់" : "End date",
+
+    latestOrders: isKhmer ? "ការបញ្ជាទិញថ្មីៗ" : "Latest Orders",
+    openManagement: isKhmer
+      ? "បើកការគ្រប់គ្រង"
+      : "Open management",
+
+    close: isKhmer ? "បិទ" : "Close",
+    noSales: isKhmer
+      ? "មិនទាន់មានទិន្នន័យការលក់ទេ។"
+      : "No sales data yet.",
+    noOrders: isKhmer
+      ? "មិនទាន់មានការបញ្ជាទិញទេ។"
+      : "No orders yet.",
+
+    sold: isKhmer ? "បានលក់" : "sold",
+
+    customerComplaint: isKhmer
+      ? "បណ្តឹងអតិថិជន"
+      : "Customer complaints",
+    lowStockAlert: isKhmer ? "ស្តុកទាប" : "Low stock",
+    pendingOrdersAlert: isKhmer
+      ? "ការបញ្ជាទិញរង់ចាំ"
+      : "Pending orders",
+  };
+
+  const getRangeLabel = (option) => {
+    if (option.key === "sevenDays") {
+      return isKhmer ? "៧ ថ្ងៃ" : "7 days";
+    }
+
+    if (option.key === "oneMonth") {
+      return isKhmer ? "១ ខែ" : "1 month";
+    }
+
+    if (option.key === "oneYear") {
+      return isKhmer ? "១ ឆ្នាំ" : "1 year";
+    }
+
+    if (option.key === "custom") {
+      return isKhmer ? "កំណត់ផ្ទាល់ខ្លួន" : "Custom";
+    }
+
+    return option.label;
+  };
+
   const alerts = [
     complaints
       ? {
-        title: "Customer complaints",
-        message: `${complaints} active ticket${complaints === 1 ? "" : "s"} need a reply or closure.`,
+        title: ui.customerComplaint,
+        message: isKhmer
+          ? `${complaints} សំបុត្រសកម្ម ត្រូវការឆ្លើយតប ឬបិទ។`
+          : `${complaints} active ticket${complaints === 1 ? "" : "s"
+          } need a reply or closure.`,
         tone: "danger",
       }
-      : null,
-    lowStock
-      ? {
-        title: "Low stock",
-        message: `${lowStock} product${lowStock === 1 ? "" : "s"} are close to running out.`,
-        tone: lowStock >= 5 ? "danger" : "warning",
+        title: "Customer complaints",
+    message: `${complaints} active ticket${complaints === 1 ? "" : "s"} need a reply or closure.`,
+    tone: "danger",
       }
       : null,
-    pending >= 8
-      ? {
-        title: "Pending orders",
-        message: `${pending} orders are still waiting for movement.`,
-        tone: "warning",
-      }
-      : null,
+
+  lowStock
+    ? {
+      title: ui.lowStockAlert,
+      message: isKhmer
+        ? `${lowStock} ផលិតផលជិតអស់ស្តុក។`
+        : `${lowStock} product${lowStock === 1 ? "" : "s"
+        } are close to running out.`,
+      tone: lowStock >= 5 ? "danger" : "warning",
+    }
+    : null,
+
+  pending >= 8
+    ? {
+      title: ui.pendingOrdersAlert,
+      message: isKhmer
+        ? `${pending} ការបញ្ជាទិញកំពុងរង់ចាំដំណើរការ។`
+        : `${pending} orders are still waiting for movement.`,
+      tone: "warning",
+    }
+    : null,
   ].filter(Boolean);
-  const metrics = [
-    { icon: PackageSearch, label: "Products", value: productsCount, detail: "Catalog items across the storefront.", tone: "neutral" },
-    { icon: PackageSearch, label: "Total Stock", value: totalStock, detail: "Combined stock units for all products.", tone: "neutral" },
-    { icon: AlertTriangle, label: "Low Stock", value: lowStock, detail: "Products close to running out.", tone: lowStock ? "warning" : "success" },
-    { icon: ShieldAlert, label: "Complaints", value: complaints, detail: "Support tickets that still need attention.", tone: complaints ? "danger" : "success" },
-    { icon: ClipboardCheck, label: "Pending Orders", value: pending, detail: "Orders waiting for review.", tone: pending >= 8 ? "warning" : "neutral" },
-    { icon: CircleDollarSign, label: "Revenue", value: formatCurrency(revenue), detail: "Revenue from non-cancelled orders.", tone: "success" },
-  ];
 
-  const expandedTitle = expandedChart === "revenue" ? "Revenue" : "Top products";
+const metrics = [
+  {
+    icon: PackageSearch,
+    label: ui.products,
+    value: productsCount,
+    detail: ui.productsDetail,
+    tone: "neutral",
+  },
+  {
+    icon: PackageSearch,
+    label: ui.totalStock,
+    value: totalStock,
+    detail: ui.stockDetail,
+    tone: "neutral",
+  },
+  {
+    icon: AlertTriangle,
+    label: ui.lowStock,
+    value: lowStock,
+    detail: ui.lowStockDetail,
+    tone: lowStock > 0 ? (lowStock >= 5 ? "danger" : "warning") : "neutral",
+  },
+  {
+    icon: ShieldAlert,
+    label: ui.complaints,
+    value: complaints,
+    detail: ui.complaintDetail,
+    tone: complaints > 0 ? "danger" : "neutral",
+  },
+  {
+    icon: ClipboardCheck,
+    label: ui.pendingOrders,
+    value: pending,
+    detail: ui.pendingDetail,
+    tone: pending >= 8 ? "warning" : "neutral",
+  },
+  {
+    icon: CircleDollarSign,
+    label: ui.revenue,
+    value: formatCurrency(revenue),
+    detail: ui.revenueDetail,
+    tone: "success",
+  },
+];
 
-  return (
-    <>
-      <div className="space-y-6">
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-          {metrics.map((metric, index) => (
-            <EntranceMotion key={metric.label} delay={0.08 + index * 0.06}>
-              <HoverLift hoverOffset={5} hoverScale={1.01} hoverElevation={20} normalElevation={8}>
-                <MetricCard {...metric} />
-              </HoverLift>
-            </EntranceMotion>
-          ))}
-        </div>
+const expandedTitle =
+  expandedChart === "revenue" ? ui.revenue : ui.products;
 
-        {alerts.length ? (
-          <div className="space-y-3">
-            <EntranceMotion delay={0.44}>
-              <h2 className="text-2xl font-semibold text-[var(--foreground)]">Active alerts</h2>
-            </EntranceMotion>
-            <div className="grid gap-4 lg:grid-cols-3">
-              {alerts.map((alert, index) => (
-                <EntranceMotion key={alert.title} delay={0.48 + index * 0.06}>
-                  <HoverLift hoverOffset={4} hoverScale={1.004} hoverElevation={18} normalElevation={6}>
-                    <div className={cn("rounded-[1.6rem] border border-[var(--border-soft)] p-5", alert.tone === "danger" ? "bg-rose-500/15 text-rose-600 dark:text-rose-400" : "bg-amber-500/15 text-amber-600 dark:text-amber-400")}>
-                      <div className="flex items-start gap-3">
-                        <div className="rounded-full bg-[var(--surface-soft)] p-2">
-                          <AlertTriangle className="size-4" />
-                        </div>
-                        <div>
-                          <h2 className="text-lg font-semibold">{alert.title}</h2>
-                          <p className="mt-2 text-sm leading-7 text-current/75">{alert.message}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </HoverLift>
-                </EntranceMotion>
-              ))}
+return (
+  <>
+    <style jsx global>{`
+        [data-dashboard-scroll] {
+          scrollbar-width: none;
+          -ms-overflow-style: none;
+        }
+
+        [data-dashboard-scroll]::-webkit-scrollbar {
+          width: 0;
+          height: 0;
+        }
+
+        /* Light Mode Tokens (Default and [data-mode="light"]) */
+        .admin-dashboard-page {
+          --alert-danger-bg: #fff1f2;
+          --alert-danger-border: #fecdd3;
+          --alert-danger-icon-bg: #ffe4e6;
+          --alert-danger-icon-fg: #be123c;
+          --alert-danger-title: #881337;
+          --alert-danger-text: #9f1239;
+
+          --alert-warning-bg: #fffbeb;
+          --alert-warning-border: #fde68a;
+          --alert-warning-icon-bg: #fef3c7;
+          --alert-warning-icon-fg: #b45309;
+          --alert-warning-title: #78350f;
+          --alert-warning-text: #92400e;
+
+          --metric-success-text: #047857;
+          --metric-success-icon-bg: #d1fae5;
+          --metric-success-icon-fg: #047857;
+
+          --metric-warning-text: #b45309;
+          --metric-warning-icon-bg: #fef3c7;
+          --metric-warning-icon-fg: #b45309;
+
+          --metric-danger-text: #be123c;
+          --metric-danger-icon-bg: #ffe4e6;
+          --metric-danger-icon-fg: #be123c;
+
+          --metric-neutral-icon-bg: var(--surface-soft);
+          --metric-neutral-icon-fg: var(--muted-foreground);
+        }
+
+        /* Dark Mode Tokens: Strictly active when data-mode="dark" */
+        [data-mode="dark"] .admin-dashboard-page {
+          --alert-danger-bg: rgba(76, 5, 25, 0.45);
+          --alert-danger-border: rgba(225, 29, 72, 0.35);
+          --alert-danger-icon-bg: rgba(225, 29, 72, 0.25);
+          --alert-danger-icon-fg: #fb7185;
+          --alert-danger-title: #ffe4e6;
+          --alert-danger-text: #fda4af;
+
+          --alert-warning-bg: rgba(69, 26, 3, 0.45);
+          --alert-warning-border: rgba(245, 158, 11, 0.35);
+          --alert-warning-icon-bg: rgba(245, 158, 11, 0.25);
+          --alert-warning-icon-fg: #fbbf24;
+          --alert-warning-title: #fef3c7;
+          --alert-warning-text: #fde68a;
+
+          --metric-success-text: #34d399;
+          --metric-success-icon-bg: rgba(5, 150, 105, 0.2);
+          --metric-success-icon-fg: #34d399;
+
+          --metric-warning-text: #fbbf24;
+          --metric-warning-icon-bg: rgba(217, 119, 6, 0.2);
+          --metric-warning-icon-fg: #fbbf24;
+
+          --metric-danger-text: #fb7185;
+          --metric-danger-icon-bg: rgba(225, 29, 72, 0.2);
+          --metric-danger-icon-fg: #fb7185;
+
+          --metric-neutral-icon-bg: var(--surface-soft);
+          --metric-neutral-icon-fg: var(--muted-foreground);
+        }
+      `}</style>
+
+    <div
+      data-dashboard-scroll
+      className="admin-dashboard-page mx-auto w-full min-w-0 max-w-[430px] overflow-x-hidden px-3.5 pb-5 pt-3.5 sm:max-w-[640px] sm:px-5 sm:pb-6 sm:pt-5 md:max-w-[960px] md:px-6 lg:max-w-[1200px] lg:px-7 xl:max-w-[1440px]"
+    >
+      <div className="min-w-0 space-y-4 sm:space-y-5 lg:space-y-6">
+        {/* Overview Header */}
+        <EntranceMotion delay={0.04}>
+          <section className="flex min-w-0 items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="truncate text-xl font-bold tracking-tight text-[var(--foreground)] sm:text-2xl">
+                {ui.overview}
+              </h1>
+
+              <p className="mt-0.5 truncate text-xs font-medium text-[var(--muted-foreground)] sm:text-sm">
+                {ui.beverageSubtitle}
+              </p>
             </div>
-          </div>
-        ) : null}
-
-        <EntranceMotion delay={0.54}>
-          <div className="flex flex-wrap gap-2">
-            {dashboardRangeOptions.map((option) => (
-              <button
-                key={option.key}
-                type="button"
-                onClick={() => setRange(option.key)}
-                className="app-chip px-4 py-2 text-sm"
-                data-active={range === option.key}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
+          </section>
         </EntranceMotion>
 
+        {/* KPI Metrics */}
+        <section className="grid min-w-0 grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 xl:grid-cols-6">
+          {metrics.map((metric, index) => {
+            const MetricIcon = metric.icon;
+
+            let iconStyle = {
+              backgroundColor: "var(--metric-neutral-icon-bg)",
+              color: "var(--metric-neutral-icon-fg)",
+            };
+            let valueStyle = {
+              color: "var(--foreground)",
+            };
+
+            if (metric.tone === "success") {
+              iconStyle = {
+                backgroundColor: "var(--metric-success-icon-bg)",
+                color: "var(--metric-success-icon-fg)",
+              };
+              valueStyle = {
+                color: "var(--metric-success-text)",
+              };
+            } else if (metric.tone === "warning") {
+              iconStyle = {
+                backgroundColor: "var(--metric-warning-icon-bg)",
+                color: "var(--metric-warning-icon-fg)",
+              };
+              valueStyle = {
+                color: "var(--metric-warning-text)",
+              };
+            } else if (metric.tone === "danger") {
+              iconStyle = {
+                backgroundColor: "var(--metric-danger-icon-bg)",
+                color: "var(--metric-danger-icon-fg)",
+              };
+              valueStyle = {
+                color: "var(--metric-danger-text)",
+              };
+            }
+
+            return (
+              <EntranceMotion
+                key={metric.label}
+                delay={0.08 + index * 0.045}
+              >
+                <article
+                  className="flex min-w-0 flex-col justify-between rounded-xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-3 shadow-sm transition-all hover:border-[var(--border-strong)] sm:p-3.5"
+                >
+                  <div className="flex min-w-0 items-center justify-between gap-2">
+                    <span className="min-w-0 truncate text-[11px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+                      {metric.label}
+                    </span>
+
+                    <div
+                      style={iconStyle}
+                      className="flex shrink-0 items-center justify-center rounded-lg p-1.5"
+                    >
+                      <MetricIcon className="size-3.5" />
+                    </div>
+                  </div>
+
+                  <div className="mt-2 min-w-0">
+                    <span
+                      style={valueStyle}
+                      className="block truncate text-2xl font-black tracking-tight"
+                    >
+                      {metric.value}
+                    </span>
+
+                    <p className="mt-0.5 truncate text-[11px] font-medium text-[var(--muted-foreground)]">
+                      {metric.detail}
+                    </p>
+                  </div>
+                </article>
+              </EntranceMotion>
+            );
+          })}
+        </section>
+
+        {/* Alerts */}
+        {alerts.length ? (
+          <section className="min-w-0">
+            <EntranceMotion delay={0.38}>
+              <h2 className="mb-2 text-xs font-bold uppercase tracking-wider text-[var(--foreground)]">
+                {ui.activeAlerts}
+              </h2>
+            </EntranceMotion>
+
+            <div className="grid min-w-0 gap-2.5 lg:grid-cols-2">
+              {alerts.map((alert, index) => {
+                const isDanger = alert.tone === "danger";
+
+                return (
+                  <EntranceMotion
+                    key={alert.title}
+                    delay={0.42 + index * 0.05}
+                  >
+                    <div
+                      style={{
+                        backgroundColor: isDanger ? "var(--alert-danger-bg)" : "var(--alert-warning-bg)",
+                        borderColor: isDanger ? "var(--alert-danger-border)" : "var(--alert-warning-border)",
+                      }}
+                      className="flex min-w-0 items-start gap-3.5 rounded-xl border p-3.5 shadow-sm transition-all"
+                    >
+                      <div
+                        style={{
+                          backgroundColor: isDanger ? "var(--alert-danger-icon-bg)" : "var(--alert-warning-icon-bg)",
+                          color: isDanger ? "var(--alert-danger-icon-fg)" : "var(--alert-warning-icon-fg)",
+                        }}
+                        className="shrink-0 rounded-lg p-2"
+                      >
+                        <AlertTriangle className="size-4" />
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <h3
+                          style={{
+                            color: isDanger ? "var(--alert-danger-title)" : "var(--alert-warning-title)",
+                          }}
+                          className="text-xs font-bold tracking-tight"
+                        >
+                          {alert.title}
+                        </h3>
+
+                        <p
+                          style={{
+                            color: isDanger ? "var(--alert-danger-text)" : "var(--alert-warning-text)",
+                          }}
+                          className="mt-1 text-xs font-medium leading-relaxed"
+                        >
+                          {alert.message}
+                        </p>
+                      </div>
+                    </div>
+                  </EntranceMotion>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
+
+        {/* Time Range */}
+        <EntranceMotion delay={0.52}>
+          <section className="min-w-0">
+            <div className="flex min-w-0 items-center gap-1.5 overflow-hidden rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] p-1 text-xs font-medium">
+              {dashboardRangeOptions.map((option) => (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => setRange(option.key)}
+                  data-active={range === option.key}
+                  className={cn(
+                    "min-w-0 flex-1 rounded-lg px-2 py-1.5 text-center font-semibold transition-all",
+                    range === option.key
+                      ? "bg-[var(--surface-strong)] text-[var(--action)] shadow-sm"
+                      : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                  )}
+                >
+                  <span className="block truncate">
+                    {getRangeLabel(option)}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+        </EntranceMotion>
+
+        {/* Custom Range */}
         <AnimatePresence initial={false}>
           {range === "custom" ? (
             <motion.div
               key="custom-range"
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 8 }}
-              transition={{ duration: 0.28, ease: easeInOutCubic }}
-              className="grid gap-3 md:grid-cols-2"
+              exit={{ opacity: 0, y: 6 }}
+              transition={{
+                duration: 0.24,
+                ease: easeInOutCubic,
+              }}
+              className="grid min-w-0 gap-3 sm:grid-cols-2"
             >
-              <label className="space-y-2">
-                <span className="text-sm font-medium text-[var(--foreground)]">Start date</span>
-                <input type="date" value={customStart} onChange={(event) => setCustomStart(event.target.value)} className="app-input px-4 py-3" />
+              <label className="min-w-0 space-y-1.5">
+                <span className="text-xs font-semibold text-[var(--foreground)]">
+                  {ui.startDate}
+                </span>
+
+                <input
+                  type="date"
+                  value={customStart}
+                  onChange={(event) =>
+                    setCustomStart(event.target.value)
+                  }
+                  className="app-input min-w-0 w-full px-3 py-2.5 text-sm bg-[var(--surface-strong)] text-[var(--foreground)]"
+                />
               </label>
-              <label className="space-y-2">
-                <span className="text-sm font-medium text-[var(--foreground)]">End date</span>
-                <input type="date" value={customEnd} onChange={(event) => setCustomEnd(event.target.value)} className="app-input px-4 py-3" />
+
+              <label className="min-w-0 space-y-1.5">
+                <span className="text-xs font-semibold text-[var(--foreground)]">
+                  {ui.endDate}
+                </span>
+
+                <input
+                  type="date"
+                  value={customEnd}
+                  onChange={(event) =>
+                    setCustomEnd(event.target.value)
+                  }
+                  className="app-input min-w-0 w-full px-3 py-2.5 text-sm bg-[var(--surface-strong)] text-[var(--foreground)]"
+                />
               </label>
             </motion.div>
           ) : null}
         </AnimatePresence>
 
-        <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-          <ChartCard title="Revenue" delay={0.62} onExpand={() => setExpandedChart("revenue")}>
-            <RevenueChart points={revenueSeries} />
-          </ChartCard>
+        {/* Charts */}
+        <div className="grid min-w-0 gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+          <div className="min-w-0 overflow-hidden">
+            <ChartCard
+              title={ui.revenue}
+              delay={0.58}
+              onExpand={() => setExpandedChart("revenue")}
+            >
+              <div className="min-w-0 overflow-hidden">
+                <RevenueChart points={revenueSeries} />
+              </div>
+            </ChartCard>
+          </div>
 
-          <ChartCard title="Top products" delay={0.7} onExpand={() => setExpandedChart("topProducts")}>
-            {topProducts.length ? (
-              <ProgressRows rows={topProducts} formatter={(value) => `${value} sold`} />
-            ) : (
-              <p className="text-sm leading-7 text-[var(--muted-foreground)]">No sales data yet.</p>
-            )}
-          </ChartCard>
+          <div className="min-w-0 overflow-hidden">
+            <ChartCard
+              title={ui.products}
+              delay={0.64}
+              onExpand={() => setExpandedChart("topProducts")}
+            >
+              {topProducts.length ? (
+                <div className="min-w-0 overflow-hidden">
+                  <ProgressRows
+                    rows={topProducts}
+                    formatter={(value) => `${value} ${ui.sold}`}
+                  />
+                </div>
+              ) : (
+                <p className="text-sm leading-6 text-[var(--muted-foreground)]">
+                  {ui.noSales}
+                </p>
+              )}
+            </ChartCard>
+          </div>
         </div>
 
-        <EntranceMotion delay={0.78}>
+        {/* Latest Orders */}
+        <EntranceMotion delay={0.72}>
           <Card>
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <h2 className="text-2xl font-semibold text-[var(--foreground)]">Latest Orders</h2>
+            <div className="min-w-0">
+              <div className="flex min-w-0 items-center justify-between gap-3">
+                <h2 className="min-w-0 truncate text-sm font-bold text-[var(--foreground)] sm:text-base">
+                  {ui.latestOrders}
+                </h2>
+
+                <Link
+                  href="/admin/order-management"
+                  className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-[var(--action)] hover:underline"
+                >
+                  <span className="hidden sm:inline">
+                    {ui.openManagement}
+                  </span>
+                  <ArrowRight className="size-3.5" />
+                </Link>
               </div>
-              <Link href="/admin/order-management" className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--foreground)]">
-                Open order management
-                <ArrowRight className="size-4" />
-              </Link>
-            </div>
-            <div className="mt-5 space-y-3">
-              {store.orders.length ? (
-                store.orders.slice(0, 5).map((order, index) => (
-                  <EntranceMotion key={order.id} delay={0.82 + index * 0.055}>
-                    <div className="rounded-[1.2rem] bg-[var(--surface)] px-4 py-4 text-sm">
-                      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                        <div>
-                          <div className="flex flex-wrap items-center gap-3">
-                            <span className="font-semibold text-[var(--foreground)]">{order.orderNumber || order.id}</span>
-                            <StatusPill status={order.status} />
+
+              <div className="mt-3 min-w-0 space-y-2.5">
+                {store.orders.length ? (
+                  store.orders.slice(0, 5).map((order, index) => (
+                    <EntranceMotion
+                      key={order.id}
+                      delay={0.76 + index * 0.045}
+                    >
+                      <div className="min-w-0 overflow-hidden rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)]/50 p-3 sm:p-3.5 transition-colors hover:bg-[var(--surface-soft)]">
+                        <div className="flex min-w-0 items-center justify-between gap-2">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className="min-w-0 truncate font-mono text-[11px] font-bold text-[var(--foreground)] sm:text-xs">
+                              {order.orderNumber || order.id}
+                            </span>
+
+                            <div className="shrink-0">
+                              <StatusPill status={order.status} />
+                            </div>
                           </div>
-                          <p className="mt-2 text-[var(--muted-foreground)]">{order.shippingAddress}</p>
+
+                          <span className="shrink-0 text-xs font-bold text-[var(--foreground)]">
+                            {formatCurrency(order.total)}
+                          </span>
                         </div>
-                        <div className="grid gap-2 text-right">
-                          <span className="font-semibold text-[var(--foreground)]">{formatCurrency(order.total)}</span>
-                          <span className="text-[var(--muted-foreground)]">{order.paymentMethod}</span>
+
+                        <div className="mt-1.5 flex min-w-0 items-center justify-between gap-2">
+                          <p className="min-w-0 truncate text-[10px] text-[var(--muted-foreground)] sm:text-[11px]">
+                            {order.shippingAddress}
+                          </p>
+
+                          <span className="shrink-0 rounded-md border border-[var(--border-soft)] bg-[var(--surface-strong)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--foreground)] sm:text-[10px]">
+                            {order.paymentMethod}
+                          </span>
                         </div>
                       </div>
-                    </div>
-                  </EntranceMotion>
-                ))
-              ) : (
-                <p className="text-sm leading-7 text-[var(--muted-foreground)]">No orders yet.</p>
-              )}
+                    </EntranceMotion>
+                  ))
+                ) : (
+                  <p className="text-sm leading-6 text-[var(--muted-foreground)]">
+                    {ui.noOrders}
+                  </p>
+                )}
+              </div>
             </div>
           </Card>
         </EntranceMotion>
       </div>
-      <AnimatePresence>
-        {expandedChart ? (
-          <div className="fixed inset-0 z-50">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3, ease: easeInOutCubic }}
-              className="absolute inset-0 bg-black/55"
-              onClick={() => setExpandedChart("")}
-            />
-            <motion.div
-              initial={{ opacity: 0, x: 48 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 28 }}
-              transition={{ duration: 0.42, ease: easeInOutCubic }}
-              className="absolute inset-0 bg-[var(--background-start)]"
-            >
-              <header className="app-bar px-5 py-4">
-                <div className="flex items-center justify-between gap-4">
-                  <h2 className="text-2xl font-semibold text-[var(--foreground)]">{expandedTitle}</h2>
-                  <Button type="button" variant="ghost" onClick={() => setExpandedChart("")}>
-                    Close
-                  </Button>
-                </div>
-              </header>
-              <div className="h-[calc(100vh-5.5rem)] overflow-auto px-4 py-5 sm:px-6">
-                <div className="w-full">
-                  {expandedChart === "revenue" ? (
-                    <Card>
-                      <RevenueChart points={revenueSeries} height={360} />
-                    </Card>
-                  ) : (
-                    <Card>
-                      {topProducts.length ? (
-                        <ProgressRows rows={topProducts} formatter={(value) => `${value} sold`} />
-                      ) : (
-                        <p className="text-sm leading-7 text-[var(--muted-foreground)]">No sales data yet.</p>
-                      )}
-                    </Card>
-                  )}
-                </div>
+    </div>
+
+    {/* Expanded Chart */}
+    <AnimatePresence>
+      {expandedChart ? (
+        <div className="fixed inset-0 z-50 overflow-hidden">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{
+              duration: 0.3,
+              ease: easeInOutCubic,
+            }}
+            className="absolute inset-0 bg-black/55"
+            onClick={() => setExpandedChart("")}
+          />
+
+          <motion.div
+            initial={{ opacity: 0, x: 48 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 28 }}
+            transition={{
+              duration: 0.42,
+              ease: easeInOutCubic,
+            }}
+            className="absolute inset-0 flex min-w-0 flex-col overflow-hidden bg-[var(--background-start)]"
+          >
+            <header className="app-bar shrink-0 px-4 py-3 sm:px-5 sm:py-4">
+              <div className="flex min-w-0 items-center justify-between gap-3">
+                <h2 className="min-w-0 truncate text-xl font-semibold text-[var(--foreground)] sm:text-2xl">
+                  {expandedTitle}
+                </h2>
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setExpandedChart("")}
+                >
+                  {ui.close}
+                </Button>
               </div>
-            </motion.div>
-          </div>
-        ) : null}
-      </AnimatePresence>
-    </>
-  );
+            </header>
+
+            <div
+              data-dashboard-scroll
+              className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 sm:px-5 sm:py-5"
+            >
+              <div className="mx-auto w-full min-w-0 max-w-[1200px]">
+                {expandedChart === "revenue" ? (
+                  <Card>
+                    <div className="min-w-0 overflow-hidden">
+                      <RevenueChart
+                        points={revenueSeries}
+                        height={360}
+                      />
+                    </div>
+                  </Card>
+                ) : (
+                  <Card>
+                    {topProducts.length ? (
+                      <div className="min-w-0 overflow-hidden">
+                        <ProgressRows
+                          rows={topProducts}
+                          formatter={(value) => `${value} ${ui.sold}`}
+                        />
+                      </div>
+                    ) : (
+                      <p className="text-sm leading-6 text-[var(--muted-foreground)]">
+                        {ui.noSales}
+                      </p>
+                    )}
+                  </Card>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      ) : null}
+    </AnimatePresence>
+  </>
+);
 }
+
 
 const PRODUCT_CATEGORY_OPTIONS = [
   "Fresh Picks",

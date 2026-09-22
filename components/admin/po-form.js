@@ -11,7 +11,7 @@ export function PurchaseOrderForm({ initialData }) {
   const [suppliers, setSuppliers] = useState([]);
   const [branches, setBranches] = useState([]);
   const [variants, setVariants] = useState([]);
-  
+
   const [form, setForm] = useState({
     supplierId: initialData?.supplierId || "",
     branchId: initialData?.branchId || "",
@@ -29,14 +29,14 @@ export function PurchaseOrderForm({ initialData }) {
     // Since we don't have distinct endpoints for these yet, we will just simulate them 
     // or fetch from where they are available.
     // For this boilerplate, we assume they exist or we fallback to empty.
-    fetch('/api/admin/suppliers').then(res => res.ok && res.json()).then(data => setSuppliers(data?.data || [])).catch(() => {});
-    fetch('/api/admin/branches').then(res => res.ok && res.json()).then(data => setBranches(data?.data || [])).catch(() => {});
-    
+    fetch('/api/admin/suppliers').then(res => res.ok && res.json()).then(data => setSuppliers(data?.data || [])).catch(() => { });
+    fetch('/api/admin/branches').then(res => res.ok && res.json()).then(data => setBranches(data?.data || [])).catch(() => { });
+
     // We could fetch all products and their variants
     fetch('/api/admin/products').then(res => res.ok && res.json()).then(data => {
-       // Since the endpoint returns products, we might need a variant specific endpoint.
-       // For now, this is a placeholder.
-    }).catch(() => {});
+      // Since the endpoint returns products, we might need a variant specific endpoint.
+      // For now, this is a placeholder.
+    }).catch(() => { });
   }, []);
 
   function update(field, value) {
@@ -73,10 +73,10 @@ export function PurchaseOrderForm({ initialData }) {
     setError("");
 
     try {
-      const url = initialData 
-        ? `/api/admin/procurement/po/${initialData.id}` 
+      const url = initialData
+        ? `/api/admin/procurement/po/${initialData.id}`
         : `/api/admin/procurement/po`;
-        
+
       const res = await fetch(url, {
         method: initialData ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
@@ -101,13 +101,13 @@ export function PurchaseOrderForm({ initialData }) {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {error && <div className="rounded-xl bg-rose-50 p-3 text-sm text-rose-600 border border-rose-200">{error}</div>}
-      
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <label className="space-y-1 block">
           <span className="text-xs uppercase tracking-wider text-[var(--muted-foreground)]">Supplier *</span>
-          <select 
+          <select
             required
-            value={form.supplierId} 
+            value={form.supplierId}
             onChange={(e) => update("supplierId", e.target.value)}
             className="app-input w-full px-3 py-2 text-sm bg-white"
           >
@@ -115,12 +115,12 @@ export function PurchaseOrderForm({ initialData }) {
             {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </label>
-        
+
         <label className="space-y-1 block">
           <span className="text-xs uppercase tracking-wider text-[var(--muted-foreground)]">Branch *</span>
-          <select 
+          <select
             required
-            value={form.branchId} 
+            value={form.branchId}
             onChange={(e) => update("branchId", e.target.value)}
             className="app-input w-full px-3 py-2 text-sm bg-white"
           >
@@ -128,12 +128,12 @@ export function PurchaseOrderForm({ initialData }) {
             {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
         </label>
-        
+
         <label className="space-y-1 block">
           <span className="text-xs uppercase tracking-wider text-[var(--muted-foreground)]">Expected Date</span>
-          <input 
+          <input
             type="date"
-            value={form.expectedDate} 
+            value={form.expectedDate}
             onChange={(e) => update("expectedDate", e.target.value)}
             className="app-input w-full px-3 py-2 text-sm"
           />
@@ -143,19 +143,19 @@ export function PurchaseOrderForm({ initialData }) {
       <div className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-quiet)] p-4">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="font-semibold">Items</h3>
-          <button 
-            type="button" 
+          <button
+            type="button"
             onClick={addItem}
             className="flex items-center gap-1 rounded-lg bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold shadow-sm border border-[var(--border-soft)]"
           >
             <Plus className="size-3" /> Add Item
           </button>
         </div>
-        
+
         {form.items.length === 0 ? (
-           <div className="py-8 text-center text-sm text-[var(--muted-foreground)]">
-             No items added yet. Click &quot;Add Item&quot; to begin.
-           </div>
+          <div className="py-8 text-center text-sm text-[var(--muted-foreground)]">
+            No items added yet. Click &quot;Add Item&quot; to begin.
+          </div>
         ) : (
           <div className="space-y-3">
             {form.items.map((item, idx) => (
@@ -205,7 +205,7 @@ export function PurchaseOrderForm({ initialData }) {
             ))}
           </div>
         )}
-        
+
         {form.items.length > 0 && (
           <div className="mt-4 flex justify-end">
             <div className="text-right w-64 rounded-xl bg-[var(--surface)] p-4 border border-[var(--border-soft)] shadow-sm">
@@ -215,11 +215,11 @@ export function PurchaseOrderForm({ initialData }) {
           </div>
         )}
       </div>
-      
+
       <label className="block">
         <span className="mb-1 block text-xs uppercase tracking-wider text-[var(--muted-foreground)]">Notes</span>
-        <textarea 
-          value={form.note} 
+        <textarea
+          value={form.note}
           onChange={(e) => update("note", e.target.value)}
           className="app-input min-h-24 w-full px-3 py-2 text-sm"
           placeholder="Any instructions for the supplier..."
@@ -227,15 +227,15 @@ export function PurchaseOrderForm({ initialData }) {
       </label>
 
       <div className="flex gap-4 pt-4">
-        <button 
-          type="button" 
+        <button
+          type="button"
           onClick={() => router.push("/admin/procurement")}
           disabled={loading}
           className="rounded-xl border border-[var(--border-soft)] px-6 py-2.5 font-semibold text-[var(--foreground)] hover:bg-[var(--surface-quiet)]"
         >
           Cancel
         </button>
-        <button 
+        <button
           type="submit"
           disabled={loading}
           className="flex items-center gap-2 rounded-xl bg-[var(--action)] px-6 py-2.5 font-semibold text-[var(--action-foreground)]"
