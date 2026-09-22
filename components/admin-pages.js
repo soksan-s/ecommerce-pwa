@@ -6114,6 +6114,7 @@ export function AdminOrderManagementPageView() {
 
 export function AdminCouponsPageView() {
   const store = useAppStore();
+  const [now] = useState(() => Date.now());
 
   const [code, setCode] = useState("");
   const [type, setType] = useState("percent");
@@ -6123,10 +6124,16 @@ export function AdminCouponsPageView() {
   const [description, setDescription] = useState("");
   const [redemptionLimit, setRedemptionLimit] = useState("");
   const [validUntil, setValidUntil] = useState("");
+  const [editingCouponId, setEditingCouponId] = useState(null);
   const [formMessage, setFormMessage] = useState("");
   const [formTone, setFormTone] = useState("neutral");
   const [couponSearch, setCouponSearch] = useState("");
   const [couponView, setCouponView] = useState("all");
+  const couponLabelClass = "block text-[11px] font-bold uppercase tracking-wider text-[var(--foreground)]";
+  const couponInputClass = "w-full border border-[var(--border-strong)] bg-[var(--input-fill)] px-3 py-2 text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)] focus:border-[var(--action)] focus:ring-1 focus:ring-[var(--action)]";
+  const couponSelectClass = `${couponInputClass} appearance-none pr-8`;
+  const couponHelpClass = "text-[11px] font-normal text-[var(--muted-foreground)]";
+  const couponIconClass = "pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5 text-[var(--muted-foreground)]";
 
   const coupons = Array.isArray(store.coupons) ? store.coupons : [];
 
@@ -6163,7 +6170,7 @@ export function AdminCouponsPageView() {
       return false;
     }
 
-    return time > Date.now();
+    return time > now;
   };
 
   const getUsageCount = (coupon) => {
@@ -6273,6 +6280,7 @@ export function AdminCouponsPageView() {
     setDescription("");
     setRedemptionLimit("");
     setValidUntil("");
+    setEditingCouponId(null);
     setFormMessage("");
     setFormTone("neutral");
   };
@@ -6289,7 +6297,7 @@ export function AdminCouponsPageView() {
     }
 
     try {
-      await store.createCoupon({
+      const couponPayload = {
         code: code.toUpperCase().trim(),
         type,
         value: Number(value),
@@ -6300,10 +6308,17 @@ export function AdminCouponsPageView() {
           ? Number(redemptionLimit)
           : null,
         validUntil: validUntil || null,
-      });
+      };
+      const result = editingCouponId
+        ? await store.updateCoupon(editingCouponId, couponPayload)
+        : await store.createCoupon(couponPayload);
+
+      if (!result?.success) {
+        throw new Error(result?.message || "Unable to create the coupon.");
+      }
 
       setFormMessage(
-        `Coupon "${code.toUpperCase().trim()}" has been created successfully.`
+        `Coupon "${code.toUpperCase().trim()}" has been ${editingCouponId ? "updated" : "created"} successfully.`
       );
       setFormTone("success");
 
@@ -6312,6 +6327,7 @@ export function AdminCouponsPageView() {
       setUserEmail("");
       setRedemptionLimit("");
       setValidUntil("");
+      setEditingCouponId(null);
     } catch (error) {
       setFormMessage(
         error?.message || "Unable to create the coupon."
@@ -6382,6 +6398,7 @@ export function AdminCouponsPageView() {
   };
 
   const editCoupon = (coupon) => {
+    setEditingCouponId(coupon.id);
     setCode(String(coupon.code || ""));
     setType(coupon.type || "percent");
     setValue(String(coupon.value ?? 0));
@@ -6467,31 +6484,31 @@ export function AdminCouponsPageView() {
   };
 
   return (
-    <div className="w-full min-w-0 overflow-x-hidden bg-[#f8fafc] text-slate-900 transition-colors duration-200 dark:bg-[#0b1326] dark:text-slate-100">
+    <div className="w-full min-w-0 overflow-x-hidden bg-[var(--background)] text-[var(--foreground)] transition-colors duration-200">
       <main className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-5 md:px-8 md:py-8">
         {/* Page Title Banner */}
-        <section className="!rounded-none border border-slate-200 bg-white p-6 transition-colors dark:border-[#1f293d] dark:bg-[#111827] md:p-8">
+        <section className="!rounded-none border border-[var(--border-soft)] bg-[var(--surface-strong)] p-6 shadow-[var(--shadow-card)] transition-colors md:p-8">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="min-w-0">
-              <span className="mb-1 block text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-400">
+              <span className="mb-1 block text-[11px] font-bold uppercase tracking-widest text-[var(--muted-foreground)]">
                 COUPONS
               </span>
 
-              <h2 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white md:text-3xl">
+              <h2 className="text-2xl font-extrabold tracking-tight text-[var(--foreground)] md:text-3xl">
                 Create and manage active promotions.
               </h2>
 
-              <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">
+              <p className="mt-1.5 text-sm text-[var(--muted-foreground)]">
                 Configure discount vouchers, bulk distributor rebates, and
                 seasonal wholesale campaigns.
               </p>
             </div>
 
-            <div className="flex shrink-0 items-center space-x-2 self-start border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:border-[#1f293d] dark:bg-[#131b2e] dark:text-slate-300 md:self-center">
-              <span className="inline-block h-2.5 w-2.5 bg-[#059669]" />
+            <div className="flex shrink-0 items-center space-x-2 self-start border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--muted-foreground)] md:self-center">
+              <span className="inline-block h-2.5 w-2.5 bg-[var(--action)]" />
               <span>
                 POS Engine:{" "}
-                <strong className="text-slate-900 dark:text-white">
+                <strong className="text-[var(--foreground)]">
                   Sync Active
                 </strong>
               </span>
@@ -6500,10 +6517,10 @@ export function AdminCouponsPageView() {
         </section>
 
         {/* Coupon Generator */}
-        <section className="!rounded-none border border-slate-200 bg-white transition-colors dark:border-[#1f293d] dark:bg-[#111827]">
+        <section className="!rounded-none border border-[var(--border-soft)] bg-[var(--surface-strong)] shadow-[var(--shadow-card)] transition-colors">
           {/* Header */}
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-6 py-4 dark:border-[#1f293d]">
-            <div className="flex items-center space-x-2 text-xs font-bold uppercase tracking-wide text-[#047857] dark:text-[#10b981]">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border-soft)] px-6 py-4">
+            <div className="flex items-center space-x-2 text-xs font-bold uppercase tracking-wide text-[var(--action-on-muted)]">
               <svg
                 className="h-4 w-4"
                 fill="none"
@@ -6521,7 +6538,7 @@ export function AdminCouponsPageView() {
               <span>COUPON GENERATOR &amp; PARAMETERS</span>
             </div>
 
-            <span className="text-xs font-normal text-slate-400 dark:text-slate-400">
+            <span className="text-xs font-normal text-[var(--muted-foreground)]">
               * Required configuration
             </span>
           </div>
@@ -6536,7 +6553,7 @@ export function AdminCouponsPageView() {
               {/* Coupon Code */}
               <div className="space-y-1.5 md:col-span-5">
                 <label
-                  className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300"
+                  className={couponLabelClass}
                   htmlFor="coupon-code"
                 >
                   COUPON CODE <span className="text-red-500">*</span>
@@ -6552,21 +6569,21 @@ export function AdminCouponsPageView() {
                     required
                     type="text"
                     placeholder="e.g. SUMMERBEV15"
-                    className="w-full min-w-0 border border-slate-300 bg-white px-3 py-2 text-sm font-mono font-bold uppercase tracking-wider text-slate-900 outline-none focus:border-[#059669] focus:ring-1 focus:ring-[#059669] dark:border-[#334155] dark:bg-[#131b2e] dark:text-white"
+                    className={`${couponInputClass} min-w-0 font-mono font-bold uppercase tracking-wider`}
                   />
 
                   <button
                     type="button"
                     onClick={generateRandomCode}
                     title="Generate Random Promo Code"
-                    className="flex shrink-0 items-center space-x-1.5 border-y border-r border-slate-300 bg-slate-100 px-3 py-2 text-xs font-bold uppercase text-slate-700 transition-colors hover:bg-slate-200 active:bg-slate-300 dark:border-[#334155] dark:bg-[#1f293d] dark:text-slate-200 dark:hover:bg-[#334155]"
+                    className="flex shrink-0 items-center space-x-1.5 border-y border-r border-[var(--border-strong)] bg-[var(--surface-soft)] px-3 py-2 text-xs font-bold uppercase text-[var(--foreground)] transition-colors hover:bg-[var(--surface-quiet)] active:bg-[var(--action-surface)]"
                   >
-                    <span>🔄</span>
+                    <RefreshCw className="h-3.5 w-3.5" />
                     <span>GEN</span>
                   </button>
                 </div>
 
-                <p className="text-[11px] font-normal text-slate-400 dark:text-slate-400">
+                <p className={couponHelpClass}>
                   Codes will automatically be formatted in uppercase.
                 </p>
               </div>
@@ -6574,7 +6591,7 @@ export function AdminCouponsPageView() {
               {/* Discount Type */}
               <div className="space-y-1.5 md:col-span-4">
                 <label
-                  className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300"
+                  className={couponLabelClass}
                   htmlFor="discount-type"
                 >
                   DISCOUNT TYPE <span className="text-red-500">*</span>
@@ -6594,7 +6611,7 @@ export function AdminCouponsPageView() {
                         setValue("100");
                       }
                     }}
-                    className="w-full appearance-none border border-slate-300 bg-white px-3 py-2 pr-8 text-sm text-slate-900 outline-none focus:border-[#059669] focus:ring-1 focus:ring-[#059669] dark:border-[#334155] dark:bg-[#131b2e] dark:text-white"
+                    className={couponSelectClass}
                   >
                     <option value="percent">
                       Percent Discount (%)
@@ -6607,7 +6624,7 @@ export function AdminCouponsPageView() {
                     </option>
                   </select>
 
-                  <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5 text-slate-400">
+                  <span className={couponIconClass}>
                     <svg
                       className="h-4 w-4"
                       fill="none"
@@ -6628,7 +6645,7 @@ export function AdminCouponsPageView() {
               {/* Discount Value */}
               <div className="space-y-1.5 md:col-span-3">
                 <label
-                  className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300"
+                  className={couponLabelClass}
                   htmlFor="discount-value"
                 >
                   DISCOUNT VALUE <span className="text-red-500">*</span>
@@ -6643,10 +6660,10 @@ export function AdminCouponsPageView() {
                     type="number"
                     min="1"
                     max={type === "percent" ? "100" : undefined}
-                    className="w-full border border-slate-300 bg-white px-3 py-2 pr-8 text-sm font-semibold text-slate-900 outline-none focus:border-[#059669] focus:ring-1 focus:ring-[#059669] dark:border-[#334155] dark:bg-[#131b2e] dark:text-white"
+                    className={`${couponInputClass} pr-8 font-semibold`}
                   />
 
-                  <span className="pointer-events-none absolute right-3 text-xs font-bold text-slate-400 dark:text-slate-400">
+                  <span className="pointer-events-none absolute right-3 text-xs font-bold text-[var(--muted-foreground)]">
                     {getDiscountUnit()}
                   </span>
                 </div>
@@ -6658,7 +6675,7 @@ export function AdminCouponsPageView() {
               {/* Customer Eligibility */}
               <div className="space-y-1.5 md:col-span-6">
                 <label
-                  className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300"
+                  className={couponLabelClass}
                   htmlFor="customer-eligibility"
                 >
                   CUSTOMER ELIGIBILITY{" "}
@@ -6672,7 +6689,7 @@ export function AdminCouponsPageView() {
                     onChange={(event) =>
                       setAudience(event.target.value)
                     }
-                    className="w-full appearance-none border border-slate-300 bg-white px-3 py-2 pr-8 text-sm text-slate-900 outline-none focus:border-[#059669] focus:ring-1 focus:ring-[#059669] dark:border-[#334155] dark:bg-[#131b2e] dark:text-white"
+                    className={couponSelectClass}
                   >
                     <option value="all">
                       All shoppers (Retail &amp; Wholesale)
@@ -6688,7 +6705,7 @@ export function AdminCouponsPageView() {
                     </option>
                   </select>
 
-                  <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5 text-slate-400">
+                  <span className={couponIconClass}>
                     <svg
                       className="h-4 w-4"
                       fill="none"
@@ -6709,11 +6726,11 @@ export function AdminCouponsPageView() {
               {/* User Restriction */}
               <div className="space-y-1.5 md:col-span-6">
                 <label
-                  className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300"
+                  className={couponLabelClass}
                   htmlFor="user-restriction"
                 >
                   USER PHONENUMBER{" "}
-                  <span className="font-normal normal-case text-slate-400">
+                  <span className="font-normal normal-case text-[var(--muted-foreground)]">
                     (optional restriction)
                   </span>
                 </label>
@@ -6726,7 +6743,7 @@ export function AdminCouponsPageView() {
                   }
                   placeholder="e.g. 012 345 678 or distributor@cambodiabev.com"
                   type="text"
-                  className="w-full border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-[#059669] focus:ring-1 focus:ring-[#059669] dark:border-[#334155] dark:bg-[#131b2e] dark:text-white"
+                  className={couponInputClass}
                 />
               </div>
             </div>
@@ -6736,7 +6753,7 @@ export function AdminCouponsPageView() {
               {/* Description */}
               <div className="space-y-1.5 md:col-span-6">
                 <label
-                  className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300"
+                  className={couponLabelClass}
                   htmlFor="coupon-desc"
                 >
                   DESCRIPTION <span className="text-red-500">*</span>
@@ -6751,14 +6768,14 @@ export function AdminCouponsPageView() {
                   required
                   rows={3}
                   placeholder="Summer beverage stock replenishment promotion for regional retailers."
-                  className="w-full border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#059669] focus:ring-1 focus:ring-[#059669] dark:border-[#334155] dark:bg-[#131b2e] dark:text-white"
+                  className={couponInputClass}
                 />
               </div>
 
               {/* Redemption Limit */}
               <div className="space-y-1.5 md:col-span-3">
                 <label
-                  className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300"
+                  className={couponLabelClass}
                   htmlFor="redemption-limit"
                 >
                   REDEMPTION LIMIT
@@ -6773,10 +6790,10 @@ export function AdminCouponsPageView() {
                   min="1"
                   type="number"
                   placeholder="Unlimited"
-                  className="w-full border border-slate-300 bg-white px-3 py-2 font-mono text-sm text-slate-900 outline-none focus:border-[#059669] focus:ring-1 focus:ring-[#059669] dark:border-[#334155] dark:bg-[#131b2e] dark:text-white"
+                  className={`${couponInputClass} font-mono`}
                 />
 
-                <p className="text-[11px] font-normal text-slate-400 dark:text-slate-400">
+                <p className={couponHelpClass}>
                   Total times usable across system
                 </p>
               </div>
@@ -6784,7 +6801,7 @@ export function AdminCouponsPageView() {
               {/* Valid Until */}
               <div className="space-y-1.5 md:col-span-3">
                 <label
-                  className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300"
+                  className={couponLabelClass}
                   htmlFor="valid-until"
                 >
                   VALID UNTIL
@@ -6798,10 +6815,10 @@ export function AdminCouponsPageView() {
                       setValidUntil(event.target.value)
                     }
                     type="date"
-                    className="w-full border border-slate-300 bg-white px-3 py-2 pr-9 font-mono text-sm text-slate-900 outline-none focus:border-[#059669] focus:ring-1 focus:ring-[#059669] dark:border-[#334155] dark:bg-[#131b2e] dark:text-white"
+                    className={`${couponInputClass} pr-9 font-mono`}
                   />
 
-                  <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5 text-slate-400">
+                  <span className={couponIconClass}>
                     <svg
                       className="h-4 w-4"
                       fill="none"
@@ -6818,16 +6835,16 @@ export function AdminCouponsPageView() {
                   </span>
                 </div>
 
-                <p className="text-[11px] font-normal text-slate-400 dark:text-slate-400">
+                <p className={couponHelpClass}>
                   Auto-expires at 23:59 ICT
                 </p>
               </div>
             </div>
 
             {/* Form Footer */}
-            <div className="flex flex-col items-center justify-between gap-4 border-t border-slate-200 pt-5 dark:border-[#1f293d] sm:flex-row">
-              <div className="flex min-w-0 items-center space-x-2 text-xs text-slate-500 dark:text-slate-400">
-                <span className="shrink-0 text-[#059669] dark:text-[#10b981]">
+            <div className="flex flex-col items-center justify-between gap-4 border-t border-[var(--border-soft)] pt-5 sm:flex-row">
+              <div className="flex min-w-0 items-center space-x-2 text-xs text-[var(--muted-foreground)]">
+                <span className="shrink-0 text-[var(--action)]">
                   <svg
                     className="h-4 w-4"
                     fill="none"
@@ -6853,14 +6870,14 @@ export function AdminCouponsPageView() {
                 <button
                   type="button"
                   onClick={clearForm}
-                  className="border border-slate-300 bg-transparent px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-700 transition-colors hover:bg-slate-100 dark:border-[#334155] dark:text-slate-300 dark:hover:bg-[#1f293d]"
+                  className="border border-[var(--border-strong)] bg-transparent px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-[var(--foreground)] transition-colors hover:bg-[var(--surface-soft)]"
                 >
                   CLEAR
                 </button>
 
                 <button
                   type="submit"
-                  className="flex items-center space-x-1.5 border border-transparent bg-[#047857] px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-sm transition-colors hover:bg-[#065f46] dark:bg-[#059669] dark:hover:bg-[#10b981]"
+                  className="flex items-center space-x-1.5 border border-transparent bg-[var(--action)] px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-[var(--action-foreground)] shadow-sm transition-colors hover:bg-[var(--action-hover)]"
                 >
                   <svg
                     className="h-3.5 w-3.5"
@@ -6876,7 +6893,7 @@ export function AdminCouponsPageView() {
                     />
                   </svg>
 
-                  <span>CREATE COUPON</span>
+                  <span>{editingCouponId ? "UPDATE COUPON" : "CREATE COUPON"}</span>
                 </button>
               </div>
             </div>
@@ -6886,8 +6903,8 @@ export function AdminCouponsPageView() {
               <div
                 className={
                   formTone === "error"
-                    ? "border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-400"
-                    : "border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-400"
+                    ? "border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300"
+                    : "border border-[var(--border-soft)] bg-[var(--action-surface)] px-3 py-2 text-xs font-medium text-[var(--action-on-muted)]"
                 }
               >
                 {formMessage}
@@ -6899,7 +6916,7 @@ export function AdminCouponsPageView() {
         {/* Active Ledger */}
         <div className="space-y-4">
           {/* Filter Bar */}
-          <div className="flex flex-col gap-3 border border-slate-200 bg-white p-3 shadow-sm transition-colors dark:border-[#1f293d] dark:bg-[#111827] sm:p-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-col gap-3 border border-[var(--border-soft)] bg-[var(--surface-strong)] p-3 shadow-[var(--shadow-card)] transition-colors sm:p-4 md:flex-row md:items-center md:justify-between">
             {/* Tabs */}
             <div className="flex flex-wrap items-center gap-1 text-xs sm:gap-2">
               {[
@@ -6914,8 +6931,8 @@ export function AdminCouponsPageView() {
                   onClick={() => setCouponView(key)}
                   className={
                     couponView === key
-                      ? "border border-slate-300 bg-slate-100 px-3.5 py-1.5 font-bold uppercase text-slate-900 transition-colors dark:border-[#334155] dark:bg-[#1f293d] dark:text-white"
-                      : "px-3.5 py-1.5 font-semibold uppercase text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#131b2e] dark:hover:text-white"
+                      ? "border border-[var(--action)] bg-[var(--action-surface)] px-3.5 py-1.5 font-bold uppercase text-[var(--action-on-muted)] transition-colors"
+                      : "px-3.5 py-1.5 font-semibold uppercase text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface-soft)] hover:text-[var(--foreground)]"
                   }
                 >
                   {label}
@@ -6933,10 +6950,10 @@ export function AdminCouponsPageView() {
                     setCouponSearch(event.target.value)
                   }
                   placeholder="Filter by code..."
-                  className="w-full border border-slate-300 bg-white py-1.5 pl-3 pr-8 text-xs text-slate-900 outline-none placeholder:text-slate-400 focus:border-[#059669] focus:ring-1 focus:ring-[#059669] dark:border-[#334155] dark:bg-[#131b2e] dark:text-slate-100"
+                  className="w-full border border-[var(--border-strong)] bg-[var(--input-fill)] py-1.5 pl-3 pr-8 text-xs text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)] focus:border-[var(--action)] focus:ring-1 focus:ring-[var(--action)]"
                 />
 
-                <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5 text-slate-400">
+                <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5 text-[var(--muted-foreground)]">
                   <svg
                     className="h-3.5 w-3.5"
                     fill="none"
@@ -6956,7 +6973,7 @@ export function AdminCouponsPageView() {
               <button
                 type="button"
                 onClick={exportCoupons}
-                className="inline-flex shrink-0 items-center gap-1.5 border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-[#334155] dark:bg-[#131b2e] dark:text-slate-200 dark:hover:bg-[#1f293d]"
+                className="inline-flex shrink-0 items-center gap-1.5 border border-[var(--border-strong)] bg-[var(--surface-strong)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] transition-colors hover:bg-[var(--surface-soft)]"
               >
                 <svg
                   className="h-3.5 w-3.5"
@@ -6980,12 +6997,12 @@ export function AdminCouponsPageView() {
           {/* Coupon Cards */}
           <div className="space-y-3.5">
             {filteredCoupons.length === 0 ? (
-              <div className="border border-slate-200 bg-white p-10 text-center dark:border-[#1f293d] dark:bg-[#111827]">
-                <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+              <div className="border border-[var(--border-soft)] bg-[var(--surface-strong)] p-10 text-center">
+                <p className="text-sm font-semibold text-[var(--foreground)]">
                   No coupons found.
                 </p>
 
-                <p className="mt-1 text-xs text-slate-400">
+                <p className="mt-1 text-xs text-[var(--muted-foreground)]">
                   Create a coupon or change the current ledger filter.
                 </p>
               </div>
@@ -7003,13 +7020,13 @@ export function AdminCouponsPageView() {
                 return (
                   <div
                     key={coupon.id}
-                    className="flex flex-col justify-between gap-5 border border-slate-200 bg-white p-5 shadow-sm transition-colors hover:border-slate-300 dark:border-[#1f293d] dark:bg-[#111827] dark:hover:border-[#334155] md:flex-row md:items-center md:p-6"
+                    className="flex flex-col justify-between gap-5 border border-[var(--border-soft)] bg-[var(--surface-strong)] p-5 shadow-[var(--shadow-card)] transition-colors hover:border-[var(--border-strong)] md:flex-row md:items-center md:p-6"
                   >
                     {/* Left */}
                     <div className="min-w-0 flex-1 space-y-2.5">
                       <div className="flex flex-wrap items-center gap-2.5">
                         {/* Code */}
-                        <span className="inline-flex items-center gap-1.5 border border-slate-200 bg-slate-100 px-2.5 py-1 font-mono text-xs font-bold uppercase tracking-wider text-slate-900 dark:border-[#334155] dark:bg-[#1f293d] dark:text-white">
+                        <span className="inline-flex items-center gap-1.5 border border-[var(--border-soft)] bg-[var(--surface-soft)] px-2.5 py-1 font-mono text-xs font-bold uppercase tracking-wider text-[var(--foreground)]">
                           <span className="break-all">
                             {coupon.code}
                           </span>
@@ -7020,7 +7037,7 @@ export function AdminCouponsPageView() {
                               copyCouponCode(coupon.code)
                             }
                             title="Copy Code"
-                            className="shrink-0 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                            className="shrink-0 text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
                           >
                             <svg
                               className="h-3.5 w-3.5"
@@ -7042,10 +7059,10 @@ export function AdminCouponsPageView() {
                         <span
                           className={
                             statusIsActive
-                              ? "inline-flex items-center gap-1 border border-emerald-300 bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300"
+                              ? "inline-flex items-center gap-1 border border-emerald-300 bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
                               : statusIsScheduled
-                                ? "inline-flex items-center gap-1 border border-amber-300 bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-800 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-400"
-                                : "inline-flex items-center gap-1 border border-slate-300 bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-700 dark:border-[#334155] dark:bg-[#1f293d] dark:text-slate-300"
+                                ? "inline-flex items-center gap-1 border border-amber-300 bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-800 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+                                : "inline-flex items-center gap-1 border border-[var(--border-strong)] bg-[var(--surface-soft)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]"
                           }
                         >
                           <span
@@ -7054,30 +7071,30 @@ export function AdminCouponsPageView() {
                                 ? "inline-block h-1.5 w-1.5 bg-emerald-600 dark:bg-emerald-400"
                                 : statusIsScheduled
                                   ? "inline-block h-1.5 w-1.5 bg-amber-600 dark:bg-amber-400"
-                                  : "inline-block h-1.5 w-1.5 bg-slate-500"
+                                  : "inline-block h-1.5 w-1.5 bg-[var(--muted-foreground)]"
                             }
                           />
 
                           {status}
                         </span>
 
-                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                        <span className="text-xs text-[var(--muted-foreground)]">
                           Target:{" "}
-                          <strong className="font-semibold text-slate-800 dark:text-slate-200">
+                          <strong className="font-semibold text-[var(--foreground)]">
                             {getAudienceLabel(coupon)}
                           </strong>
                         </span>
                       </div>
 
-                      <p className="text-sm font-normal leading-relaxed text-slate-600 dark:text-slate-300">
+                      <p className="text-sm font-normal leading-relaxed text-[var(--muted-foreground)]">
                         {coupon.description ||
                           "No promotion description provided."}
                       </p>
 
-                      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 pt-0.5 font-mono text-xs text-slate-400 dark:text-slate-400">
+                      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 pt-0.5 font-mono text-xs text-[var(--muted-foreground)]">
                         <span>
                           Usage:{" "}
-                          <strong className="font-bold text-slate-900 dark:text-white">
+                          <strong className="font-bold text-[var(--foreground)]">
                             {usageCount}
                             {usageLimit !== ""
                               ? ` / ${usageLimit}`
@@ -7085,30 +7102,30 @@ export function AdminCouponsPageView() {
                           </strong>
                         </span>
 
-                        <span>•</span>
+                        <span>/</span>
 
                         <span>
                           Limit:{" "}
-                          <span className="text-slate-700 dark:text-slate-300">
+                          <span className="text-[var(--foreground)]">
                             {usageLimit !== ""
                               ? usageLimit
                               : "Open"}
                           </span>
                         </span>
 
-                        <span>•</span>
+                        <span>/</span>
 
                         {statusIsScheduled && startDate ? (
                           <span>
                             Starts:{" "}
-                            <span className="text-slate-700 dark:text-slate-300">
+                            <span className="text-[var(--foreground)]">
                               {formatDateLabel(startDate)}
                             </span>
                           </span>
                         ) : expiry ? (
                           <span>
                             Expires:{" "}
-                            <span className="text-slate-700 dark:text-slate-300">
+                            <span className="text-[var(--foreground)]">
                               {formatDateLabel(expiry)}
                             </span>
                           </span>
@@ -7119,19 +7136,19 @@ export function AdminCouponsPageView() {
                     </div>
 
                     {/* Right */}
-                    <div className="flex shrink-0 flex-col gap-4 border-t border-slate-100 pt-3 dark:border-[#1f293d] md:flex-row md:items-center md:justify-end md:border-t-0 md:pt-0">
+                    <div className="flex shrink-0 flex-col gap-4 border-t border-[var(--border-soft)] pt-3 md:flex-row md:items-center md:justify-end md:border-t-0 md:pt-0">
                       <div className="text-left md:text-right">
                         <div
                           className={
                             coupon.type === "fixed"
-                              ? "text-2xl font-extrabold leading-none tracking-tight text-slate-900 dark:text-white sm:text-3xl"
-                              : "text-3xl font-extrabold leading-none tracking-tight text-slate-900 dark:text-white"
+                              ? "text-2xl font-extrabold leading-none tracking-tight text-[var(--foreground)] sm:text-3xl"
+                              : "text-3xl font-extrabold leading-none tracking-tight text-[var(--foreground)]"
                           }
                         >
                           {getValueLabel(coupon)}
                         </div>
 
-                        <div className="mt-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400">
+                        <div className="mt-1 text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
                           {getTypeLabel(coupon)}
                         </div>
                       </div>
@@ -7140,7 +7157,7 @@ export function AdminCouponsPageView() {
                         <button
                           type="button"
                           onClick={() => editCoupon(coupon)}
-                          className="border border-slate-300 bg-white px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-700 transition-colors hover:bg-slate-50 dark:border-[#334155] dark:bg-[#131b2e] dark:text-slate-200 dark:hover:bg-[#1f293d]"
+                          className="border border-[var(--border-strong)] bg-[var(--surface-strong)] px-4 py-2 text-xs font-bold uppercase tracking-wider text-[var(--foreground)] transition-colors hover:bg-[var(--surface-soft)]"
                         >
                           EDIT
                         </button>
@@ -7152,8 +7169,8 @@ export function AdminCouponsPageView() {
                           }
                           className={
                             coupon.isActive
-                              ? "border border-red-200 bg-white px-4 py-2 text-xs font-bold uppercase tracking-wider text-red-600 transition-colors hover:bg-red-50 dark:border-red-900/60 dark:bg-[#131b2e] dark:text-red-400 dark:hover:bg-red-950/30"
-                              : "border border-[#059669] bg-white px-4 py-2 text-xs font-bold uppercase tracking-wider text-[#047857] transition-colors hover:bg-emerald-50 dark:border-[#10b981] dark:bg-[#131b2e] dark:text-[#10b981] dark:hover:bg-emerald-950/30"
+                              ? "border border-red-600 bg-red-600 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-sm transition-colors hover:bg-red-700 dark:border-red-500 dark:bg-red-500 dark:text-white dark:hover:bg-red-600"
+                              : "border border-[var(--action)] bg-[var(--action-surface)] px-4 py-2 text-xs font-bold uppercase tracking-wider text-[var(--action-on-muted)] transition-colors hover:bg-[var(--surface-soft)]"
                           }
                         >
                           {coupon.isActive

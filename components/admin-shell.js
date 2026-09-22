@@ -610,42 +610,55 @@ function AlertsModal({ activeAlerts, alertOpen, setAlertOpen }) {
             transition={{ duration: 0.28, ease: easeInOutCubic }}
             className="w-full max-w-md overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] shadow-2xl"
           >
-            <div className="flex items-center gap-3 border-b border-[var(--border-soft)] px-6 py-4 bg-[var(--surface-quiet)]/50">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-500/15">
-                <ShieldAlert className="size-5 text-rose-600 dark:text-rose-400" />
+            <div className="flex items-center gap-3 border-b border-[var(--border-soft)] bg-[var(--surface-strong)] px-6 py-5">
+              <div className="flex h-10 w-10 items-center justify-center rounded-none bg-rose-600 text-white shadow-sm dark:bg-rose-500">
+                <ShieldAlert className="size-5" />
               </div>
               <div>
-                <p className="font-bold text-[var(--foreground)]">System Alerts</p>
-                <p className="text-xs text-[var(--muted-foreground)]">{activeAlerts.length} item(s) require admin action</p>
+                <p className="text-base font-extrabold text-[var(--foreground)]">System Alerts</p>
+                <p className="text-xs font-semibold text-[var(--foreground)]">{activeAlerts.length} item(s) require admin action</p>
               </div>
             </div>
 
-            <div className="max-h-72 overflow-y-auto p-4 space-y-3">
+            <div className="max-h-72 space-y-3 overflow-y-auto bg-[var(--surface-soft)] p-4">
               {activeAlerts.map((alert) => (
                 <div
                   key={alert.title}
                   className={cn(
-                    "flex gap-3 rounded-xl border px-4 py-3",
+                    "flex gap-3 rounded-none border-l-4 border-y border-r bg-[var(--surface-strong)] px-4 py-3 shadow-sm",
                     alert.tone === "danger"
-                      ? "border-rose-500/20 bg-rose-500/10 text-rose-900 dark:text-rose-200"
-                      : "border-amber-500/20 bg-amber-500/10 text-amber-900 dark:text-amber-200"
+                      ? "border-l-rose-600 border-y-rose-200 border-r-rose-200 dark:border-l-rose-400 dark:border-y-rose-900 dark:border-r-rose-900"
+                      : "border-l-amber-500 border-y-amber-200 border-r-amber-200 dark:border-l-amber-300 dark:border-y-amber-900 dark:border-r-amber-900"
                   )}
                 >
                   <AlertTriangle
                     className={cn(
                       "mt-0.5 size-4 flex-shrink-0",
-                      alert.tone === "danger" ? "text-rose-600 dark:text-rose-400" : "text-amber-600 dark:text-amber-400"
+                      alert.tone === "danger" ? "text-rose-600 dark:text-rose-300" : "text-amber-600 dark:text-amber-300"
                     )}
                   />
                   <div>
-                    <p className="text-xs font-bold">{alert.title}</p>
-                    <p className="mt-0.5 text-xs opacity-90 leading-relaxed">{alert.message}</p>
+                    <p
+                      className={cn(
+                        "text-sm font-extrabold",
+                        alert.tone === "danger" ? "text-rose-700 dark:text-rose-500" : "text-amber-700 dark:text-amber-500"
+                      )}
+                    >
+                      {alert.title}
+                    </p>
+                    <p
+                      className={cn(
+                        "mt-1 text-sm font-semibold leading-relaxed text-[var(--foreground)]"
+                      )}
+                    >
+                      {alert.message}
+                    </p>
                   </div>
                 </div>
               ))}
             </div>
 
-            <div className="border-t border-[var(--border-soft)] px-6 py-4 flex justify-end">
+            <div className="flex justify-end border-t border-[var(--border-soft)] bg-[var(--surface-strong)] px-6 py-4">
               <Button onClick={() => setAlertOpen(false)} size="sm" className="bg-[var(--action)] text-white shadow-md">
                 Review Dashboard
               </Button>

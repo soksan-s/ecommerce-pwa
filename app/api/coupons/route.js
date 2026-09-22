@@ -51,9 +51,18 @@ export async function POST(request) {
   const value = Number(body.value);
   const audience = mapAudience(body.audience);
   const userEmail = body.userEmail?.trim().toLowerCase() || null;
+  const usageLimitValue = body.usageLimit ?? body.redemptionLimit;
+  const usageLimit = usageLimitValue !== undefined && usageLimitValue !== null && usageLimitValue !== ""
+    ? Number(usageLimitValue)
+    : null;
+  const endsAtValue = body.endsAt ?? body.validUntil;
 
   if (!code || !body.type || body.value === undefined || Number.isNaN(value) || value <= 0) {
     return fail("Invalid coupon payload.", 422);
+  }
+
+  if (usageLimit !== null && (Number.isNaN(usageLimit) || usageLimit <= 0)) {
+    return fail("Invalid redemption limit.", 422);
   }
 
   if (audience === "USER" && !userEmail) {
@@ -69,6 +78,8 @@ export async function POST(request) {
         description: body.description?.trim() || null,
         audience,
         userEmail,
+        usageLimit,
+        endsAt: endsAtValue ? new Date(endsAtValue) : null,
         isActive: true,
       },
     });

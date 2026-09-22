@@ -955,6 +955,28 @@ export function AppStoreProvider({ children }) {
           return { success: false, message: "Unable to create coupon." };
         }
       },
+      async updateCoupon(id, input) {
+        try {
+          const response = await fetch(`/api/coupons/${id}`, {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(input),
+          });
+          const data = await response.json();
+          if (!response.ok || !data.data) {
+            return { success: false, message: data.error || "Unable to update coupon." };
+          }
+          patch((current) => ({
+            ...current,
+            coupons: current.coupons.map((entry) => (entry.id === id ? data.data : entry)),
+          }));
+          return { success: true, message: "Coupon updated." };
+        } catch {
+          return { success: false, message: "Unable to update coupon." };
+        }
+      },
       toggleCoupon(id) {
         const coupon = state.coupons.find((entry) => entry.id === id);
         if (!coupon) {
