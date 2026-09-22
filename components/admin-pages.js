@@ -554,85 +554,81 @@ export function AdminDashboardPageView() {
           } need a reply or closure.`,
         tone: "danger",
       }
-        title: "Customer complaints",
-    message: `${complaints} active ticket${complaints === 1 ? "" : "s"} need a reply or closure.`,
-    tone: "danger",
+      : null,
+
+    lowStock
+      ? {
+        title: ui.lowStockAlert,
+        message: isKhmer
+          ? `${lowStock} ផលិតផលជិតអស់ស្តុក។`
+          : `${lowStock} product${lowStock === 1 ? "" : "s"
+          } are close to running out.`,
+        tone: lowStock >= 5 ? "danger" : "warning",
       }
       : null,
 
-  lowStock
-    ? {
-      title: ui.lowStockAlert,
-      message: isKhmer
-        ? `${lowStock} ផលិតផលជិតអស់ស្តុក។`
-        : `${lowStock} product${lowStock === 1 ? "" : "s"
-        } are close to running out.`,
-      tone: lowStock >= 5 ? "danger" : "warning",
-    }
-    : null,
-
-  pending >= 8
-    ? {
-      title: ui.pendingOrdersAlert,
-      message: isKhmer
-        ? `${pending} ការបញ្ជាទិញកំពុងរង់ចាំដំណើរការ។`
-        : `${pending} orders are still waiting for movement.`,
-      tone: "warning",
-    }
-    : null,
+    pending >= 8
+      ? {
+        title: ui.pendingOrdersAlert,
+        message: isKhmer
+          ? `${pending} ការបញ្ជាទិញកំពុងរង់ចាំដំណើរការ។`
+          : `${pending} orders are still waiting for movement.`,
+        tone: "warning",
+      }
+      : null,
   ].filter(Boolean);
 
-const metrics = [
-  {
-    icon: PackageSearch,
-    label: ui.products,
-    value: productsCount,
-    detail: ui.productsDetail,
-    tone: "neutral",
-  },
-  {
-    icon: PackageSearch,
-    label: ui.totalStock,
-    value: totalStock,
-    detail: ui.stockDetail,
-    tone: "neutral",
-  },
-  {
-    icon: AlertTriangle,
-    label: ui.lowStock,
-    value: lowStock,
-    detail: ui.lowStockDetail,
-    tone: lowStock > 0 ? (lowStock >= 5 ? "danger" : "warning") : "neutral",
-  },
-  {
-    icon: ShieldAlert,
-    label: ui.complaints,
-    value: complaints,
-    detail: ui.complaintDetail,
-    tone: complaints > 0 ? "danger" : "neutral",
-  },
-  {
-    icon: ClipboardCheck,
-    label: ui.pendingOrders,
-    value: pending,
-    detail: ui.pendingDetail,
-    tone: pending >= 8 ? "warning" : "neutral",
-  },
-  {
-    icon: CircleDollarSign,
-    label: ui.revenue,
-    value: formatCurrency(revenue),
-    detail: ui.revenueDetail,
-    tone: "success",
-  },
-];
+  const metrics = [
+    {
+      icon: PackageSearch,
+      label: ui.products,
+      value: productsCount,
+      detail: ui.productsDetail,
+      tone: "neutral",
+    },
+    {
+      icon: PackageSearch,
+      label: ui.totalStock,
+      value: totalStock,
+      detail: ui.stockDetail,
+      tone: "neutral",
+    },
+    {
+      icon: AlertTriangle,
+      label: ui.lowStock,
+      value: lowStock,
+      detail: ui.lowStockDetail,
+      tone: lowStock > 0 ? (lowStock >= 5 ? "danger" : "warning") : "neutral",
+    },
+    {
+      icon: ShieldAlert,
+      label: ui.complaints,
+      value: complaints,
+      detail: ui.complaintDetail,
+      tone: complaints > 0 ? "danger" : "neutral",
+    },
+    {
+      icon: ClipboardCheck,
+      label: ui.pendingOrders,
+      value: pending,
+      detail: ui.pendingDetail,
+      tone: pending >= 8 ? "warning" : "neutral",
+    },
+    {
+      icon: CircleDollarSign,
+      label: ui.revenue,
+      value: formatCurrency(revenue),
+      detail: ui.revenueDetail,
+      tone: "success",
+    },
+  ];
 
-const expandedTitle =
-  expandedChart === "revenue" ? ui.revenue : ui.products;
+  const expandedTitle =
+    expandedChart === "revenue" ? ui.revenue : ui.products;
 
-return (
-  <>
-    <style jsx global>{`
+  return (
+    <>
+      <style jsx global>{`
         [data-dashboard-scroll] {
           scrollbar-width: none;
           -ms-overflow-style: none;
@@ -708,423 +704,411 @@ return (
         }
       `}</style>
 
-    <div
-      data-dashboard-scroll
-      className="admin-dashboard-page mx-auto w-full min-w-0 max-w-[430px] overflow-x-hidden px-3.5 pb-5 pt-3.5 sm:max-w-[640px] sm:px-5 sm:pb-6 sm:pt-5 md:max-w-[960px] md:px-6 lg:max-w-[1200px] lg:px-7 xl:max-w-[1440px]"
-    >
-      <div className="min-w-0 space-y-4 sm:space-y-5 lg:space-y-6">
-        {/* Overview Header */}
-        <EntranceMotion delay={0.04}>
-          <section className="flex min-w-0 items-center justify-between gap-3">
-            <div className="min-w-0">
-              <h1 className="truncate text-xl font-bold tracking-tight text-[var(--foreground)] sm:text-2xl">
-                {ui.overview}
-              </h1>
+      <div
+        data-dashboard-scroll
+        className="admin-dashboard-page mx-auto w-full min-w-0 max-w-[430px] overflow-x-hidden px-3.5 pb-5 pt-3.5 sm:max-w-[640px] sm:px-5 sm:pb-6 sm:pt-5 md:max-w-[960px] md:px-6 lg:max-w-[1200px] lg:px-7 xl:max-w-[1440px]"
+      >
+        <div className="min-w-0 space-y-4 sm:space-y-5 lg:space-y-6">
+          {/* Overview Header */}
 
-              <p className="mt-0.5 truncate text-xs font-medium text-[var(--muted-foreground)] sm:text-sm">
-                {ui.beverageSubtitle}
-              </p>
-            </div>
-          </section>
-        </EntranceMotion>
 
-        {/* KPI Metrics */}
-        <section className="grid min-w-0 grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 xl:grid-cols-6">
-          {metrics.map((metric, index) => {
-            const MetricIcon = metric.icon;
+          {/* KPI Metrics */}
+          <section className="grid min-w-0 grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 xl:grid-cols-6">
+            {metrics.map((metric, index) => {
+              const MetricIcon = metric.icon;
 
-            let iconStyle = {
-              backgroundColor: "var(--metric-neutral-icon-bg)",
-              color: "var(--metric-neutral-icon-fg)",
-            };
-            let valueStyle = {
-              color: "var(--foreground)",
-            };
+              let iconStyle = {
+                backgroundColor: "var(--metric-neutral-icon-bg)",
+                color: "var(--metric-neutral-icon-fg)",
+              };
+              let valueStyle = {
+                color: "var(--foreground)",
+              };
 
-            if (metric.tone === "success") {
-              iconStyle = {
-                backgroundColor: "var(--metric-success-icon-bg)",
-                color: "var(--metric-success-icon-fg)",
-              };
-              valueStyle = {
-                color: "var(--metric-success-text)",
-              };
-            } else if (metric.tone === "warning") {
-              iconStyle = {
-                backgroundColor: "var(--metric-warning-icon-bg)",
-                color: "var(--metric-warning-icon-fg)",
-              };
-              valueStyle = {
-                color: "var(--metric-warning-text)",
-              };
-            } else if (metric.tone === "danger") {
-              iconStyle = {
-                backgroundColor: "var(--metric-danger-icon-bg)",
-                color: "var(--metric-danger-icon-fg)",
-              };
-              valueStyle = {
-                color: "var(--metric-danger-text)",
-              };
-            }
+              if (metric.tone === "success") {
+                iconStyle = {
+                  backgroundColor: "var(--metric-success-icon-bg)",
+                  color: "var(--metric-success-icon-fg)",
+                };
+                valueStyle = {
+                  color: "var(--metric-success-text)",
+                };
+              } else if (metric.tone === "warning") {
+                iconStyle = {
+                  backgroundColor: "var(--metric-warning-icon-bg)",
+                  color: "var(--metric-warning-icon-fg)",
+                };
+                valueStyle = {
+                  color: "var(--metric-warning-text)",
+                };
+              } else if (metric.tone === "danger") {
+                iconStyle = {
+                  backgroundColor: "var(--metric-danger-icon-bg)",
+                  color: "var(--metric-danger-icon-fg)",
+                };
+                valueStyle = {
+                  color: "var(--metric-danger-text)",
+                };
+              }
 
-            return (
-              <EntranceMotion
-                key={metric.label}
-                delay={0.08 + index * 0.045}
-              >
-                <article
-                  className="flex min-w-0 flex-col justify-between rounded-xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-3 shadow-sm transition-all hover:border-[var(--border-strong)] sm:p-3.5"
+              return (
+                <EntranceMotion
+                  key={metric.label}
+                  delay={0.08 + index * 0.045}
                 >
-                  <div className="flex min-w-0 items-center justify-between gap-2">
-                    <span className="min-w-0 truncate text-[11px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
-                      {metric.label}
-                    </span>
-
-                    <div
-                      style={iconStyle}
-                      className="flex shrink-0 items-center justify-center rounded-lg p-1.5"
-                    >
-                      <MetricIcon className="size-3.5" />
-                    </div>
-                  </div>
-
-                  <div className="mt-2 min-w-0">
-                    <span
-                      style={valueStyle}
-                      className="block truncate text-2xl font-black tracking-tight"
-                    >
-                      {metric.value}
-                    </span>
-
-                    <p className="mt-0.5 truncate text-[11px] font-medium text-[var(--muted-foreground)]">
-                      {metric.detail}
-                    </p>
-                  </div>
-                </article>
-              </EntranceMotion>
-            );
-          })}
-        </section>
-
-        {/* Alerts */}
-        {alerts.length ? (
-          <section className="min-w-0">
-            <EntranceMotion delay={0.38}>
-              <h2 className="mb-2 text-xs font-bold uppercase tracking-wider text-[var(--foreground)]">
-                {ui.activeAlerts}
-              </h2>
-            </EntranceMotion>
-
-            <div className="grid min-w-0 gap-2.5 lg:grid-cols-2">
-              {alerts.map((alert, index) => {
-                const isDanger = alert.tone === "danger";
-
-                return (
-                  <EntranceMotion
-                    key={alert.title}
-                    delay={0.42 + index * 0.05}
+                  <article
+                    className="flex min-w-0 flex-col justify-between rounded-xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-3 shadow-sm transition-all hover:border-[var(--border-strong)] sm:p-3.5"
                   >
-                    <div
-                      style={{
-                        backgroundColor: isDanger ? "var(--alert-danger-bg)" : "var(--alert-warning-bg)",
-                        borderColor: isDanger ? "var(--alert-danger-border)" : "var(--alert-warning-border)",
-                      }}
-                      className="flex min-w-0 items-start gap-3.5 rounded-xl border p-3.5 shadow-sm transition-all"
+                    <div className="flex min-w-0 items-center justify-between gap-2">
+                      <span className="min-w-0 truncate text-[11px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+                        {metric.label}
+                      </span>
+
+                      <div
+                        style={iconStyle}
+                        className="flex shrink-0 items-center justify-center rounded-lg p-1.5"
+                      >
+                        <MetricIcon className="size-3.5" />
+                      </div>
+                    </div>
+
+                    <div className="mt-2 min-w-0">
+                      <span
+                        style={valueStyle}
+                        className="block truncate text-2xl font-black tracking-tight"
+                      >
+                        {metric.value}
+                      </span>
+
+                      <p className="mt-0.5 truncate text-[11px] font-medium text-[var(--muted-foreground)]">
+                        {metric.detail}
+                      </p>
+                    </div>
+                  </article>
+                </EntranceMotion>
+              );
+            })}
+          </section>
+
+          {/* Alerts */}
+          {alerts.length ? (
+            <section className="min-w-0">
+              <EntranceMotion delay={0.38}>
+                <h2 className="mb-2 text-xs font-bold uppercase tracking-wider text-[var(--foreground)]">
+                  {ui.activeAlerts}
+                </h2>
+              </EntranceMotion>
+
+              <div className="grid min-w-0 gap-2.5 lg:grid-cols-2">
+                {alerts.map((alert, index) => {
+                  const isDanger = alert.tone === "danger";
+
+                  return (
+                    <EntranceMotion
+                      key={alert.title}
+                      delay={0.42 + index * 0.05}
                     >
                       <div
                         style={{
-                          backgroundColor: isDanger ? "var(--alert-danger-icon-bg)" : "var(--alert-warning-icon-bg)",
-                          color: isDanger ? "var(--alert-danger-icon-fg)" : "var(--alert-warning-icon-fg)",
+                          backgroundColor: isDanger ? "var(--alert-danger-bg)" : "var(--alert-warning-bg)",
+                          borderColor: isDanger ? "var(--alert-danger-border)" : "var(--alert-warning-border)",
                         }}
-                        className="shrink-0 rounded-lg p-2"
+                        className="flex min-w-0 items-start gap-3.5 rounded-xl border p-3.5 shadow-sm transition-all"
                       >
-                        <AlertTriangle className="size-4" />
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <h3
+                        <div
                           style={{
-                            color: isDanger ? "var(--alert-danger-title)" : "var(--alert-warning-title)",
+                            backgroundColor: isDanger ? "var(--alert-danger-icon-bg)" : "var(--alert-warning-icon-bg)",
+                            color: isDanger ? "var(--alert-danger-icon-fg)" : "var(--alert-warning-icon-fg)",
                           }}
-                          className="text-xs font-bold tracking-tight"
+                          className="shrink-0 rounded-lg p-2"
                         >
-                          {alert.title}
-                        </h3>
-
-                        <p
-                          style={{
-                            color: isDanger ? "var(--alert-danger-text)" : "var(--alert-warning-text)",
-                          }}
-                          className="mt-1 text-xs font-medium leading-relaxed"
-                        >
-                          {alert.message}
-                        </p>
-                      </div>
-                    </div>
-                  </EntranceMotion>
-                );
-              })}
-            </div>
-          </section>
-        ) : null}
-
-        {/* Time Range */}
-        <EntranceMotion delay={0.52}>
-          <section className="min-w-0">
-            <div className="flex min-w-0 items-center gap-1.5 overflow-hidden rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] p-1 text-xs font-medium">
-              {dashboardRangeOptions.map((option) => (
-                <button
-                  key={option.key}
-                  type="button"
-                  onClick={() => setRange(option.key)}
-                  data-active={range === option.key}
-                  className={cn(
-                    "min-w-0 flex-1 rounded-lg px-2 py-1.5 text-center font-semibold transition-all",
-                    range === option.key
-                      ? "bg-[var(--surface-strong)] text-[var(--action)] shadow-sm"
-                      : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                  )}
-                >
-                  <span className="block truncate">
-                    {getRangeLabel(option)}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </section>
-        </EntranceMotion>
-
-        {/* Custom Range */}
-        <AnimatePresence initial={false}>
-          {range === "custom" ? (
-            <motion.div
-              key="custom-range"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 6 }}
-              transition={{
-                duration: 0.24,
-                ease: easeInOutCubic,
-              }}
-              className="grid min-w-0 gap-3 sm:grid-cols-2"
-            >
-              <label className="min-w-0 space-y-1.5">
-                <span className="text-xs font-semibold text-[var(--foreground)]">
-                  {ui.startDate}
-                </span>
-
-                <input
-                  type="date"
-                  value={customStart}
-                  onChange={(event) =>
-                    setCustomStart(event.target.value)
-                  }
-                  className="app-input min-w-0 w-full px-3 py-2.5 text-sm bg-[var(--surface-strong)] text-[var(--foreground)]"
-                />
-              </label>
-
-              <label className="min-w-0 space-y-1.5">
-                <span className="text-xs font-semibold text-[var(--foreground)]">
-                  {ui.endDate}
-                </span>
-
-                <input
-                  type="date"
-                  value={customEnd}
-                  onChange={(event) =>
-                    setCustomEnd(event.target.value)
-                  }
-                  className="app-input min-w-0 w-full px-3 py-2.5 text-sm bg-[var(--surface-strong)] text-[var(--foreground)]"
-                />
-              </label>
-            </motion.div>
-          ) : null}
-        </AnimatePresence>
-
-        {/* Charts */}
-        <div className="grid min-w-0 gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-          <div className="min-w-0 overflow-hidden">
-            <ChartCard
-              title={ui.revenue}
-              delay={0.58}
-              onExpand={() => setExpandedChart("revenue")}
-            >
-              <div className="min-w-0 overflow-hidden">
-                <RevenueChart points={revenueSeries} />
-              </div>
-            </ChartCard>
-          </div>
-
-          <div className="min-w-0 overflow-hidden">
-            <ChartCard
-              title={ui.products}
-              delay={0.64}
-              onExpand={() => setExpandedChart("topProducts")}
-            >
-              {topProducts.length ? (
-                <div className="min-w-0 overflow-hidden">
-                  <ProgressRows
-                    rows={topProducts}
-                    formatter={(value) => `${value} ${ui.sold}`}
-                  />
-                </div>
-              ) : (
-                <p className="text-sm leading-6 text-[var(--muted-foreground)]">
-                  {ui.noSales}
-                </p>
-              )}
-            </ChartCard>
-          </div>
-        </div>
-
-        {/* Latest Orders */}
-        <EntranceMotion delay={0.72}>
-          <Card>
-            <div className="min-w-0">
-              <div className="flex min-w-0 items-center justify-between gap-3">
-                <h2 className="min-w-0 truncate text-sm font-bold text-[var(--foreground)] sm:text-base">
-                  {ui.latestOrders}
-                </h2>
-
-                <Link
-                  href="/admin/order-management"
-                  className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-[var(--action)] hover:underline"
-                >
-                  <span className="hidden sm:inline">
-                    {ui.openManagement}
-                  </span>
-                  <ArrowRight className="size-3.5" />
-                </Link>
-              </div>
-
-              <div className="mt-3 min-w-0 space-y-2.5">
-                {store.orders.length ? (
-                  store.orders.slice(0, 5).map((order, index) => (
-                    <EntranceMotion
-                      key={order.id}
-                      delay={0.76 + index * 0.045}
-                    >
-                      <div className="min-w-0 overflow-hidden rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)]/50 p-3 sm:p-3.5 transition-colors hover:bg-[var(--surface-soft)]">
-                        <div className="flex min-w-0 items-center justify-between gap-2">
-                          <div className="flex min-w-0 items-center gap-2">
-                            <span className="min-w-0 truncate font-mono text-[11px] font-bold text-[var(--foreground)] sm:text-xs">
-                              {order.orderNumber || order.id}
-                            </span>
-
-                            <div className="shrink-0">
-                              <StatusPill status={order.status} />
-                            </div>
-                          </div>
-
-                          <span className="shrink-0 text-xs font-bold text-[var(--foreground)]">
-                            {formatCurrency(order.total)}
-                          </span>
+                          <AlertTriangle className="size-4" />
                         </div>
 
-                        <div className="mt-1.5 flex min-w-0 items-center justify-between gap-2">
-                          <p className="min-w-0 truncate text-[10px] text-[var(--muted-foreground)] sm:text-[11px]">
-                            {order.shippingAddress}
-                          </p>
+                        <div className="min-w-0 flex-1">
+                          <h3
+                            style={{
+                              color: isDanger ? "var(--alert-danger-title)" : "var(--alert-warning-title)",
+                            }}
+                            className="text-xs font-bold tracking-tight"
+                          >
+                            {alert.title}
+                          </h3>
 
-                          <span className="shrink-0 rounded-md border border-[var(--border-soft)] bg-[var(--surface-strong)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--foreground)] sm:text-[10px]">
-                            {order.paymentMethod}
-                          </span>
+                          <p
+                            style={{
+                              color: isDanger ? "var(--alert-danger-text)" : "var(--alert-warning-text)",
+                            }}
+                            className="mt-1 text-xs font-medium leading-relaxed"
+                          >
+                            {alert.message}
+                          </p>
                         </div>
                       </div>
                     </EntranceMotion>
-                  ))
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
+
+          {/* Time Range */}
+          <EntranceMotion delay={0.52}>
+            <section className="min-w-0">
+              <div className="flex min-w-0 items-center gap-1.5 overflow-hidden rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] p-1 text-xs font-medium">
+                {dashboardRangeOptions.map((option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => setRange(option.key)}
+                    data-active={range === option.key}
+                    className={cn(
+                      "min-w-0 flex-1 rounded-lg px-2 py-1.5 text-center font-semibold transition-all",
+                      range === option.key
+                        ? "bg-[var(--surface-strong)] text-[var(--action)] shadow-sm"
+                        : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                    )}
+                  >
+                    <span className="block truncate">
+                      {getRangeLabel(option)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          </EntranceMotion>
+
+          {/* Custom Range */}
+          <AnimatePresence initial={false}>
+            {range === "custom" ? (
+              <motion.div
+                key="custom-range"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 6 }}
+                transition={{
+                  duration: 0.24,
+                  ease: easeInOutCubic,
+                }}
+                className="grid min-w-0 gap-3 sm:grid-cols-2"
+              >
+                <label className="min-w-0 space-y-1.5">
+                  <span className="text-xs font-semibold text-[var(--foreground)]">
+                    {ui.startDate}
+                  </span>
+
+                  <input
+                    type="date"
+                    value={customStart}
+                    onChange={(event) =>
+                      setCustomStart(event.target.value)
+                    }
+                    className="app-input min-w-0 w-full px-3 py-2.5 text-sm bg-[var(--surface-strong)] text-[var(--foreground)]"
+                  />
+                </label>
+
+                <label className="min-w-0 space-y-1.5">
+                  <span className="text-xs font-semibold text-[var(--foreground)]">
+                    {ui.endDate}
+                  </span>
+
+                  <input
+                    type="date"
+                    value={customEnd}
+                    onChange={(event) =>
+                      setCustomEnd(event.target.value)
+                    }
+                    className="app-input min-w-0 w-full px-3 py-2.5 text-sm bg-[var(--surface-strong)] text-[var(--foreground)]"
+                  />
+                </label>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+
+          {/* Charts */}
+          <div className="grid min-w-0 gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+            <div className="min-w-0 overflow-hidden">
+              <ChartCard
+                title={ui.revenue}
+                delay={0.58}
+                onExpand={() => setExpandedChart("revenue")}
+              >
+                <div className="min-w-0 overflow-hidden">
+                  <RevenueChart points={revenueSeries} />
+                </div>
+              </ChartCard>
+            </div>
+
+            <div className="min-w-0 overflow-hidden">
+              <ChartCard
+                title={ui.products}
+                delay={0.64}
+                onExpand={() => setExpandedChart("topProducts")}
+              >
+                {topProducts.length ? (
+                  <div className="min-w-0 overflow-hidden">
+                    <ProgressRows
+                      rows={topProducts}
+                      formatter={(value) => `${value} ${ui.sold}`}
+                    />
+                  </div>
                 ) : (
                   <p className="text-sm leading-6 text-[var(--muted-foreground)]">
-                    {ui.noOrders}
+                    {ui.noSales}
                   </p>
                 )}
-              </div>
+              </ChartCard>
             </div>
-          </Card>
-        </EntranceMotion>
-      </div>
-    </div>
+          </div>
 
-    {/* Expanded Chart */}
-    <AnimatePresence>
-      {expandedChart ? (
-        <div className="fixed inset-0 z-50 overflow-hidden">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{
-              duration: 0.3,
-              ease: easeInOutCubic,
-            }}
-            className="absolute inset-0 bg-black/55"
-            onClick={() => setExpandedChart("")}
-          />
+          {/* Latest Orders */}
+          <EntranceMotion delay={0.72}>
+            <Card>
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center justify-between gap-3">
+                  <h2 className="min-w-0 truncate text-sm font-bold text-[var(--foreground)] sm:text-base">
+                    {ui.latestOrders}
+                  </h2>
 
-          <motion.div
-            initial={{ opacity: 0, x: 48 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 28 }}
-            transition={{
-              duration: 0.42,
-              ease: easeInOutCubic,
-            }}
-            className="absolute inset-0 flex min-w-0 flex-col overflow-hidden bg-[var(--background-start)]"
-          >
-            <header className="app-bar shrink-0 px-4 py-3 sm:px-5 sm:py-4">
-              <div className="flex min-w-0 items-center justify-between gap-3">
-                <h2 className="min-w-0 truncate text-xl font-semibold text-[var(--foreground)] sm:text-2xl">
-                  {expandedTitle}
-                </h2>
+                  <Link
+                    href="/admin/order-management"
+                    className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-[var(--action)] hover:underline"
+                  >
+                    <span className="hidden sm:inline">
+                      {ui.openManagement}
+                    </span>
+                    <ArrowRight className="size-3.5" />
+                  </Link>
+                </div>
 
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setExpandedChart("")}
-                >
-                  {ui.close}
-                </Button>
+                <div className="mt-3 min-w-0 space-y-2.5">
+                  {store.orders.length ? (
+                    store.orders.slice(0, 5).map((order, index) => (
+                      <EntranceMotion
+                        key={order.id}
+                        delay={0.76 + index * 0.045}
+                      >
+                        <div className="min-w-0 overflow-hidden rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)]/50 p-3 sm:p-3.5 transition-colors hover:bg-[var(--surface-soft)]">
+                          <div className="flex min-w-0 items-center justify-between gap-2">
+                            <div className="flex min-w-0 items-center gap-2">
+                              <span className="min-w-0 truncate font-mono text-[11px] font-bold text-[var(--foreground)] sm:text-xs">
+                                {order.orderNumber || order.id}
+                              </span>
+
+                              <div className="shrink-0">
+                                <StatusPill status={order.status} />
+                              </div>
+                            </div>
+
+                            <span className="shrink-0 text-xs font-bold text-[var(--foreground)]">
+                              {formatCurrency(order.total)}
+                            </span>
+                          </div>
+
+                          <div className="mt-1.5 flex min-w-0 items-center justify-between gap-2">
+                            <p className="min-w-0 truncate text-[10px] text-[var(--muted-foreground)] sm:text-[11px]">
+                              {order.shippingAddress}
+                            </p>
+
+                            <span className="shrink-0 rounded-md border border-[var(--border-soft)] bg-[var(--surface-strong)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--foreground)] sm:text-[10px]">
+                              {order.paymentMethod}
+                            </span>
+                          </div>
+                        </div>
+                      </EntranceMotion>
+                    ))
+                  ) : (
+                    <p className="text-sm leading-6 text-[var(--muted-foreground)]">
+                      {ui.noOrders}
+                    </p>
+                  )}
+                </div>
               </div>
-            </header>
+            </Card>
+          </EntranceMotion>
+        </div>
+      </div>
 
-            <div
-              data-dashboard-scroll
-              className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 sm:px-5 sm:py-5"
+      {/* Expanded Chart */}
+      <AnimatePresence>
+        {expandedChart ? (
+          <div className="fixed inset-0 z-50 overflow-hidden">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{
+                duration: 0.3,
+                ease: easeInOutCubic,
+              }}
+              className="absolute inset-0 bg-black/55"
+              onClick={() => setExpandedChart("")}
+            />
+
+            <motion.div
+              initial={{ opacity: 0, x: 48 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 28 }}
+              transition={{
+                duration: 0.42,
+                ease: easeInOutCubic,
+              }}
+              className="absolute inset-0 flex min-w-0 flex-col overflow-hidden bg-[var(--background-start)]"
             >
-              <div className="mx-auto w-full min-w-0 max-w-[1200px]">
-                {expandedChart === "revenue" ? (
-                  <Card>
-                    <div className="min-w-0 overflow-hidden">
-                      <RevenueChart
-                        points={revenueSeries}
-                        height={360}
-                      />
-                    </div>
-                  </Card>
-                ) : (
-                  <Card>
-                    {topProducts.length ? (
+              <header className="app-bar shrink-0 px-4 py-3 sm:px-5 sm:py-4">
+                <div className="flex min-w-0 items-center justify-between gap-3">
+                  <h2 className="min-w-0 truncate text-xl font-semibold text-[var(--foreground)] sm:text-2xl">
+                    {expandedTitle}
+                  </h2>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setExpandedChart("")}
+                  >
+                    {ui.close}
+                  </Button>
+                </div>
+              </header>
+
+              <div
+                data-dashboard-scroll
+                className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 sm:px-5 sm:py-5"
+              >
+                <div className="mx-auto w-full min-w-0 max-w-[1200px]">
+                  {expandedChart === "revenue" ? (
+                    <Card>
                       <div className="min-w-0 overflow-hidden">
-                        <ProgressRows
-                          rows={topProducts}
-                          formatter={(value) => `${value} ${ui.sold}`}
+                        <RevenueChart
+                          points={revenueSeries}
+                          height={360}
                         />
                       </div>
-                    ) : (
-                      <p className="text-sm leading-6 text-[var(--muted-foreground)]">
-                        {ui.noSales}
-                      </p>
-                    )}
-                  </Card>
-                )}
+                    </Card>
+                  ) : (
+                    <Card>
+                      {topProducts.length ? (
+                        <div className="min-w-0 overflow-hidden">
+                          <ProgressRows
+                            rows={topProducts}
+                            formatter={(value) => `${value} ${ui.sold}`}
+                          />
+                        </div>
+                      ) : (
+                        <p className="text-sm leading-6 text-[var(--muted-foreground)]">
+                          {ui.noSales}
+                        </p>
+                      )}
+                    </Card>
+                  )}
+                </div>
               </div>
-            </div>
-          </motion.div>
-        </div>
-      ) : null}
-    </AnimatePresence>
-  </>
-);
+            </motion.div>
+          </div>
+        ) : null}
+      </AnimatePresence>
+    </>
+  );
 }
 
 
@@ -2720,19 +2704,6 @@ export function AdminInventoryPageView() {
       }}
     >
       <div className="min-w-0 space-y-5 sm:space-y-6">
-        {/* Page Header */}
-        <section className="min-w-0 border-b border-[var(--border-soft)] pb-5">
-          <h1 className="break-words text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">
-            {t("Inventory", "សារពើភ័ណ្ឌ")}
-          </h1>
-
-          <p className="mt-1 break-words text-xs text-[var(--muted-foreground)] sm:text-sm">
-            {t(
-              "Beverage Wholesale & Retail Management System",
-              "ប្រព័ន្ធគ្រប់គ្រងការលក់ដុំ និងលក់រាយភេសជ្ជៈ",
-            )}
-          </p>
-        </section>
 
         {/* Overview Header Cards */}
         <section className="grid min-w-0 grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
