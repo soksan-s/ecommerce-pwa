@@ -64,6 +64,7 @@ import { easeInOutCubic } from "@/components/motion/motion-utils";
 import { OrderDeliveryMap } from "@/components/shared/OrderDeliveryMap";
 import { OrderPrintView } from "@/components/shared/OrderPrintView";
 import { Button } from "@/components/ui/button";
+import { useTranslation } from "@/lib/translations";
 import { cn, formatCurrency } from "@/lib/utils";
 
 function Card({ children, className = "" }) {
@@ -7226,8 +7227,11 @@ export function AdminSupportInboxPageView({ user }) {
     </div>
   );
 }
+// Admin Team & Roles
 
 export function AdminUsersPageView({ currentUserId }) {
+  const store = useAppStore();
+  const { t, language } = useTranslation(store.language || "en");
   const [users, setUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -7238,6 +7242,22 @@ export function AdminUsersPageView({ currentUserId }) {
   const [addForm, setAddForm] = useState({ name: "", phoneNumber: "", password: "", role: "CASHIER" });
   const [addLoading, setAddLoading] = useState(false);
   const [addError, setAddError] = useState("");
+  const roleOptions = [
+    "CLIENT",
+    "CASHIER",
+    "MANAGER",
+    "WAREHOUSE_STAFF",
+    "DRIVER",
+    "ADMIN",
+  ];
+  const addRoleOptions = [
+    { value: "CLIENT", label: t("team_role_client") },
+    { value: "CASHIER", label: t("team_role_cashier") },
+    { value: "MANAGER", label: t("team_role_manager") },
+    { value: "WAREHOUSE_STAFF", label: t("team_role_warehouse") },
+    { value: "DRIVER", label: t("team_role_driver") },
+    { value: "ADMIN", label: t("team_role_admin") },
+  ];
 
   useEffect(() => {
     let mounted = true;
@@ -7257,12 +7277,17 @@ export function AdminUsersPageView({ currentUserId }) {
     return () => { mounted = false; };
   }, []);
 
-  const filteredUsers = users.filter(user =>
-    (user.name && user.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (user.username && user.username.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    user.phoneNumber.includes(searchQuery) ||
-    user.role.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const filteredUsers = users.filter((user) => {
+    if (!normalizedSearchQuery) return true;
+
+    return [
+      user.name,
+      user.username,
+      user.phoneNumber,
+      user.role,
+    ].some((value) => String(value || "").toLowerCase().includes(normalizedSearchQuery));
+  });
 
   async function updateUserRole(userId, newRole) {
     setIsLoading(true);
@@ -7282,7 +7307,7 @@ export function AdminUsersPageView({ currentUserId }) {
       }
 
       setUsers(users.map(u => u.id === userId ? { ...u, role: newRole } : u));
-      setMessage("User role updated successfully.");
+      setMessage(t("team_role_updated"));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -7309,7 +7334,7 @@ export function AdminUsersPageView({ currentUserId }) {
       }
 
       setUsers(users.map(u => u.id === userId ? { ...u, status: newStatus } : u));
-      setMessage("User status updated successfully.");
+      setMessage(t("team_status_updated"));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -7318,7 +7343,7 @@ export function AdminUsersPageView({ currentUserId }) {
   }
 
   async function deleteUser(userId) {
-    if (!confirm("Are you sure you want to delete this user? This cannot be undone.")) return;
+    if (!confirm(t("team_delete_confirm"))) return;
 
     setIsLoading(true);
     setError("");
@@ -7335,7 +7360,7 @@ export function AdminUsersPageView({ currentUserId }) {
       }
 
       setUsers(users.filter(u => u.id !== userId));
-      setMessage("User deleted successfully.");
+      setMessage(t("team_user_deleted"));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -7359,7 +7384,7 @@ export function AdminUsersPageView({ currentUserId }) {
       if (!res.ok) throw new Error(data.error || "Failed to create user");
 
       setUsers([data.user, ...users]);
-      setMessage("User created successfully.");
+      setMessage(t("team_user_created"));
       setShowAddModal(false);
       setAddForm({ name: "", phoneNumber: "", password: "", role: "CASHIER" });
     } catch (err) {
@@ -7371,102 +7396,108 @@ export function AdminUsersPageView({ currentUserId }) {
 
   if (fetching) {
     return (
-      <Card>
-        <div className="py-8 text-center text-sm text-[var(--muted-foreground)]">Loading users...</div>
+      <Card className="!rounded-none">
+        <div className="py-8 text-center text-sm text-[var(--muted-foreground)]">{t("team_loading_users")}</div>
       </Card>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="mx-auto w-full max-w-[1536px] space-y-6 overflow-x-hidden px-0 sm:px-2 lg:px-4">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <input
           type="text"
-          placeholder="Search users by name, phone, or role..."
+          placeholder={t("team_search_placeholder")}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="app-input w-full max-w-sm px-4 py-3 text-sm"
+          className="app-input w-full rounded-none px-4 py-3 text-sm md:max-w-sm"
         />
-        <Button onClick={() => { setShowAddModal(true); setAddError(""); }}>
+        <Button
+          onClick={() => { setShowAddModal(true); setAddError(""); }}
+          className="w-full rounded-none md:w-auto"
+        >
           <UserPlus className="mr-2 h-4 w-4" />
-          Add New User
+          {t("team_add_new_user")}
         </Button>
       </div>
 
-      {error && <div className="rounded-lg bg-red-50 p-4 text-sm text-red-600">{error}</div>}
-      {message && <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-600">{message}</div>}
+      {error && <div className="rounded-none bg-red-50 p-4 text-sm text-red-600 dark:bg-red-950/40 dark:text-red-300">{error}</div>}
+      {message && <div className="rounded-none bg-emerald-50 p-4 text-sm text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300">{message}</div>}
 
-      <Card>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-[var(--foreground)]">
-            <thead className="border-b border-[var(--border-soft)] text-xs uppercase text-[var(--muted-foreground)]">
+      <Card className="!rounded-none">
+        <div className="overflow-x-hidden">
+          <table className="block w-full table-fixed text-left text-sm text-[var(--foreground)] md:table">
+            <thead className="hidden border-b border-[var(--border-soft)] text-xs uppercase text-[var(--muted-foreground)] md:table-header-group">
               <tr>
-                <th className="px-6 py-4 font-semibold">User</th>
-                <th className="px-6 py-4 font-semibold">Phone</th>
-                <th className="px-6 py-4 font-semibold">Role</th>
-                <th className="px-6 py-4 font-semibold">Status</th>
-                <th className="px-6 py-4 font-semibold">Joined</th>
-                <th className="px-6 py-4 text-right font-semibold">Actions</th>
+                <th className="px-4 py-4 font-semibold lg:px-6">{t("team_user")}</th>
+                <th className="px-4 py-4 font-semibold lg:px-6">{t("phone")}</th>
+                <th className="px-4 py-4 font-semibold lg:px-6">{t("role")}</th>
+                <th className="px-4 py-4 font-semibold lg:px-6">{t("status")}</th>
+                <th className="px-4 py-4 font-semibold lg:px-6">{t("team_joined")}</th>
+                <th className="px-4 py-4 text-right font-semibold lg:px-6">{t("actions")}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[var(--border-soft)]">
+            <tbody className="block divide-y divide-[var(--border-soft)] md:table-row-group md:divide-y md:divide-[var(--border-soft)]">
               {filteredUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-[var(--surface-quiet)]">
-                  <td className="px-6 py-4 font-medium">
-                    {user.name || user.username || "Unknown User"}
+                <tr
+                  key={user.id}
+                  className="grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2 bg-[var(--surface-strong)] px-5 py-5 transition-colors hover:bg-[var(--surface-quiet)] md:table-row md:p-0"
+                >
+                  <td className="col-start-1 row-start-1 min-w-0 pr-2 text-sm font-semibold text-[var(--foreground)] md:table-cell md:px-4 md:py-4 md:font-medium lg:px-6">
+                    <span className="block truncate">{user.name || user.username || "Unknown User"}</span>
                   </td>
-                  <td className="px-6 py-4 font-mono text-xs">{user.phoneNumber}</td>
-                  <td className="px-6 py-4">
+                  <td className="col-start-1 row-start-2 min-w-0 font-mono text-[11px] text-[var(--muted-foreground)] md:table-cell md:px-4 md:py-4 md:text-xs md:text-[var(--foreground)] lg:px-6">
+                    <span className="block break-all">{user.phoneNumber}</span>
+                  </td>
+                  <td className="col-start-2 row-start-1 flex min-w-[86px] justify-end md:table-cell md:px-4 md:py-4 lg:px-6">
                     {user.id !== currentUserId && user.role !== "SUPER_ADMIN" ? (
                       <select
                         value={user.role}
                         onChange={(e) => updateUserRole(user.id, e.target.value)}
                         disabled={isLoading}
-                        className="rounded-lg border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-2.5 py-1 text-xs font-semibold outline-none cursor-pointer"
+                        className="w-[108px] rounded-none border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-2.5 py-1 text-xs font-semibold text-[var(--foreground)] outline-none cursor-pointer disabled:opacity-50 sm:w-[120px] md:w-full md:max-w-[190px]"
                       >
-                        <option value="CLIENT">CLIENT</option>
-                        <option value="CASHIER">CASHIER</option>
-                        <option value="MANAGER">MANAGER</option>
-                        <option value="WAREHOUSE_STAFF">WAREHOUSE_STAFF</option>
-                        <option value="DRIVER">DRIVER</option>
-                        <option value="ADMIN">ADMIN</option>
+                        {roleOptions.map((role) => (
+                          <option key={role} value={role}>{role}</option>
+                        ))}
                       </select>
                     ) : (
-                      <span className="rounded-full bg-[var(--surface-quiet)] px-2.5 py-0.5 text-xs font-semibold">
+                      <span className="rounded-none bg-[var(--surface-quiet)] px-2.5 py-0.5 text-xs font-semibold">
                         {user.role}
                       </span>
                     )}
                   </td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${user.status === "ACTIVE" ? "bg-emerald-100/50 text-emerald-700" : "bg-red-100/50 text-red-700"
+                  <td className="col-start-2 row-start-2 flex justify-end md:table-cell md:px-4 md:py-4 lg:px-6">
+                    <span className={`inline-flex items-center gap-1 rounded-none px-2.5 py-0.5 text-xs font-semibold ${user.status === "ACTIVE" ? "bg-emerald-100/50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300" : "bg-red-100/50 text-red-700 dark:bg-red-950/60 dark:text-red-300"
                       }`}>
                       {user.status === "ACTIVE" ? <UserCheck className="h-3 w-3" /> : <UserX className="h-3 w-3" />}
-                      {user.status}
+                      {user.status === "ACTIVE" ? t("active").toUpperCase() : t("inactive").toUpperCase()}
                     </span>
                   </td>
-                  <td className="whitespace-nowrap px-6 py-4 text-[var(--muted-foreground)]">
-                    {new Date(user.createdAt).toLocaleDateString()}
+                  <td className="col-start-1 row-start-3 min-w-0 whitespace-nowrap font-mono text-[11px] text-[var(--muted-foreground)] md:table-cell md:px-4 md:py-4 md:font-sans md:text-sm lg:px-6">
+                    <span className="md:hidden">{t("team_joined")}: </span>
+                    <span>{new Date(user.createdAt).toLocaleDateString(language === "km" ? "km-KH" : undefined)}</span>
                   </td>
-                  <td className="px-6 py-4 text-right">
+                  <td className="col-start-2 row-start-3 flex justify-end md:table-cell md:px-4 md:py-4 md:text-right lg:px-6">
                     {user.id !== currentUserId && user.role !== "SUPER_ADMIN" ? (
-                      <div className="flex justify-end gap-3">
+                      <div className="flex flex-wrap justify-end gap-3">
                         <button
                           onClick={() => toggleStatus(user.id, user.status)}
                           disabled={isLoading}
                           className="text-xs font-semibold text-amber-500 hover:underline disabled:opacity-50"
                         >
-                          {user.status === "ACTIVE" ? "Suspend" : "Activate"}
+                          {user.status === "ACTIVE" ? t("team_suspend") : t("team_activate")}
                         </button>
                         <button
                           onClick={() => deleteUser(user.id)}
                           disabled={isLoading}
                           className="text-xs font-semibold text-red-500 hover:underline disabled:opacity-50"
                         >
-                          Delete
+                          {t("delete")}
                         </button>
                       </div>
                     ) : (
-                      <span className="text-xs text-[var(--muted-foreground)]">Protected</span>
+                      <span className="text-xs text-[var(--muted-foreground)]">{t("team_protected")}</span>
                     )}
                   </td>
                 </tr>
@@ -7475,7 +7506,7 @@ export function AdminUsersPageView({ currentUserId }) {
           </table>
 
           {filteredUsers.length === 0 && (
-            <div className="py-8 text-center text-[var(--muted-foreground)]">No users found.</div>
+            <div className="py-8 text-center text-[var(--muted-foreground)]">{t("team_no_users")}</div>
           )}
         </div>
       </Card>
@@ -7483,7 +7514,7 @@ export function AdminUsersPageView({ currentUserId }) {
       {/* Add User Modal */}
       <AnimatePresence>
         {showAddModal ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overflow-x-hidden px-4 py-6">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -7497,78 +7528,76 @@ export function AdminUsersPageView({ currentUserId }) {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 12 }}
               transition={{ duration: 0.3 }}
-              className="app-card relative w-full max-w-md p-6"
+              className="app-card relative w-full max-w-md rounded-none p-6"
               onClick={(e) => e.stopPropagation()}
             >
-              <h2 className="text-xl font-semibold text-[var(--foreground)]">Add New User</h2>
-              <p className="mt-1 text-sm text-[var(--muted-foreground)]">Create a new system user account.</p>
+              <h2 className="text-xl font-semibold text-[var(--foreground)]">{t("team_add_new_user")}</h2>
+              <p className="mt-1 text-sm text-[var(--muted-foreground)]">{t("team_create_account")}</p>
 
               <form onSubmit={handleAddUser} className="mt-5 space-y-4">
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-[var(--foreground)]">Full Name (Optional)</label>
+                  <label className="mb-1.5 block text-sm font-medium text-[var(--foreground)]">{t("team_full_name_optional")}</label>
                   <input
                     type="text"
                     value={addForm.name}
                     onChange={(e) => setAddForm(f => ({ ...f, name: e.target.value }))}
                     placeholder="e.g. Soksan Staff"
-                    className="app-input px-4 py-3 text-sm"
+                    className="app-input rounded-none px-4 py-3 text-sm"
                   />
                 </div>
 
+
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-[var(--foreground)]">Phone Number <span className="text-red-500">*</span></label>
+                  <label className="mb-1.5 block text-sm font-medium text-[var(--foreground)]">{t("phone_number")} <span className="text-red-500">*</span></label>
                   <input
                     type="tel"
                     value={addForm.phoneNumber}
                     onChange={(e) => setAddForm(f => ({ ...f, phoneNumber: e.target.value }))}
                     placeholder="+855..."
                     required
-                    className="app-input px-4 py-3 text-sm"
+                    className="app-input rounded-none px-4 py-3 text-sm"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-[var(--foreground)]">Password <span className="text-red-500">*</span></label>
+                  <label className="mb-1.5 block text-sm font-medium text-[var(--foreground)]">{t("team_password")} <span className="text-red-500">*</span></label>
                   <input
                     type="password"
                     value={addForm.password}
                     onChange={(e) => setAddForm(f => ({ ...f, password: e.target.value }))}
-                    placeholder="Min. 6 characters"
+                    placeholder={t("team_password_placeholder")}
                     required
-                    className="app-input px-4 py-3 text-sm"
+                    className="app-input rounded-none px-4 py-3 text-sm"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-[var(--foreground)]">Role <span className="text-red-500">*</span></label>
+                  <label className="mb-1.5 block text-sm font-medium text-[var(--foreground)]">{t("role")} <span className="text-red-500">*</span></label>
                   <select
                     value={addForm.role}
                     onChange={(e) => setAddForm(f => ({ ...f, role: e.target.value }))}
-                    className="app-input px-4 py-3 text-sm"
+                    className="app-input rounded-none px-4 py-3 text-sm"
                   >
-                    <option value="CLIENT">Client (Customer)</option>
-                    <option value="CASHIER">Cashier</option>
-                    <option value="MANAGER">Manager</option>
-                    <option value="WAREHOUSE_STAFF">Warehouse Staff</option>
-                    <option value="DRIVER">Driver</option>
-                    <option value="ADMIN">Admin</option>
+                    {addRoleOptions.map((role) => (
+                      <option key={role.value} value={role.value}>{role.label}</option>
+                    ))}
                   </select>
                 </div>
 
                 {addError && (
-                  <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600">{addError}</div>
+                  <div className="rounded-none bg-red-50 p-3 text-sm text-red-600 dark:bg-red-950/40 dark:text-red-300">{addError}</div>
                 )}
 
-                <div className="flex gap-3 pt-2">
-                  <Button type="submit" disabled={addLoading} className="flex-1">
-                    {addLoading ? "Creating..." : "Create User"}
+                <div className="flex flex-col gap-3 pt-2 sm:flex-row">
+                  <Button type="submit" disabled={addLoading} className="flex-1 rounded-none">
+                    {addLoading ? t("team_creating") : t("team_create_user")}
                   </Button>
                   <button
                     type="button"
                     onClick={() => setShowAddModal(false)}
-                    className="rounded-xl border border-[var(--border-soft)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--surface-quiet)]"
+                    className="rounded-none border border-[var(--border-soft)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--surface-quiet)]"
                   >
-                    Cancel
+                    {t("cancel")}
                   </button>
                 </div>
               </form>
