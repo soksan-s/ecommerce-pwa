@@ -17,7 +17,9 @@ import {
   CircleHelp,
   Copy,
   CreditCard,
+  Download,
   Edit3,
+  ExternalLink,
   Filter,
   Gift,
   Globe,
@@ -215,6 +217,20 @@ function KhqrPaymentPanel({ payment, onCancel, onPaid }) {
   const orderNumber =
     currentPayment?.orderNumber || currentPayment?.orderId;
 
+  const handleDownloadQr = () => {
+    if (!currentPayment?.qrImage) return;
+    try {
+      const link = document.createElement("a");
+      link.href = currentPayment.qrImage;
+      link.download = `KHQR-Order-${orderNumber || currentPayment?.id || "payment"}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (e) {
+      console.error("Failed to download QR image", e);
+    }
+  };
+
   return (
     <div className="flex min-h-[calc(100vh-4rem)] w-full items-center justify-center px-3 py-6 sm:px-6 sm:py-8 lg:px-8">
       <Card className="mx-auto w-full max-w-xl overflow-hidden rounded-none border border-[var(--border-soft)] bg-[var(--surface)] p-0 shadow-[var(--shadow-soft)]">
@@ -346,23 +362,36 @@ function KhqrPaymentPanel({ payment, onCancel, onPaid }) {
                 </span>
               </div>
 
-              {/* Two buttons side by side */}
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                {currentPayment?.deeplink ? (
-                  <a
-                    href={currentPayment.deeplink}
-                    className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-none bg-[var(--action)] px-3 text-xs font-bold !text-white transition hover:opacity-90 active:scale-[0.99] sm:px-5 sm:text-sm"
-                  >
-                    <CreditCard className="size-4 shrink-0" />
-                    <span className="truncate">Save QR</span>
-                  </a>
-                ) : (
-                  <div />
-                )}
+              {/* Action Buttons */}
+              <div className="mt-4 space-y-2.5">
+                <div className={cn("grid gap-3", currentPayment?.deeplink ? "grid-cols-2" : "grid-cols-1")}>
+                  {currentPayment?.qrImage ? (
+                    <Button
+                      type="button"
+                      onClick={handleDownloadQr}
+                      className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-none bg-[var(--action)] px-3 text-xs font-bold !text-white transition hover:opacity-90 active:scale-[0.99] sm:px-5 sm:text-sm shadow-sm cursor-pointer"
+                    >
+                      <Download className="size-4 shrink-0" />
+                      <span className="truncate">Save QR</span>
+                    </Button>
+                  ) : null}
+
+                  {currentPayment?.deeplink ? (
+                    <a
+                      href={currentPayment.deeplink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-none border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3 text-xs font-bold text-[var(--foreground)] transition hover:bg-[var(--surface)] active:scale-[0.99] sm:px-5 sm:text-sm shadow-sm"
+                    >
+                      <ExternalLink className="size-4 shrink-0 text-[var(--action)]" />
+                      <span className="truncate">Open Bakong App</span>
+                    </a>
+                  ) : null}
+                </div>
 
                 <Button
                   type="button"
-                  className="h-12 w-full rounded-none border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3 text-xs font-semibold text-[var(--foreground)] shadow-none transition hover:bg-[var(--surface)] sm:px-5 sm:text-sm"
+                  className="h-11 w-full rounded-none border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3 text-xs font-semibold text-[var(--muted-foreground)] hover:text-[var(--foreground)] shadow-none transition hover:bg-[var(--surface)] sm:px-5 sm:text-sm"
                   onClick={onCancel}
                 >
                   {isFailed || isExpired

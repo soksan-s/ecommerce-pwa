@@ -1,5 +1,5 @@
 import { fail, handleRouteError, ok } from "@/lib/api-response";
-import { createAuditLog, createInventoryMovement } from "@/lib/business-events";
+import { createAuditLog, createInventoryMovement, createNotification } from "@/lib/business-events";
 import { canAccessPOS, getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { serializeOrder } from "@/lib/serializers";
@@ -244,6 +244,32 @@ export async function PATCH(request, { params }) {
         return next;
       });
 
+      // ── Post-cancel: fire ORDER_STATUS_CHANGE notifications (best-effort) ──
+      try {
+        const orderRef = updated.orderNumber || id;
+        const notifData = { orderId: id, orderNumber: orderRef, status: "CANCELLED" };
+        if (updated.userId) {
+          await createNotification(prisma, {
+            userId: updated.userId,
+            type: "ORDER_STATUS_CHANGE",
+            title: "Order Cancelled",
+            message: `Order #${orderRef} has been cancelled.`,
+            data: notifData,
+          });
+        }
+        if (updated.branchId) {
+          await createNotification(prisma, {
+            branchId: updated.branchId,
+            type: "ORDER_STATUS_CHANGE",
+            title: "Order Cancelled by Customer",
+            message: `Order #${orderRef} was cancelled by the customer.`,
+            data: notifData,
+          });
+        }
+      } catch (notifError) {
+        console.error("[orders] CANCEL notification error:", notifError?.message);
+      }
+
       return ok({ data: serializeOrder(updated) });
     } catch (error) {
       if (error?.message === "FORBIDDEN") {
@@ -373,6 +399,51 @@ export async function PATCH(request, { params }) {
 
       return next;
     });
+
+    // ── Post-update: fire ORDER_STATUS_CHANGE notifications (best-effort) ──
+    if (body.status !== undefined && updated.status) {
+      try {
+        const orderRef = updated.orderNumber || id;
+        const notifData = { orderId: id, orderNumber: orderRef, status: updated.status };
+
+        const statusMessages = {
+          CONFIRMED: "Your order has been confirmed.",
+          PICKING: "Your order is being picked.",
+          PACKING: "Your order is being packed.",
+          PREPARING: "Your order is being prepared.",
+          READY: "Your order is ready for pickup.",
+          SHIPPED: "Your order has been shipped.",
+          DELIVERED: "Your order has been delivered.",
+          COMPLETED: "Your order is complete.",
+          CANCELLED: "Your order has been cancelled.",
+        };
+
+        const customerMsg = statusMessages[updated.status] || `Your order #${orderRef} status is now ${updated.status}.`;
+        const statusLabel = updated.status.charAt(0) + updated.status.slice(1).toLowerCase();
+
+        if (updated.userId) {
+          await createNotification(prisma, {
+            userId: updated.userId,
+            type: "ORDER_STATUS_CHANGE",
+            title: `Order ${statusLabel}`,
+            message: `Order #${orderRef}: ${customerMsg}`,
+            data: notifData,
+          });
+        }
+
+        if (updated.branchId) {
+          await createNotification(prisma, {
+            branchId: updated.branchId,
+            type: "ORDER_STATUS_CHANGE",
+            title: `Order ${statusLabel}`,
+            message: `Order #${orderRef} is now ${updated.status}.`,
+            data: notifData,
+          });
+        }
+      } catch (notifError) {
+        console.error("[orders] STATUS_CHANGE notification error:", notifError?.message);
+      }
+    }
 
     return ok({
       data: serializeOrder(updated),

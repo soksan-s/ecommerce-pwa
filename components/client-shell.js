@@ -33,6 +33,7 @@ import {
 import { ClientHomePageView } from "@/components/client-home";
 import { LogoutButton } from "@/components/logout-button";
 import { easeInOutCubic } from "@/components/motion/motion-utils";
+import { NotificationsDropdown } from "@/components/notifications-dropdown";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -303,8 +304,16 @@ export function ClientShell({ user, initialTab = "home", orderDetailId = "" }) {
               </div>
             </div>
 
-            {/* Mobile Actions: Cart + Hamburger */}
-            <div className="flex items-center gap-2 md:hidden">
+            {/* Mobile Actions: Notifications + Cart + Hamburger */}
+            <div className="flex items-center gap-1 md:hidden">
+              {user && (
+                <NotificationsDropdown
+                  lang={lang}
+                  orderHref={(orderId) => (orderId ? `/client/order-history/${orderId}` : `/client?tab=orders`)}
+                  pollInterval={30000}
+                />
+              )}
+
               <button
                 type="button"
                 onClick={() => openTab("cart")}
@@ -389,7 +398,15 @@ export function ClientShell({ user, initialTab = "home", orderDetailId = "" }) {
           </div>
 
           {/* Right Desktop Actions: User Account & Cart */}
-          <div className="hidden md:flex items-center gap-4 shrink-0">
+          <div className="hidden md:flex items-center gap-3 shrink-0">
+            {user && (
+              <NotificationsDropdown
+                lang={lang}
+                orderHref={(orderId) => (orderId ? `/client/order-history/${orderId}` : `/client?tab=orders`)}
+                pollInterval={30000}
+              />
+            )}
+
             {/* Favorites shortcut */}
             <button
               type="button"
