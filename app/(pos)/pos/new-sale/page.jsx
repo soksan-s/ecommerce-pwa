@@ -388,7 +388,7 @@ export default function NewSalePage() {
 
   const scanner = useCameraBarcodeScanner({ onDetected: handleBarcodeScan });
 
-  const subtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);  const taxBase = Math.max(0, subtotal - appliedDiscount.amount);
+  const subtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0); const taxBase = Math.max(0, subtotal - appliedDiscount.amount);
   const tax = settings.tax.enabled
     ? settings.tax.taxType === "inclusive"
       ? Number((taxBase - taxBase / (1 + settings.tax.taxRate / 100)).toFixed(2))
@@ -683,7 +683,7 @@ export default function NewSalePage() {
                 />
               </div>
               {discountType === "percent" &&
-              Number(discountValue || 0) > Number(settings.discount.managerPinThresholdPercent || 0) ? (
+                Number(discountValue || 0) > Number(settings.discount.managerPinThresholdPercent || 0) ? (
                 <input
                   value={managerPin}
                   onChange={(event) => setManagerPin(event.target.value.replace(/\D/g, "").slice(0, 4))}
