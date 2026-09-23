@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Edit3, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Download, Edit3, Plus, RefreshCw, Tags, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { convertMoney, formatMoney, formatPrimaryMoney } from "@/components/pos/format";
@@ -83,6 +83,12 @@ export default function PosProductsPage() {
   const [products, setProducts] = useState([]);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
+  const [activeSection, setActiveSection] = useState("products");
+  const [localCategories, setLocalCategories] = useState([]);
+  const [categoryDraft, setCategoryDraft] = useState("");
+  const [editingCategory, setEditingCategory] = useState("");
+  const [editingCategoryName, setEditingCategoryName] = useState("");
+  const [categoryNotice, setCategoryNotice] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [status, setStatus] = useState("all");
   const [view, setView] = useState("table");
@@ -117,6 +123,7 @@ export default function PosProductsPage() {
           setProducts(mockProducts.map((p) => normalizeProduct(p, settings.currency.exchangeRate)));
         }
         setLastSynced(window.localStorage.getItem("pos-products-last-synced") || "Never");
+        setLocalCategories(JSON.parse(window.localStorage.getItem("pos-local-categories") || "[]"));
       }
 
       if (!isOnline) {
@@ -133,7 +140,31 @@ export default function PosProductsPage() {
     };
   }, [isOnline, catalogVersion]);
 
-  const categories = useMemo(() => ["All", ...new Set(products.map((product) => product.category))], [products]);
+  const productCategories = useMemo(
+    () => products.map((product) => product.category || "General").filter(Boolean),
+    [products]
+  );
+  const categoryNames = useMemo(
+    () => [...new Set([...productCategories, ...localCategories].map((entry) => String(entry || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
+    [localCategories, productCategories]
+  );
+  const categories = useMemo(() => ["All", ...categoryNames], [categoryNames]);
+  const categoryRows = useMemo(
+    () =>
+      categoryNames.map((name) => {
+        const categoryProducts = products.filter((product) => product.category === name);
+        const activeProducts = categoryProducts.filter((product) => product.isActive).length;
+        const stock = categoryProducts.reduce((sum, product) => sum + Number(product.stock || 0), 0);
+        return {
+          name,
+          productCount: categoryProducts.length,
+          activeProducts,
+          stock,
+          isLocalOnly: categoryProducts.length === 0,
+        };
+      }),
+    [categoryNames, products]
+  );
 
   const visibleProducts = useMemo(() => {
     const lower = query.trim().toLowerCase();
@@ -174,6 +205,72 @@ export default function PosProductsPage() {
     setProducts(nextProducts);
     await saveProductsToCache(nextProducts);
     incrementCatalogVersion();
+  }
+
+  function persistLocalCategories(nextCategories) {
+    const normalized = [...new Set(nextCategories.map((entry) => String(entry || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    setLocalCategories(normalized);
+    window.localStorage.setItem("pos-local-categories", JSON.stringify(normalized));
+  }
+
+  function addCategory() {
+    const nextName = categoryDraft.trim();
+    setCategoryNotice("");
+
+    if (!nextName) {
+      setCategoryNotice("Enter a category name first.");
+      return;
+    }
+
+    if (categoryNames.some((name) => name.toLowerCase() === nextName.toLowerCase())) {
+      setCategoryNotice("That category already exists.");
+      return;
+    }
+
+    persistLocalCategories([...localCategories, nextName]);
+    setCategoryDraft("");
+    setCategoryNotice(`Category "${nextName}" added locally.`);
+  }
+
+  async function renameCategory(oldName) {
+    const nextName = editingCategoryName.trim();
+    setCategoryNotice("");
+
+    if (!nextName) {
+      setCategoryNotice("Enter a new category name.");
+      return;
+    }
+
+    if (nextName === oldName) {
+      setEditingCategory("");
+      setEditingCategoryName("");
+      return;
+    }
+
+    const nextProducts = products.map((product) =>
+      product.category === oldName ? { ...product, category: nextName, updatedAt: new Date().toISOString() } : product
+    );
+    const nextLocalCategories = localCategories.map((name) => (name === oldName ? nextName : name));
+
+    await persistProducts(nextProducts);
+    persistLocalCategories(nextLocalCategories.includes(nextName) ? nextLocalCategories : [...nextLocalCategories, nextName]);
+    setCategory(nextName);
+    setEditingCategory("");
+    setEditingCategoryName("");
+    setCategoryNotice(`Category "${oldName}" renamed to "${nextName}".`);
+  }
+
+  function deleteCategory(name) {
+    const productCount = products.filter((product) => product.category === name).length;
+    setCategoryNotice("");
+
+    if (productCount > 0) {
+      setCategoryNotice("Move or rename products before deleting a category that is in use.");
+      return;
+    }
+
+    persistLocalCategories(localCategories.filter((entry) => entry !== name));
+    setCategoryNotice(`Category "${name}" deleted.`);
   }
 
   async function syncProducts(showLoading = true) {
@@ -352,6 +449,28 @@ export default function PosProductsPage() {
         </div>
       </div>
 
+      <div className="grid w-full gap-2 rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-1 shadow-xs sm:inline-grid sm:w-auto sm:grid-cols-2">
+        {[
+          ["products", "Products"],
+          ["categories", "Categories"],
+        ].map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setActiveSection(key)}
+            className={
+              activeSection === key
+                ? "rounded-xl bg-[var(--pos-action)] px-4 py-2 text-xs font-extrabold text-[var(--pos-action-fg)] shadow-xs"
+                : "rounded-xl px-4 py-2 text-xs font-bold text-[var(--muted-foreground)] hover:bg-[var(--surface-soft)] hover:text-[var(--foreground)]"
+            }
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {activeSection === "products" ? (
+        <>
       <div className="grid gap-2.5 rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-3.5 shadow-xs lg:grid-cols-[minmax(0,1fr)_12rem_12rem_10rem_auto]">
         <input 
           value={query} 
@@ -505,6 +624,144 @@ export default function PosProductsPage() {
             </article>
           ))}
         </div>
+      )}
+        </>
+      ) : (
+        <section className="space-y-4">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
+            <div className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-4 shadow-xs">
+              <div className="flex items-start gap-3">
+                <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--pos-action-surface)] text-[var(--pos-action-on-muted)]">
+                  <Tags className="size-5" />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-lg font-extrabold text-[var(--foreground)]">Category Management</h2>
+                  <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+                    Organize local POS product groups for faster filtering and cashier workflows.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] p-3">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">Categories</p>
+                  <p className="mt-1 text-2xl font-extrabold text-[var(--foreground)]">{categoryRows.length}</p>
+                </div>
+                <div className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] p-3">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">Assigned Products</p>
+                  <p className="mt-1 text-2xl font-extrabold text-[var(--foreground)]">{products.length}</p>
+                </div>
+                <div className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] p-3">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">Empty</p>
+                  <p className="mt-1 text-2xl font-extrabold text-[var(--foreground)]">{categoryRows.filter((row) => row.isLocalOnly).length}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-4 shadow-xs">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">New Category</p>
+              <div className="mt-3 flex gap-2">
+                <input
+                  value={categoryDraft}
+                  onChange={(event) => setCategoryDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") addCategory();
+                  }}
+                  placeholder="e.g. Cold Drinks"
+                  className="min-w-0 flex-1 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3 py-2 text-sm font-semibold text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)] focus:border-[var(--pos-action)]"
+                />
+                <button
+                  type="button"
+                  onClick={addCategory}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[var(--pos-action)] px-3.5 py-2 text-xs font-extrabold text-[var(--pos-action-fg)]"
+                >
+                  <Plus className="size-4" />
+                  Add
+                </button>
+              </div>
+              {categoryNotice ? (
+                <p className="mt-3 rounded-xl bg-[var(--pos-action-surface)] px-3 py-2 text-xs font-bold text-[var(--pos-action-on-muted)]">
+                  {categoryNotice}
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[48rem] text-left text-xs">
+                <thead className="bg-[var(--surface-soft)] text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
+                  <tr>
+                    <th className="px-4 py-3">Category</th>
+                    <th className="px-4 py-3">Products</th>
+                    <th className="px-4 py-3">Active</th>
+                    <th className="px-4 py-3">Stock</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--border-soft)]">
+                  {categoryRows.map((row) => (
+                    <tr key={row.name} className="hover:bg-[var(--surface-soft)]/50">
+                      <td className="px-4 py-3">
+                        {editingCategory === row.name ? (
+                          <input
+                            value={editingCategoryName}
+                            onChange={(event) => setEditingCategoryName(event.target.value)}
+                            className="w-full rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3 py-2 text-xs font-bold text-[var(--foreground)] outline-none focus:border-[var(--pos-action)]"
+                          />
+                        ) : (
+                          <div>
+                            <p className="font-extrabold text-[var(--foreground)]">{row.name}</p>
+                            <p className="mt-0.5 text-[11px] font-semibold text-[var(--muted-foreground)]">
+                              {row.isLocalOnly ? "Empty local category" : "Used in product catalog"}
+                            </p>
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 font-extrabold text-[var(--foreground)]">{row.productCount}</td>
+                      <td className="px-4 py-3 font-semibold text-[var(--muted-foreground)]">{row.activeProducts}</td>
+                      <td className="px-4 py-3 font-semibold text-[var(--muted-foreground)]">{row.stock.toLocaleString()}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex justify-end gap-1.5">
+                          {editingCategory === row.name ? (
+                            <>
+                              <button type="button" onClick={() => renameCategory(row.name)} className="rounded-lg bg-[var(--pos-action)] px-3 py-1.5 text-xs font-extrabold text-[var(--pos-action-fg)]">Save</button>
+                              <button type="button" onClick={() => { setEditingCategory(""); setEditingCategoryName(""); }} className="rounded-lg border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3 py-1.5 text-xs font-bold text-[var(--foreground)]">Cancel</button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingCategory(row.name);
+                                  setEditingCategoryName(row.name);
+                                  setCategoryNotice("");
+                                }}
+                                className="grid size-8 place-items-center rounded-lg bg-[var(--surface-soft)] text-[var(--foreground)] hover:bg-[var(--surface-quiet)]"
+                                title="Rename category"
+                                aria-label="Rename category"
+                              >
+                                <Edit3 className="size-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => deleteCategory(row.name)}
+                                className="grid size-8 place-items-center rounded-lg bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-400"
+                                title="Delete empty category"
+                                aria-label="Delete empty category"
+                              >
+                                <Trash2 className="size-3.5" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
       )}
 
       <ProductFormModal
