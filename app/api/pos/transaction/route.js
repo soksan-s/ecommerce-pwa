@@ -1,6 +1,7 @@
 import { fail, handleRouteError, ok } from "@/lib/api-response";
 import { canAccessPOS, getCurrentUser } from "@/lib/auth";
 import { calculateDeposits, createContainerIssues, createAuditLog, createInventoryMovement } from "@/lib/business-events";
+import { createNotification } from "@/lib/server/services/notifications";
 import { prisma } from "@/lib/prisma";
 
 function toMoney(value) {
@@ -351,6 +352,23 @@ export async function POST(request) {
       maxWait: 15000,
       timeout: 30000,
     });
+
+    // Post-transaction: notify branch cashiers about this POS sale (best-effort)
+    try {
+      if (branchId) {
+        const itemCount = normalizedItems.reduce((sum, item) => sum + item.quantity, 0);
+        await createNotification(prisma, {
+          branchId,
+          userId: user.id,
+          type: "ORDER_PLACED",
+          title: "POS Sale Completed",
+          message: `Sale ${sale.receiptNumber} — ${itemCount} item${itemCount === 1 ? "" : "s"} · $${Number(sale.total).toFixed(2)} via ${paymentMethodName}`,
+          data: { saleId: sale.id, receiptNumber: sale.receiptNumber, channel: "POS" },
+        });
+      }
+    } catch {
+      // Never block sale on notification failure
+    }
 
     return ok({
       data: {

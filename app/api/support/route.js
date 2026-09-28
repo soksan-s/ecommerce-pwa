@@ -12,7 +12,7 @@ export async function GET() {
     }
 
     const tickets = await prisma.supportTicket.findMany({
-      where: user.role === "ADMIN" ? {} : { userId: user.id },
+      where: (user.role === "ADMIN" || user.role === "SUPER_ADMIN") ? {} : { userId: user.id },
       include: {
         messages: {
           include: {

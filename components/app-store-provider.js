@@ -733,18 +733,54 @@ export function AppStoreProvider({ children }) {
           return;
         }
 
+        // Optimistic update — close immediately in UI
+        let previousTicket = null;
+        patch((current) => {
+          const existing = current.supportTickets.find((t) => t.id === ticketId);
+          if (existing) previousTicket = existing;
+          return {
+            ...current,
+            supportTickets: current.supportTickets.map((ticket) =>
+              ticket.id === ticketId ? { ...ticket, status: "closed" } : ticket,
+            ),
+          };
+        });
+
         fetch(`/api/support/${ticketId}/close`, { method: "PATCH" })
           .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
           .then(({ ok, data }) => {
-            if (!ok || !data.data) {
+            if (!ok) {
+              // Roll back if API failed
+              if (previousTicket) {
+                patch((current) => ({
+                  ...current,
+                  supportTickets: current.supportTickets.map((ticket) =>
+                    ticket.id === ticketId ? previousTicket : ticket,
+                  ),
+                }));
+              }
               return;
             }
-            patch((current) => ({
-              ...current,
-              supportTickets: current.supportTickets.map((ticket) => (ticket.id === ticketId ? data.data : ticket)),
-            }));
+            if (data.data) {
+              patch((current) => ({
+                ...current,
+                supportTickets: current.supportTickets.map((ticket) =>
+                  ticket.id === ticketId ? data.data : ticket,
+                ),
+              }));
+            }
           })
-          .catch(() => {});
+          .catch(() => {
+            // Roll back on network error
+            if (previousTicket) {
+              patch((current) => ({
+                ...current,
+                supportTickets: current.supportTickets.map((ticket) =>
+                  ticket.id === ticketId ? previousTicket : ticket,
+                ),
+              }));
+            }
+          });
       },
       async addProduct(input) {
         try {

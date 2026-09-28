@@ -64,7 +64,6 @@ import { easeInOutCubic } from "@/components/motion/motion-utils";
 import { OrderDeliveryMap } from "@/components/shared/OrderDeliveryMap";
 import { OrderPrintView } from "@/components/shared/OrderPrintView";
 import { Button } from "@/components/ui/button";
-import { useTranslation } from "@/lib/translations";
 import { cn, formatCurrency } from "@/lib/utils";
 
 function Card({ children, className = "" }) {
@@ -711,7 +710,19 @@ export function AdminDashboardPageView() {
       >
         <div className="min-w-0 space-y-4 sm:space-y-5 lg:space-y-6">
           {/* Overview Header */}
+          <EntranceMotion delay={0.04}>
+            <section className="flex min-w-0 items-center justify-between gap-3">
+              <div className="min-w-0">
+                <h1 className="truncate text-xl font-bold tracking-tight text-[var(--foreground)] sm:text-2xl">
+                  {ui.overview}
+                </h1>
 
+                <p className="mt-0.5 truncate text-xs font-medium text-[var(--muted-foreground)] sm:text-sm">
+                  {ui.beverageSubtitle}
+                </p>
+              </div>
+            </section>
+          </EntranceMotion>
 
           {/* KPI Metrics */}
           <section className="grid min-w-0 grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 xl:grid-cols-6">
@@ -2071,43 +2082,10 @@ export function AdminProductManagementPageView() {
 
 export function AdminInventoryPageView() {
   const store = useAppStore();
-
-  const language = String(store.language || "en").toLowerCase();
-  const isKhmer =
-    language === "km" ||
-    language.startsWith("km-") ||
-    language.startsWith("kh");
-
-  function t(english, khmer) {
-    return isKhmer ? khmer : english;
-  }
-
-  function movementTypeLabel(type) {
-    const value = String(type || "").replace(/_/g, " ");
-
-    const labels = {
-      "STOCK IN": "ស្តុកចូល",
-      "PURCHASE RECEIPT": "ទទួលទិញ",
-      "ADJUSTMENT INCREASE": "កែសម្រួលបង្កើន",
-      "ADJUSTMENT DECREASE": "កែសម្រួលបន្ថយ",
-      SALE: "ការលក់",
-      "STOCK OUT": "ស្តុកចេញ",
-      RESERVATION: "ការកក់",
-      "RESERVATION RELEASE": "ដោះការកក់",
-    };
-
-    return isKhmer
-      ? labels[String(type || "").replace(/_/g, " ").toUpperCase()] ||
-      value
-      : value;
-  }
-
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-
   const [csvText, setCsvText] = useState("");
   const [csvMessage, setCsvMessage] = useState("");
-
   const [movements, setMovements] = useState([]);
   const [movementFilter, setMovementFilter] = useState("ALL");
   const [movementLoading, setMovementLoading] = useState(false);
@@ -2140,43 +2118,19 @@ export function AdminInventoryPageView() {
 
   async function loadMovements() {
     setMovementLoading(true);
-
     try {
-      const response = await fetch(
-        "/api/inventory/movements?limit=50",
-        {
-          cache: "no-store",
-        },
-      );
+      const response = await fetch("/api/inventory/movements?limit=50", { cache: "no-store" });
+      const payload = await response.json();
 
-      const payload = await response
-        .json()
-        .catch(() => ({}));
-
-      if (
-        !response.ok ||
-        !Array.isArray(payload.data)
-      ) {
-        setMovementMessage(
-          payload.error ||
-          t(
-            "Unable to load movement history.",
-            "មិនអាចផ្ទុកប្រវត្តិចលនាស្តុកបានទេ។",
-          ),
-        );
-        setMovements([]);
+      if (!response.ok || !Array.isArray(payload.data)) {
+        setMovementMessage(payload.error || "Unable to load movement history.");
         return;
       }
 
       setMovements(payload.data);
       setMovementMessage("");
     } catch {
-      setMovementMessage(
-        t(
-          "Unable to load movement history.",
-          "មិនអាចផ្ទុកប្រវត្តិចលនាស្តុកបានទេ។",
-        ),
-      );
+      setMovementMessage("Unable to load movement history.");
     } finally {
       setMovementLoading(false);
     }
@@ -2187,105 +2141,41 @@ export function AdminInventoryPageView() {
   }, []);
 
   async function handleImport() {
-    try {
-      const result = await store.importInventoryCsv(csvText);
-
-      setCsvMessage(
-        result?.message ||
-        t(
-          "Import completed.",
-          "ការនាំចូលបានបញ្ចប់។",
-        ),
-      );
-
-      if (result?.success) {
-        setCsvText("");
-        await loadMovements();
-      }
-    } catch {
-      setCsvMessage(
-        t(
-          "Unable to import inventory.",
-          "មិនអាចនាំចូលស្តុកបានទេ។",
-        ),
-      );
+    const result = await store.importInventoryCsv(csvText);
+    setCsvMessage(result.message);
+    if (result.success) {
+      setCsvText("");
+      loadMovements();
     }
   }
 
   function handleCsvFile(event) {
     const file = event.target.files?.[0];
-
     if (!file) {
       return;
     }
-
-    file
-      .text()
-      .then((text) => {
-        setCsvText(text);
-        setCsvMessage("");
-      })
-      .catch(() => {
-        setCsvMessage(
-          t(
-            "Unable to read the CSV file.",
-            "មិនអាចអានឯកសារ CSV បានទេ។",
-          ),
-        );
-      });
-
-    event.target.value = "";
+    file.text().then(setCsvText);
   }
 
   const productsList = useMemo(() => {
     const lower = query.trim().toLowerCase();
-
     return store.products.filter((product) => {
       const totalStock = getProductTotalStock(product);
       const minAlert = product.minStockAlert || 5;
 
       if (lower) {
-        const matchName = String(
-          product.name || "",
-        )
-          .toLowerCase()
-          .includes(lower);
-
-        const matchSku = String(
-          product.sku || "",
-        )
-          .toLowerCase()
-          .includes(lower);
-
-        const matchCategory = String(
-          product.category || "",
-        )
-          .toLowerCase()
-          .includes(lower);
-
-        if (
-          !matchName &&
-          !matchSku &&
-          !matchCategory
-        ) {
-          return false;
-        }
+        const matchName = product.name?.toLowerCase().includes(lower);
+        const matchSku = product.sku?.toLowerCase().includes(lower);
+        const matchCategory = product.category?.toLowerCase().includes(lower);
+        if (!matchName && !matchSku && !matchCategory) return false;
       }
 
-      if (
-        statusFilter === "lowStock" &&
-        (totalStock > minAlert || totalStock === 0)
-      ) {
+      if (statusFilter === "lowStock" && (totalStock > minAlert || totalStock === 0)) {
         return false;
       }
-
-      if (
-        statusFilter === "outOfStock" &&
-        totalStock > 0
-      ) {
+      if (statusFilter === "outOfStock" && totalStock > 0) {
         return false;
       }
-
       return true;
     });
   }, [store.products, query, statusFilter]);
@@ -2295,16 +2185,14 @@ export function AdminInventoryPageView() {
     let lowStockCount = 0;
     let outOfStockCount = 0;
 
-    store.products.forEach((product) => {
-      const stock = getProductTotalStock(product);
-      const min = product.minStockAlert || 5;
-
+    store.products.forEach((p) => {
+      const stock = getProductTotalStock(p);
+      const min = p.minStockAlert || 5;
       totalStockCount += stock;
-
       if (stock === 0) {
-        outOfStockCount += 1;
+        outOfStockCount++;
       } else if (stock <= min) {
-        lowStockCount += 1;
+        lowStockCount++;
       }
     });
 
@@ -2316,2012 +2204,610 @@ export function AdminInventoryPageView() {
     };
   }, [store.products]);
 
-  async function submitStockIn(event) {
-    event.preventDefault();
-
-    const qty = parseInt(
-      stockInModal.quantity,
-      10,
-    );
-
-    if (Number.isNaN(qty) || qty <= 0) {
-      setStockInModal((current) => ({
-        ...current,
-        error: t(
-          "Please enter a valid quantity greater than 0.",
-          "សូមបញ្ចូលចំនួនដែលត្រឹមត្រូវ និងធំជាង 0។",
-        ),
-      }));
+  // Handle Stock In Submit
+  async function submitStockIn(e) {
+    e.preventDefault();
+    const qty = parseInt(stockInModal.quantity, 10);
+    if (isNaN(qty) || qty <= 0) {
+      setStockInModal((m) => ({ ...m, error: "Please enter a valid quantity greater than 0." }));
       return;
     }
 
-    setStockInModal((current) => ({
-      ...current,
-      loading: true,
-      error: "",
-    }));
+    setStockInModal((m) => ({ ...m, loading: true, error: "" }));
 
     try {
-      const response = await fetch(
-        "/api/inventory/adjust",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            action: "STOCK_IN",
-            productId:
-              stockInModal.product?.id,
-            variantId:
-              stockInModal.variantId ||
-              undefined,
-            quantity: qty,
-            reason:
-              stockInModal.note.trim() ||
-              "Stock In / Restock",
-          }),
-        },
-      );
+      const response = await fetch("/api/inventory/adjust", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "STOCK_IN",
+          productId: stockInModal.product?.id,
+          variantId: stockInModal.variantId || undefined,
+          quantity: qty,
+          reason: stockInModal.note.trim() || "Stock In / Restock",
+        }),
+      });
 
-      const data = await response
-        .json()
-        .catch(() => ({}));
-
+      const data = await response.json();
       if (!response.ok) {
-        throw new Error(
-          data.error ||
-          t(
-            "Failed to restock item.",
-            "មិនអាចបន្ថែមស្តុកបានទេ។",
-          ),
-        );
+        throw new Error(data.error || "Failed to restock item.");
       }
 
-      if (stockInModal.product?.id) {
-        store.restockProduct(
-          stockInModal.product.id,
-          qty,
-        );
-      }
+      // Update local store product stock
+      store.restockProduct(stockInModal.product.id, qty);
+      loadMovements();
 
-      await loadMovements();
-
-      setStockInModal((current) => ({
-        ...current,
-        loading: false,
-        error: "",
-        success: t(
-          "Stock added successfully!",
-          "បានបន្ថែមស្តុកដោយជោគជ័យ!",
-        ),
-      }));
-
-      window.setTimeout(() => {
-        setStockInModal({
-          open: false,
-          product: null,
-          variantId: "",
-          quantity: "10",
-          note: "",
-          loading: false,
-          error: "",
-          success: "",
-        });
+      setStockInModal((m) => ({ ...m, loading: false, success: "Stock added successfully!" }));
+      setTimeout(() => {
+        setStockInModal({ open: false, product: null, variantId: "", quantity: "10", note: "", loading: false, error: "", success: "" });
       }, 1000);
-    } catch (error) {
-      setStockInModal((current) => ({
-        ...current,
-        loading: false,
-        error:
-          error?.message ||
-          t(
-            "Failed to restock item.",
-            "មិនអាចបន្ថែមស្តុកបានទេ។",
-          ),
-      }));
+    } catch (err) {
+      setStockInModal((m) => ({ ...m, loading: false, error: err.message }));
     }
   }
 
-  async function submitStockAdjustment(event) {
-    event.preventDefault();
-
-    const qty = parseInt(
-      adjustModal.quantity,
-      10,
-    );
-
-    if (Number.isNaN(qty) || qty <= 0) {
-      setAdjustModal((current) => ({
-        ...current,
-        error: t(
-          "Please enter a valid quantity greater than 0.",
-          "សូមបញ្ចូលចំនួនដែលត្រឹមត្រូវ និងធំជាង 0។",
-        ),
-      }));
+  // Handle Stock Adjustment Submit
+  async function submitStockAdjustment(e) {
+    e.preventDefault();
+    const qty = parseInt(adjustModal.quantity, 10);
+    if (isNaN(qty) || qty <= 0) {
+      setAdjustModal((m) => ({ ...m, error: "Please enter a valid quantity greater than 0." }));
       return;
     }
 
     if (!adjustModal.reason.trim()) {
-      setAdjustModal((current) => ({
-        ...current,
-        error: t(
-          "Reason is required for inventory adjustment (e.g., Damage, Audit correction, Spoilage).",
-          "ត្រូវការមូលហេតុសម្រាប់ការកែសម្រួលស្តុក (ឧ. ខូចខាត កែតម្រូវសវនកម្ម ឬខូចដោយសារសំណល់)។",
-        ),
-      }));
+      setAdjustModal((m) => ({ ...m, error: "Reason is required for inventory adjustment (e.g., Damage, Audit correction, Spoilage)." }));
       return;
     }
 
-    const currentStock = getProductTotalStock(
-      adjustModal.product,
-    );
-
-    if (
-      adjustModal.type ===
-      "ADJUSTMENT_DECREASE" &&
-      qty > currentStock
-    ) {
-      setAdjustModal((current) => ({
-        ...current,
-        error: t(
-          `Cannot decrease more than available stock (${currentStock}).`,
-          `មិនអាចបន្ថយលើសពីស្តុកដែលមាន (${currentStock}) បានទេ។`,
-        ),
-      }));
+    const currentStock = getProductTotalStock(adjustModal.product);
+    if (adjustModal.type === "ADJUSTMENT_DECREASE" && qty > currentStock) {
+      setAdjustModal((m) => ({ ...m, error: `Cannot decrease more than available stock (${currentStock}).` }));
       return;
     }
 
-    setAdjustModal((current) => ({
-      ...current,
-      loading: true,
-      error: "",
-    }));
+    setAdjustModal((m) => ({ ...m, loading: true, error: "" }));
 
     try {
-      const response = await fetch(
-        "/api/inventory/adjust",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            action: adjustModal.type,
-            productId:
-              adjustModal.product?.id,
-            variantId:
-              adjustModal.variantId ||
-              undefined,
-            quantity: qty,
-            reason:
-              adjustModal.reason.trim(),
-          }),
-        },
-      );
+      const response = await fetch("/api/inventory/adjust", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: adjustModal.type,
+          productId: adjustModal.product?.id,
+          variantId: adjustModal.variantId || undefined,
+          quantity: qty,
+          reason: adjustModal.reason.trim(),
+        }),
+      });
 
-      const data = await response
-        .json()
-        .catch(() => ({}));
-
+      const data = await response.json();
       if (!response.ok) {
-        throw new Error(
-          data.error ||
-          t(
-            "Failed to adjust inventory.",
-            "មិនអាចកែសម្រួលស្តុកបានទេ។",
-          ),
-        );
+        throw new Error(data.error || "Failed to adjust inventory.");
       }
 
-      const delta =
-        adjustModal.type ===
-          "ADJUSTMENT_INCREASE"
-          ? qty
-          : -qty;
+      // Update local store
+      const delta = adjustModal.type === "ADJUSTMENT_INCREASE" ? qty : -qty;
+      store.restockProduct(adjustModal.product.id, delta);
+      loadMovements();
 
-      if (adjustModal.product?.id) {
-        store.restockProduct(
-          adjustModal.product.id,
-          delta,
-        );
-      }
-
-      await loadMovements();
-
-      setAdjustModal((current) => ({
-        ...current,
-        loading: false,
-        error: "",
-        success: t(
-          "Inventory adjusted successfully!",
-          "បានកែសម្រួលស្តុកដោយជោគជ័យ!",
-        ),
-      }));
-
-      window.setTimeout(() => {
-        setAdjustModal({
-          open: false,
-          product: null,
-          variantId: "",
-          type: "ADJUSTMENT_INCREASE",
-          quantity: "1",
-          reason: "",
-          loading: false,
-          error: "",
-          success: "",
-        });
+      setAdjustModal((m) => ({ ...m, loading: false, success: "Inventory adjusted successfully!" }));
+      setTimeout(() => {
+        setAdjustModal({ open: false, product: null, variantId: "", type: "ADJUSTMENT_INCREASE", quantity: "1", reason: "", loading: false, error: "", success: "" });
       }, 1000);
-    } catch (error) {
-      setAdjustModal((current) => ({
-        ...current,
-        loading: false,
-        error:
-          error?.message ||
-          t(
-            "Failed to adjust inventory.",
-            "មិនអាចកែសម្រួលស្តុកបានទេ។",
-          ),
-      }));
+    } catch (err) {
+      setAdjustModal((m) => ({ ...m, loading: false, error: err.message }));
     }
   }
 
   const filteredMovements = useMemo(() => {
-    if (movementFilter === "ALL") {
-      return movements;
-    }
-
-    return movements.filter((movement) => {
-      const type = String(
-        movement?.type || "",
-      );
-
-      if (movementFilter === "STOCK_IN") {
-        return (
-          type === "STOCK_IN" ||
-          type === "PURCHASE_RECEIPT"
-        );
-      }
-
-      if (movementFilter === "ADJUSTMENT") {
-        return (
-          type.startsWith("ADJUSTMENT") ||
-          type.startsWith("STOCK_COUNT")
-        );
-      }
-
-      if (movementFilter === "SALE") {
-        return (
-          type === "SALE" ||
-          type === "STOCK_OUT"
-        );
-      }
-
-      if (movementFilter === "RESERVATION") {
-        return type.startsWith("RESERVATION");
-      }
-
-      return true;
-    });
+    if (movementFilter === "ALL") return movements;
+    if (movementFilter === "STOCK_IN") return movements.filter((m) => m.type === "STOCK_IN" || m.type === "PURCHASE_RECEIPT");
+    if (movementFilter === "ADJUSTMENT") return movements.filter((m) => m.type.startsWith("ADJUSTMENT") || m.type.startsWith("STOCK_COUNT"));
+    if (movementFilter === "SALE") return movements.filter((m) => m.type === "SALE" || m.type === "STOCK_OUT");
+    if (movementFilter === "RESERVATION") return movements.filter((m) => m.type.startsWith("RESERVATION"));
+    return movements;
   }, [movements, movementFilter]);
 
-  function getFirstVariantId(product) {
-    if (
-      !Array.isArray(product?.variants) ||
-      !product.variants.length
-    ) {
-      return "";
-    }
-
-    return product.variants[0]?.id || "";
-  }
-
-  function openStockIn(product) {
-    setStockInModal({
-      open: true,
-      product,
-      variantId: getFirstVariantId(product),
-      quantity: "10",
-      note: "Restock replenishment",
-      loading: false,
-      error: "",
-      success: "",
-    });
-  }
-
-  function openAdjustment(product) {
-    setAdjustModal({
-      open: true,
-      product,
-      variantId: getFirstVariantId(product),
-      type: "ADJUSTMENT_INCREASE",
-      quantity: "1",
-      reason: "",
-      loading: false,
-      error: "",
-      success: "",
-    });
-  }
-
-  const filterButtons = [
-    {
-      key: "all",
-      label: t(
-        `All (${store.products.length})`,
-        `ទាំងអស់ (${store.products.length})`,
-      ),
-    },
-    {
-      key: "lowStock",
-      label: t(
-        `Low Stock (${metrics.lowStockCount})`,
-        `ស្តុកទាប (${metrics.lowStockCount})`,
-      ),
-    },
-    {
-      key: "outOfStock",
-      label: t(
-        `Out of Stock (${metrics.outOfStockCount})`,
-        `អស់ស្តុក (${metrics.outOfStockCount})`,
-      ),
-    },
-  ];
-
-  const movementFilters = [
-    {
-      key: "ALL",
-      label: t("ALL", "ទាំងអស់"),
-    },
-    {
-      key: "STOCK_IN",
-      label: t("STOCK IN", "ស្តុកចូល"),
-    },
-    {
-      key: "ADJUSTMENT",
-      label: t("ADJUSTMENT", "កែសម្រួល"),
-    },
-    {
-      key: "SALE",
-      label: t("SALE", "ការលក់"),
-    },
-    {
-      key: "RESERVATION",
-      label: t("RESERVATION", "ការកក់"),
-    },
-  ];
-
-  const panelClass =
-    "min-w-0 border border-[var(--border-soft)] bg-[var(--surface-strong)] shadow-[var(--shadow-card)] rounded-none";
-
-  const actionButton =
-    "inline-flex items-center justify-center gap-1.5 border px-3 py-1.5 text-xs font-semibold transition-colors rounded-none";
-
   return (
-    <div
-      className="mx-auto w-full min-w-0 max-w-[1440px] overflow-x-hidden px-3 py-4 sm:px-5 sm:py-6 lg:px-8 lg:py-8"
-      style={{
-        scrollbarWidth: "none",
-        msOverflowStyle: "none",
-      }}
-    >
-      <div className="min-w-0 space-y-5 sm:space-y-6">
-
-        {/* Overview Header Cards */}
-        <section className="grid min-w-0 grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-          <Card className="rounded-none p-4">
-            <div className="flex min-w-0 items-center justify-between gap-3">
-              <span className="min-w-0 break-words text-[10px] font-semibold uppercase tracking-wider text-[var(--muted-foreground)] sm:text-xs">
-                {t(
-                  "Total Products",
-                  "ផលិតផលសរុប",
-                )}
-              </span>
-
-              <PackageSearch className="size-4 shrink-0 text-[var(--action)]" />
-            </div>
-
-            <div className="mt-2 text-2xl font-bold text-[var(--foreground)] sm:text-3xl">
-              {metrics.totalProducts}
-            </div>
-
-            <div className="mt-1 break-words text-[11px] text-[var(--muted-foreground)] sm:text-xs">
-              {metrics.totalUnits}{" "}
-              {t("units on hand", "ឯកតាកំពុងមាន")}
-            </div>
-          </Card>
-
-          <Card className="rounded-none p-4">
-            <div className="flex min-w-0 items-center justify-between gap-3">
-              <span className="min-w-0 break-words text-[10px] font-semibold uppercase tracking-wider text-[var(--muted-foreground)] sm:text-xs">
-                {t(
-                  "Low Stock",
-                  "ស្តុកទាប",
-                )}
-              </span>
-
-              <AlertTriangle className="size-4 shrink-0 text-amber-500" />
-            </div>
-
-            <div className="mt-2 text-2xl font-bold text-amber-600 dark:text-amber-400 sm:text-3xl">
-              {metrics.lowStockCount}
-            </div>
-
-            <div className="mt-1 break-words text-[11px] text-[var(--muted-foreground)] sm:text-xs">
-              {t(
-                "<= min stock threshold",
-                "ដល់កម្រិតស្តុកអប្បបរមា",
-              )}
-            </div>
-          </Card>
-
-          <Card className="rounded-none p-4">
-            <div className="flex min-w-0 items-center justify-between gap-3">
-              <span className="min-w-0 break-words text-[10px] font-semibold uppercase tracking-wider text-[var(--muted-foreground)] sm:text-xs">
-                {t(
-                  "Out of Stock",
-                  "អស់ស្តុក",
-                )}
-              </span>
-
-              <ShieldAlert className="size-4 shrink-0 text-rose-500" />
-            </div>
-
-            <div className="mt-2 text-2xl font-bold text-rose-600 dark:text-rose-400 sm:text-3xl">
-              {metrics.outOfStockCount}
-            </div>
-
-            <div className="mt-1 break-words text-[11px] text-[var(--muted-foreground)] sm:text-xs">
-              {t(
-                "Requires immediate restock",
-                "ត្រូវការបន្ថែមស្តុកភ្លាមៗ",
-              )}
-            </div>
-          </Card>
-
-          <Card className="rounded-none p-4">
-            <div className="flex min-w-0 items-center justify-between gap-3">
-              <span className="min-w-0 break-words text-[10px] font-semibold uppercase tracking-wider text-[var(--muted-foreground)] sm:text-xs">
-                {t(
-                  "Movements Logged",
-                  "ចលនាបានកត់ត្រា",
-                )}
-              </span>
-
-              <ClipboardCheck className="size-4 shrink-0 text-emerald-500" />
-            </div>
-
-            <div className="mt-2 text-2xl font-bold text-emerald-600 dark:text-emerald-400 sm:text-3xl">
-              {movements.length}
-            </div>
-
-            <div className="mt-1 break-words text-[11px] text-[var(--muted-foreground)] sm:text-xs">
-              {t(
-                "Audit trails recorded",
-                "កំណត់ត្រាសវនកម្មបានរក្សាទុក",
-              )}
-            </div>
-          </Card>
-        </section>
-
-        {/* Product Stock & Restock */}
-        <section className={panelClass}>
-          <div className="min-w-0 space-y-3 border-b border-[var(--border-soft)] p-4 sm:p-5">
-            <div className="min-w-0">
-              <h2 className="break-words text-base font-bold tracking-tight text-[var(--foreground)] sm:text-lg">
-                {t(
-                  "Product Stock & Restock",
-                  "ស្តុកផលិតផល និងបន្ថែមស្តុក",
-                )}
-              </h2>
-
-              <p className="mt-0.5 break-words text-xs text-[var(--muted-foreground)]">
-                {t(
-                  "View product stock levels, add stock in, or record adjustments with reasons.",
-                  "មើលកម្រិតស្តុក បន្ថែមស្តុក ឬកត់ត្រាការកែសម្រួលជាមួយមូលហេតុ។",
-                )}
-              </p>
-            </div>
-
-            <div className="flex min-w-0 flex-wrap gap-1.5">
-              {filterButtons.map((button) => (
-                <button
-                  key={button.key}
-                  type="button"
-                  onClick={() =>
-                    setStatusFilter(button.key)
-                  }
-                  className={cn(
-                    "max-w-full px-3 py-1.5 text-xs font-semibold transition",
-                    statusFilter === button.key
-                      ? button.key === "lowStock"
-                        ? "bg-amber-500 text-white"
-                        : button.key === "outOfStock"
-                          ? "bg-rose-600 text-white"
-                          : "bg-[var(--action)] text-white"
-                      : "bg-[var(--surface-quiet)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]",
-                    "rounded-none",
-                  )}
-                >
-                  <span className="break-words">
-                    {button.label}
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            <div className="relative min-w-0 mt-1">
-              <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
-
-              <input
-                value={query}
-                onChange={(event) =>
-                  setQuery(event.target.value)
-                }
-                placeholder={t(
-                  "Search by product name, SKU, or category...",
-                  "ស្វែងរកតាមឈ្មោះផលិតផល SKU ឬប្រភេទ...",
-                )}
-                className="app-input w-full min-w-0 rounded-none border border-[var(--border-soft)] py-2.5 !pl-10 pr-4 text-xs sm:text-sm"
-                style={{ paddingLeft: "2.5rem" }}
-              />
-            </div>
+    <div className="space-y-6">
+      {/* Overview Header Cards */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <Card className="p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Total Products</span>
+            <PackageSearch className="size-4 text-[var(--action)]" />
           </div>
+          <div className="mt-2 text-2xl font-bold text-[var(--foreground)]">{metrics.totalProducts}</div>
+          <div className="mt-1 text-xs text-[var(--muted-foreground)]">{metrics.totalUnits} units on hand</div>
+        </Card>
+        <Card className="p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Low Stock</span>
+            <AlertTriangle className="size-4 text-amber-500" />
+          </div>
+          <div className="mt-2 text-2xl font-bold text-amber-600 dark:text-amber-400">{metrics.lowStockCount}</div>
+          <div className="mt-1 text-xs text-[var(--muted-foreground)]">&le; min stock threshold</div>
+        </Card>
+        <Card className="p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Out of Stock</span>
+            <ShieldAlert className="size-4 text-rose-500" />
+          </div>
+          <div className="mt-2 text-2xl font-bold text-rose-600 dark:text-rose-400">{metrics.outOfStockCount}</div>
+          <div className="mt-1 text-xs text-[var(--muted-foreground)]">Requires immediate restock</div>
+        </Card>
+        <Card className="p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Movements Logged</span>
+            <ClipboardCheck className="size-4 text-emerald-500" />
+          </div>
+          <div className="mt-2 text-2xl font-bold text-emerald-600 dark:text-emerald-400">{movements.length}</div>
+          <div className="mt-1 text-xs text-[var(--muted-foreground)]">Audit trails recorded</div>
+        </Card>
+      </div>
 
-          {/* Mobile / Tablet Product List */}
-          <div className="xl:hidden">
-            <div className="grid grid-cols-[minmax(0,1fr)_auto] border-b border-[var(--border-soft)] bg-[var(--surface-quiet)] px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
-              <span>
-                {t("PRODUCT", "ផលិតផល")}
-              </span>
+      {/* Product Stock Table & Quick Actions */}
+      <Card className="space-y-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-[var(--foreground)]">Product Stock & Restock</h2>
+            <p className="text-xs text-[var(--muted-foreground)]">View product stock levels, add stock in, or record adjustments with reasons.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setStatusFilter("all")}
+              className={cn("rounded-full px-3 py-1 text-xs font-semibold transition", statusFilter === "all" ? "bg-[var(--action)] text-white" : "bg-[var(--surface-quiet)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]")}
+            >
+              All ({store.products.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter("lowStock")}
+              className={cn("rounded-full px-3 py-1 text-xs font-semibold transition", statusFilter === "lowStock" ? "bg-amber-500 text-white" : "bg-[var(--surface-quiet)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]")}
+            >
+              Low Stock ({metrics.lowStockCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter("outOfStock")}
+              className={cn("rounded-full px-3 py-1 text-xs font-semibold transition", statusFilter === "outOfStock" ? "bg-rose-600 text-white" : "bg-[var(--surface-quiet)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]")}
+            >
+              Out of Stock ({metrics.outOfStockCount})
+            </button>
+          </div>
+        </div>
 
-              <span>
-                {t("CATEGORY", "ប្រភេទ")}
-              </span>
-            </div>
+        <div className="relative">
+          <Search className="absolute left-3.5 top-3 size-4 text-[var(--muted-foreground)]" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by product name, SKU, or category..."
+            className="app-input w-full pl-10 pr-4 py-2 text-sm"
+          />
+        </div>
 
-            <div className="divide-y divide-[var(--border-soft)]">
+        <div className="overflow-x-auto rounded-xl border border-[var(--border-soft)]">
+          <table className="w-full min-w-[48rem] text-left text-sm">
+            <thead className="bg-[var(--surface-quiet)] text-xs uppercase tracking-wider text-[var(--muted-foreground)]">
+              <tr>
+                <th className="px-4 py-3 font-semibold">Product</th>
+                <th className="px-4 py-3 font-semibold">Category</th>
+                <th className="px-4 py-3 font-semibold text-center">Current Stock</th>
+                <th className="px-4 py-3 font-semibold text-center">Min Alert</th>
+                <th className="px-4 py-3 font-semibold text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[var(--border-soft)]">
               {productsList.length ? (
                 productsList.map((product) => {
-                  const stock =
-                    getProductTotalStock(product);
-
-                  const min =
-                    product.minStockAlert || 5;
-
-                  const isLow =
-                    stock <= min && stock > 0;
-
+                  const stock = getProductTotalStock(product);
+                  const min = product.minStockAlert || 5;
+                  const isLow = stock <= min && stock > 0;
                   const isOut = stock === 0;
 
                   return (
-                    <div
-                      key={product.id}
-                      className="min-w-0 p-4 transition-colors hover:bg-[var(--surface-quiet)]/40"
-                    >
-                      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,35%)] gap-3">
-                        <div className="flex min-w-0 items-start gap-3">
+                    <tr key={product.id} className="transition-colors hover:bg-[var(--surface-quiet)]/50">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
                           {product.image ? (
-                            /* eslint-disable-next-line @next/next/no-img-element */
-                            <img
-                              src={product.image}
-                              alt={
-                                product.name ||
-                                "Product"
-                              }
-                              className="size-10 shrink-0 border border-[var(--border-soft)] object-cover rounded-none"
-                            />
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={product.image} alt={product.name} className="size-10 rounded-lg object-cover border border-[var(--border-soft)]" />
                           ) : (
-                            <div className="flex size-10 shrink-0 items-center justify-center border border-[var(--border-soft)] bg-[var(--surface-quiet)] text-xs font-bold text-[var(--muted-foreground)] rounded-none">
-                              {String(
-                                product.name ||
-                                "P",
-                              )
-                                .slice(0, 2)
-                                .toUpperCase()}
+                            <div className="flex size-10 items-center justify-center rounded-lg bg-[var(--surface-quiet)] text-xs font-bold text-[var(--muted-foreground)]">
+                              {product.name.slice(0, 2).toUpperCase()}
                             </div>
                           )}
-
-                          <div className="min-w-0">
-                            <p className="break-words text-xs font-semibold text-[var(--foreground)] sm:text-sm">
-                              {product.name}
-                            </p>
-
-                            <p className="mt-0.5 break-all text-[10px] font-mono text-[var(--muted-foreground)]">
-                              {product.sku ||
-                                t(
-                                  "No SKU",
-                                  "គ្មាន SKU",
-                                )}
-                            </p>
-
-                            <div className="mt-2 flex min-w-0 flex-wrap gap-1.5">
-                              <span
-                                className={cn(
-                                  "inline-flex max-w-full items-center px-2 py-0.5 text-[10px] font-bold rounded-none",
-                                  isOut
-                                    ? "bg-rose-500/15 text-rose-600 dark:text-rose-400"
-                                    : isLow
-                                      ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                                      : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
-                                )}
-                              >
-                                {stock}{" "}
-                                {product.unit ||
-                                  t(
-                                    "units",
-                                    "ឯកតា",
-                                  )}
-                              </span>
-
-                              <span className="inline-flex items-center bg-[var(--surface-quiet)] px-2 py-0.5 text-[10px] font-medium text-[var(--muted-foreground)] rounded-none">
-                                {t(
-                                  "Min",
-                                  "អប្បបរមា",
-                                )}{" "}
-                                {min}
-                              </span>
-                            </div>
+                          <div>
+                            <p className="font-semibold text-[var(--foreground)]">{product.name}</p>
+                            <p className="text-xs text-[var(--muted-foreground)]">{product.sku || "No SKU"}</p>
                           </div>
                         </div>
-
-                        <div className="min-w-0 text-right">
-                          <p className="break-words text-[11px] font-medium text-[var(--muted-foreground)] sm:text-xs">
-                            {product.category ||
-                              t(
-                                "General",
-                                "ទូទៅ",
-                              )}
-                          </p>
+                      </td>
+                      <td className="px-4 py-3 text-xs font-medium text-[var(--muted-foreground)]">
+                        {product.category || "General"}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold", isOut ? "bg-rose-500/15 text-rose-600 dark:text-rose-400" : isLow ? "bg-amber-500/15 text-amber-600 dark:text-amber-400" : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400")}>
+                          {stock} {product.unit || "units"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center text-xs text-[var(--muted-foreground)]">
+                        {min}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const firstVariant = Array.isArray(product.variants) && product.variants.length ? product.variants[0].id : "";
+                              setStockInModal({
+                                open: true,
+                                product,
+                                variantId: firstVariant,
+                                quantity: "10",
+                                note: "Restock replenishment",
+                                loading: false,
+                                error: "",
+                                success: "",
+                              });
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--action)] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:brightness-95"
+                          >
+                            <PlusCircle className="size-3.5" />
+                            Stock In
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const firstVariant = Array.isArray(product.variants) && product.variants.length ? product.variants[0].id : "";
+                              setAdjustModal({
+                                open: true,
+                                product,
+                                variantId: firstVariant,
+                                type: "ADJUSTMENT_INCREASE",
+                                quantity: "1",
+                                reason: "",
+                                loading: false,
+                                error: "",
+                                success: "",
+                              });
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-soft)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] transition hover:bg-[var(--surface-quiet)]"
+                          >
+                            <ArrowUpDown className="size-3.5 text-[var(--muted-foreground)]" />
+                            Adjust
+                          </button>
                         </div>
-                      </div>
-
-                      <div className="mt-4 grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            openStockIn(product)
-                          }
-                          className="inline-flex min-w-0 items-center justify-center gap-1.5 bg-[var(--action)] px-3 py-2 text-[11px] font-semibold text-white transition hover:opacity-90 rounded-none"
-                        >
-                          <PlusCircle className="size-3.5 shrink-0" />
-
-                          <span>
-                            {t(
-                              "Stock In",
-                              "បញ្ចូលស្តុក",
-                            )}
-                          </span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            openAdjustment(product)
-                          }
-                          className="inline-flex min-w-0 items-center justify-center gap-1.5 border border-[var(--border-soft)] bg-[var(--surface)] px-3 py-2 text-[11px] font-semibold text-[var(--foreground)] transition hover:bg-[var(--surface-quiet)] rounded-none"
-                        >
-                          <ArrowUpDown className="size-3.5 shrink-0 text-[var(--muted-foreground)]" />
-
-                          <span>
-                            {t(
-                              "Adjust",
-                              "កែសម្រួល",
-                            )}
-                          </span>
-                        </button>
-                      </div>
-                    </div>
+                      </td>
+                    </tr>
                   );
                 })
               ) : (
-                <div className="px-4 py-10 text-center text-xs text-[var(--muted-foreground)]">
-                  {t(
-                    "No products matched your search or filter.",
-                    "មិនមានផលិតផលដែលត្រូវនឹងការស្វែងរក ឬតម្រងរបស់អ្នកទេ។",
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Desktop Product Table */}
-          <div className="hidden overflow-hidden xl:block">
-            <table className="w-full table-fixed text-left text-xs">
-              <thead className="bg-[var(--surface-quiet)] text-[10px] uppercase tracking-wider text-[var(--muted-foreground)]">
                 <tr>
-                  <th className="w-[32%] px-4 py-3 font-semibold">
-                    {t(
-                      "Product",
-                      "ផលិតផល",
-                    )}
-                  </th>
+                  <td colSpan={5} className="px-4 py-8 text-center text-sm text-[var(--muted-foreground)]">
+                    No products matched your search or filter.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
 
-                  <th className="w-[16%] px-4 py-3 font-semibold">
-                    {t(
-                      "Category",
-                      "ប្រភេទ",
-                    )}
-                  </th>
+      {/* Real-time Movement Logs */}
+      <Card className="space-y-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-[var(--foreground)]">Stock Movement & Audit Log</h2>
+            <p className="text-xs text-[var(--muted-foreground)]">Complete history of online reservations, POS sales, and inventory adjustments.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {["ALL", "STOCK_IN", "ADJUSTMENT", "SALE", "RESERVATION"].map((filterKey) => (
+              <button
+                key={filterKey}
+                type="button"
+                onClick={() => setMovementFilter(filterKey)}
+                className={cn("rounded-full px-3 py-1 text-xs font-semibold transition", movementFilter === filterKey ? "bg-[var(--action)] text-white" : "bg-[var(--surface-quiet)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]")}
+              >
+                {filterKey.replace(/_/g, " ")}
+              </button>
+            ))}
+            <Button variant="secondary" size="sm" onClick={loadMovements} disabled={movementLoading} className="gap-1.5">
+              <RefreshCw className={cn("size-3.5", movementLoading && "animate-spin")} />
+              Refresh
+            </Button>
+          </div>
+        </div>
 
-                  <th className="w-[16%] px-4 py-3 text-center font-semibold">
-                    {t(
-                      "Current Stock",
-                      "ស្តុកបច្ចុប្បន្ន",
-                    )}
-                  </th>
-
-                  <th className="w-[12%] px-4 py-3 text-center font-semibold">
-                    {t(
-                      "Min Alert",
-                      "កម្រិតអប្បបរមា",
-                    )}
-                  </th>
-
-                  <th className="w-[24%] px-4 py-3 text-right font-semibold">
-                    {t(
-                      "Actions",
-                      "សកម្មភាព",
-                    )}
-                  </th>
+        <div className="overflow-x-auto rounded-xl border border-[var(--border-soft)]">
+          {filteredMovements.length ? (
+            <table className="w-full min-w-[50rem] text-left text-sm">
+              <thead className="bg-[var(--surface-quiet)] text-xs uppercase tracking-wider text-[var(--muted-foreground)]">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">Product / Item</th>
+                  <th className="px-4 py-3 font-semibold">Channel</th>
+                  <th className="px-4 py-3 font-semibold">Type</th>
+                  <th className="px-4 py-3 font-semibold text-center">Change</th>
+                  <th className="px-4 py-3 font-semibold text-center">Stock Level</th>
+                  <th className="px-4 py-3 font-semibold">Note / Reason</th>
+                  <th className="px-4 py-3 font-semibold text-right">Time</th>
                 </tr>
               </thead>
-
               <tbody className="divide-y divide-[var(--border-soft)]">
-                {productsList.length ? (
-                  productsList.map((product) => {
-                    const stock =
-                      getProductTotalStock(
-                        product,
-                      );
-
-                    const min =
-                      product.minStockAlert || 5;
-
-                    const isLow =
-                      stock <= min && stock > 0;
-
-                    const isOut = stock === 0;
-
-                    return (
-                      <tr
-                        key={product.id}
-                        className="transition-colors hover:bg-[var(--surface-quiet)]/40"
-                      >
-                        <td className="min-w-0 px-4 py-3">
-                          <div className="flex min-w-0 items-center gap-3">
-                            {product.image ? (
-                              /* eslint-disable-next-line @next/next/no-img-element */
-                              <img
-                                src={product.image}
-                                alt={
-                                  product.name ||
-                                  "Product"
-                                }
-                                className="size-10 shrink-0 border border-[var(--border-soft)] object-cover rounded-none"
-                              />
-                            ) : (
-                              <div className="flex size-10 shrink-0 items-center justify-center border border-[var(--border-soft)] bg-[var(--surface-quiet)] text-xs font-bold text-[var(--muted-foreground)] rounded-none">
-                                {String(
-                                  product.name ||
-                                  "P",
-                                )
-                                  .slice(0, 2)
-                                  .toUpperCase()}
-                              </div>
-                            )}
-
-                            <div className="min-w-0">
-                              <p className="break-words font-semibold text-[var(--foreground)]">
-                                {product.name}
-                              </p>
-
-                              <p className="mt-0.5 break-all text-[10px] font-mono text-[var(--muted-foreground)]">
-                                {product.sku ||
-                                  t(
-                                    "No SKU",
-                                    "គ្មាន SKU",
-                                  )}
-                              </p>
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="min-w-0 px-4 py-3 text-xs font-medium text-[var(--muted-foreground)]">
-                          <span className="break-words">
-                            {product.category ||
-                              t(
-                                "General",
-                                "ទូទៅ",
-                              )}
-                          </span>
-                        </td>
-
-                        <td className="px-4 py-3 text-center">
-                          <span
-                            className={cn(
-                              "inline-flex max-w-full items-center justify-center px-2.5 py-0.5 text-[11px] font-semibold break-words rounded-none",
-                              isOut
-                                ? "bg-rose-500/15 text-rose-600 dark:text-rose-400"
-                                : isLow
-                                  ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                                  : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
-                            )}
-                          >
-                            {stock}{" "}
-                            {product.unit ||
-                              t(
-                                "units",
-                                "ឯកតា",
-                              )}
-                          </span>
-                        </td>
-
-                        <td className="px-4 py-3 text-center text-xs text-[var(--muted-foreground)]">
-                          {min}
-                        </td>
-
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex min-w-0 flex-wrap justify-end gap-2">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                openStockIn(
-                                  product,
-                                )
-                              }
-                              className={cn(
-                                actionButton,
-                                "border-[var(--action)] bg-[var(--action)] text-white hover:opacity-90",
-                              )}
-                            >
-                              <PlusCircle className="size-3.5 shrink-0" />
-
-                              <span>
-                                {t(
-                                  "Stock In",
-                                  "បញ្ចូលស្តុក",
-                                )}
-                              </span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                openAdjustment(
-                                  product,
-                                )
-                              }
-                              className={cn(
-                                actionButton,
-                                "border-[var(--border-soft)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--surface-quiet)]",
-                              )}
-                            >
-                              <ArrowUpDown className="size-3.5 shrink-0 text-[var(--muted-foreground)]" />
-
-                              <span>
-                                {t(
-                                  "Adjust",
-                                  "កែសម្រួល",
-                                )}
-                              </span>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td
-                      colSpan={5}
-                      className="px-4 py-10 text-center text-xs text-[var(--muted-foreground)]"
-                    >
-                      {t(
-                        "No products matched your search or filter.",
-                        "មិនមានផលិតផលដែលត្រូវនឹងការស្វែងរក ឬតម្រងរបស់អ្នកទេ។",
-                      )}
-                    </td>
-                  </tr>
-                )}
+                {filteredMovements.map((m) => {
+                  const isPositive = m.type === "STOCK_IN" || m.type === "ADJUSTMENT_INCREASE" || m.type === "PURCHASE_RECEIPT" || m.type === "RESERVATION_RELEASE";
+                  return (
+                    <tr key={m.id} className="transition-colors hover:bg-[var(--surface-quiet)]/50">
+                      <td className="px-4 py-3">
+                        <p className="font-semibold text-[var(--foreground)]">{m.productName || "Item"}</p>
+                        {m.sku ? <p className="text-xs text-[var(--muted-foreground)]">SKU: {m.sku}</p> : null}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="rounded-md bg-[var(--surface-quiet)] px-2 py-0.5 text-xs font-semibold uppercase text-[var(--foreground)]">
+                          {m.channel || "SYSTEM"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={cn("rounded-md px-2 py-0.5 text-xs font-medium", isPositive ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-400")}>
+                          {m.type?.replace(/_/g, " ")}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={cn("font-bold", isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
+                          {isPositive ? `+${m.quantity}` : `-${m.quantity}`}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center text-xs text-[var(--muted-foreground)]">
+                        {m.previousStock} &rarr; <strong className="text-[var(--foreground)]">{m.nextStock}</strong>
+                      </td>
+                      <td className="px-4 py-3 text-xs italic text-[var(--muted-foreground)] max-w-xs truncate" title={m.note}>
+                        {m.note || "-"}
+                      </td>
+                      <td className="px-4 py-3 text-right text-xs text-[var(--muted-foreground)]">
+                        {new Date(m.createdAt).toLocaleString()}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
-          </div>
-
-          <div className="border-t border-[var(--border-soft)] bg-[var(--surface-quiet)]/40 px-4 py-3 text-[11px] text-[var(--muted-foreground)]">
-            {t(
-              `${productsList.length} products shown`,
-              `បង្ហាញផលិតផល ${productsList.length}`,
-            )}
-          </div>
-        </section>
-
-        {/* Stock Movement & Audit Log */}
-        <section className={panelClass}>
-          <div className="min-w-0 space-y-4 border-b border-[var(--border-soft)] p-4 sm:p-5">
-            <div className="min-w-0">
-              <h2 className="break-words text-base font-bold tracking-tight text-[var(--foreground)] sm:text-lg">
-                {t(
-                  "Stock Movement & Audit Log",
-                  "ចលនាស្តុក និងកំណត់ត្រាសវនកម្ម",
-                )}
-              </h2>
-
-              <p className="mt-0.5 break-words text-xs text-[var(--muted-foreground)]">
-                {t(
-                  "Complete history of online reservations, POS sales, and inventory adjustments.",
-                  "ប្រវត្តិពេញលេញនៃការកក់អនឡាញ ការលក់ POS និងការកែសម្រួលសារពើភ័ណ្ឌ។",
-                )}
-              </p>
+          ) : (
+            <div className="p-8 text-center text-sm text-[var(--muted-foreground)]">
+              {movementMessage || "No movement logs match this filter."}
             </div>
+          )}
+        </div>
+      </Card>
 
-            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-              {movementFilters.map((filter) => (
-                <button
-                  key={filter.key}
-                  type="button"
-                  onClick={() =>
-                    setMovementFilter(
-                      filter.key,
-                    )
-                  }
-                  className={cn(
-                    "px-3 py-1.5 text-[10px] font-semibold transition sm:text-xs rounded-none",
-                    movementFilter ===
-                      filter.key
-                      ? "bg-[var(--action)] text-white"
-                      : "bg-[var(--surface-quiet)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]",
-                  )}
-                >
-                  {filter.label}
+      {/* CSV Bulk Section */}
+      <Card className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-bold text-[var(--foreground)]">Bulk CSV Inventory Import</h2>
+            <p className="text-xs text-[var(--muted-foreground)]">Restock multiple items quickly using `productId,quantity` or `name,quantity` lines.</p>
+          </div>
+          <label className="inline-flex cursor-pointer items-center justify-center rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-2 text-xs font-semibold text-[var(--foreground)] shadow-sm hover:bg-[var(--surface-quiet)]">
+            Load CSV File
+            <input type="file" accept=".csv,text/csv" onChange={handleCsvFile} className="hidden" />
+          </label>
+        </div>
+        <textarea
+          value={csvText}
+          onChange={(e) => setCsvText(e.target.value)}
+          placeholder="e.g.&#10;Angkor Beer Can,48&#10;Coca Cola 330ml,24"
+          className="app-input min-h-24 w-full px-4 py-2.5 text-xs font-mono"
+        />
+        <div className="flex flex-wrap items-center gap-3">
+          <Button size="sm" onClick={handleImport}>Import Inventory</Button>
+          {csvMessage ? <span className="text-xs text-[var(--muted-foreground)]">{csvMessage}</span> : null}
+        </div>
+      </Card>
+
+      {/* Stock In Modal */}
+      <AnimatePresence>
+        {stockInModal.open && stockInModal.product ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm" onClick={() => setStockInModal((m) => ({ ...m, open: false }))}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-6 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-[var(--border-soft)] pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex size-8 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                    <PlusCircle className="size-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-[var(--foreground)]">Stock In (Restock)</h3>
+                    <p className="text-xs text-[var(--muted-foreground)]">{stockInModal.product.name}</p>
+                  </div>
+                </div>
+                <button type="button" onClick={() => setStockInModal((m) => ({ ...m, open: false }))} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+                  <X className="size-5" />
                 </button>
-              ))}
-
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={loadMovements}
-                disabled={movementLoading}
-                className="gap-1.5 rounded-none"
-              >
-                <RefreshCw
-                  className={cn(
-                    "size-3.5",
-                    movementLoading &&
-                    "animate-spin",
-                  )}
-                />
-
-                {t(
-                  "Refresh",
-                  "ផ្ទុកឡើងវិញ",
-                )}
-              </Button>
-            </div>
-          </div>
-
-          {/* Mobile / Tablet Movement Cards */}
-          <div className="xl:hidden">
-            {filteredMovements.length ? (
-              <div className="divide-y divide-[var(--border-soft)]">
-                {filteredMovements.map(
-                  (movement) => {
-                    const type = String(
-                      movement?.type || "",
-                    );
-
-                    const isPositive =
-                      type === "STOCK_IN" ||
-                      type ===
-                      "ADJUSTMENT_INCREASE" ||
-                      type ===
-                      "PURCHASE_RECEIPT" ||
-                      type ===
-                      "RESERVATION_RELEASE";
-
-                    return (
-                      <div
-                        key={movement.id}
-                        className="min-w-0 p-4 transition-colors hover:bg-[var(--surface-quiet)]/40"
-                      >
-                        <div className="flex min-w-0 items-start justify-between gap-4">
-                          <div className="min-w-0">
-                            <p className="break-words text-xs font-semibold text-[var(--foreground)] sm:text-sm">
-                              {movement.productName ||
-                                t(
-                                  "Item",
-                                  "ទំនិញ",
-                                )}
-                            </p>
-
-                            {movement.sku ? (
-                              <p className="mt-0.5 break-all text-[10px] font-mono text-[var(--muted-foreground)]">
-                                SKU:{" "}
-                                {movement.sku}
-                              </p>
-                            ) : null}
-                          </div>
-
-                          <span className="shrink-0 border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-2 py-1 text-[9px] font-bold uppercase text-[var(--foreground)] rounded-none">
-                            {movement.channel ||
-                              "SYSTEM"}
-                          </span>
-                        </div>
-
-                        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                          <div className="min-w-0">
-                            <p className="text-[9px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
-                              {t(
-                                "Type",
-                                "ប្រភេទ",
-                              )}
-                            </p>
-
-                            <p className="mt-1 break-words text-[11px] font-medium text-[var(--foreground)]">
-                              {movementTypeLabel(
-                                movement.type,
-                              )}
-                            </p>
-                          </div>
-
-                          <div className="min-w-0">
-                            <p className="text-[9px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
-                              {t(
-                                "Change",
-                                "ការផ្លាស់ប្តូរ",
-                              )}
-                            </p>
-
-                            <p
-                              className={cn(
-                                "mt-1 text-[11px] font-bold",
-                                isPositive
-                                  ? "text-emerald-600 dark:text-emerald-400"
-                                  : "text-rose-600 dark:text-rose-400",
-                              )}
-                            >
-                              {isPositive
-                                ? "+"
-                                : "-"}
-                              {movement.quantity ??
-                                0}
-                            </p>
-                          </div>
-
-                          <div className="min-w-0">
-                            <p className="text-[9px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
-                              {t(
-                                "Stock Level",
-                                "កម្រិតស្តុក",
-                              )}
-                            </p>
-
-                            <p className="mt-1 break-words text-[11px] text-[var(--muted-foreground)]">
-                              {movement.previousStock ??
-                                0}{" "}
-                              &rarr;{" "}
-                              <strong className="text-[var(--foreground)]">
-                                {movement.nextStock ??
-                                  0}
-                              </strong>
-                            </p>
-                          </div>
-
-                          <div className="min-w-0">
-                            <p className="text-[9px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
-                              {t(
-                                "Time",
-                                "ពេលវេលា",
-                              )}
-                            </p>
-
-                            <p className="mt-1 break-words text-[11px] text-[var(--muted-foreground)]">
-                              {movement.createdAt
-                                ? new Date(
-                                  movement.createdAt,
-                                ).toLocaleString(
-                                  isKhmer
-                                    ? "km-KH"
-                                    : "en-GB",
-                                )
-                                : "—"}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="mt-3 min-w-0 border-t border-[var(--border-soft)] pt-3">
-                          <p className="text-[9px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
-                            {t(
-                              "Note / Reason",
-                              "ចំណាំ / មូលហេតុ",
-                            )}
-                          </p>
-
-                          <p className="mt-1 break-words text-[11px] italic text-[var(--muted-foreground)]">
-                            {movement.note || "-"}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  },
-                )}
-              </div>
-            ) : (
-              <div className="p-8 text-center text-xs text-[var(--muted-foreground)]">
-                {movementMessage ||
-                  t(
-                    "No movement logs match this filter.",
-                    "មិនមានកំណត់ត្រាចលនាដែលត្រូវនឹងតម្រងនេះទេ។",
-                  )}
-              </div>
-            )}
-          </div>
-
-          {/* Desktop Movement Table */}
-          <div className="hidden overflow-hidden xl:block">
-            {filteredMovements.length ? (
-              <table className="w-full table-fixed text-left text-xs">
-                <thead className="bg-[var(--surface-quiet)] text-[10px] uppercase tracking-wider text-[var(--muted-foreground)]">
-                  <tr>
-                    <th className="w-[19%] px-4 py-3 font-semibold">
-                      {t(
-                        "Product / Item",
-                        "ផលិតផល / ទំនិញ",
-                      )}
-                    </th>
-
-                    <th className="w-[11%] px-4 py-3 font-semibold">
-                      {t(
-                        "Channel",
-                        "បណ្តាញ",
-                      )}
-                    </th>
-
-                    <th className="w-[16%] px-4 py-3 font-semibold">
-                      {t(
-                        "Type",
-                        "ប្រភេទ",
-                      )}
-                    </th>
-
-                    <th className="w-[10%] px-4 py-3 text-center font-semibold">
-                      {t(
-                        "Change",
-                        "ប្តូរ",
-                      )}
-                    </th>
-
-                    <th className="w-[12%] px-4 py-3 text-center font-semibold">
-                      {t(
-                        "Stock Level",
-                        "កម្រិតស្តុក",
-                      )}
-                    </th>
-
-                    <th className="w-[18%] px-4 py-3 font-semibold">
-                      {t(
-                        "Note / Reason",
-                        "ចំណាំ / មូលហេតុ",
-                      )}
-                    </th>
-
-                    <th className="w-[14%] px-4 py-3 text-right font-semibold">
-                      {t(
-                        "Time",
-                        "ពេលវេលា",
-                      )}
-                    </th>
-                  </tr>
-                </thead>
-
-                <tbody className="divide-y divide-[var(--border-soft)]">
-                  {filteredMovements.map(
-                    (movement) => {
-                      const type = String(
-                        movement?.type || "",
-                      );
-
-                      const isPositive =
-                        type === "STOCK_IN" ||
-                        type ===
-                        "ADJUSTMENT_INCREASE" ||
-                        type ===
-                        "PURCHASE_RECEIPT" ||
-                        type ===
-                        "RESERVATION_RELEASE";
-
-                      return (
-                        <tr
-                          key={movement.id}
-                          className="transition-colors hover:bg-[var(--surface-quiet)]/40"
-                        >
-                          <td className="min-w-0 px-4 py-3">
-                            <p className="break-words font-semibold text-[var(--foreground)]">
-                              {movement.productName ||
-                                t(
-                                  "Item",
-                                  "ទំនិញ",
-                                )}
-                            </p>
-
-                            {movement.sku ? (
-                              <p className="mt-0.5 break-all text-[10px] font-mono text-[var(--muted-foreground)]">
-                                SKU:{" "}
-                                {movement.sku}
-                              </p>
-                            ) : null}
-                          </td>
-
-                          <td className="min-w-0 px-4 py-3">
-                            <span className="inline-flex max-w-full break-words border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-2 py-0.5 text-[9px] font-semibold uppercase text-[var(--foreground)] rounded-none">
-                              {movement.channel ||
-                                "SYSTEM"}
-                            </span>
-                          </td>
-
-                          <td className="min-w-0 px-4 py-3">
-                            <span
-                              className={cn(
-                                "inline-flex max-w-full break-words px-2 py-0.5 text-[10px] font-medium rounded-none",
-                                isPositive
-                                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                                  : "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-                              )}
-                            >
-                              {movementTypeLabel(
-                                movement.type,
-                              )}
-                            </span>
-                          </td>
-
-                          <td className="px-4 py-3 text-center">
-                            <span
-                              className={cn(
-                                "font-bold",
-                                isPositive
-                                  ? "text-emerald-600 dark:text-emerald-400"
-                                  : "text-rose-600 dark:text-rose-400",
-                              )}
-                            >
-                              {isPositive
-                                ? "+"
-                                : "-"}
-                              {movement.quantity ??
-                                0}
-                            </span>
-                          </td>
-
-                          <td className="px-4 py-3 text-center text-[11px] text-[var(--muted-foreground)]">
-                            {movement.previousStock ??
-                              0}{" "}
-                            &rarr;{" "}
-                            <strong className="text-[var(--foreground)]">
-                              {movement.nextStock ??
-                                0}
-                            </strong>
-                          </td>
-
-                          <td className="min-w-0 px-4 py-3">
-                            <p
-                              className="break-words text-[10px] italic text-[var(--muted-foreground)]"
-                              title={
-                                movement.note ||
-                                ""
-                              }
-                            >
-                              {movement.note ||
-                                "-"}
-                            </p>
-                          </td>
-
-                          <td className="px-4 py-3 text-right text-[10px] text-[var(--muted-foreground)]">
-                            {movement.createdAt
-                              ? new Date(
-                                movement.createdAt,
-                              ).toLocaleString(
-                                isKhmer
-                                  ? "km-KH"
-                                  : "en-GB",
-                              )
-                              : "—"}
-                          </td>
-                        </tr>
-                      );
-                    },
-                  )}
-                </tbody>
-              </table>
-            ) : (
-              <div className="p-8 text-center text-xs text-[var(--muted-foreground)]">
-                {movementMessage ||
-                  t(
-                    "No movement logs match this filter.",
-                    "មិនមានកំណត់ត្រាចលនាដែលត្រូវនឹងតម្រងនេះទេ។",
-                  )}
-              </div>
-            )}
-          </div>
-
-          <div className="border-t border-[var(--border-soft)] bg-[var(--surface-quiet)]/40 px-4 py-3 text-[11px] text-[var(--muted-foreground)]">
-            {t(
-              `${filteredMovements.length} movement records`,
-              `កំណត់ត្រាចលនា ${filteredMovements.length}`,
-            )}
-          </div>
-        </section>
-
-        {/* CSV Bulk Section */}
-        <section className={panelClass}>
-          <div className="min-w-0 space-y-4 p-4 sm:p-5">
-            <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <h2 className="break-words text-base font-bold tracking-tight text-[var(--foreground)] sm:text-lg">
-                  {t(
-                    "Bulk CSV Inventory Import",
-                    "នាំចូលស្តុកជាច្រើនតាម CSV",
-                  )}
-                </h2>
-
-                <p className="mt-0.5 break-words text-xs text-[var(--muted-foreground)]">
-                  {t(
-                    "Restock multiple items quickly using productId,quantity or name,quantity lines.",
-                    "បន្ថែមស្តុកទំនិញជាច្រើនយ៉ាងរហ័សដោយប្រើ productId,quantity ឬ name,quantity។",
-                  )}
-                </p>
               </div>
 
-              <label className="inline-flex min-w-0 cursor-pointer items-center justify-center border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-2 text-xs font-semibold text-[var(--foreground)] shadow-sm transition-colors hover:bg-[var(--surface-quiet)] rounded-none">
-                {t(
-                  "Load CSV File",
-                  "បញ្ចូលឯកសារ CSV",
-                )}
-
-                <input
-                  type="file"
-                  accept=".csv,text/csv"
-                  onChange={handleCsvFile}
-                  className="hidden"
-                />
-              </label>
-            </div>
-
-            <textarea
-              value={csvText}
-              onChange={(event) =>
-                setCsvText(event.target.value)
-              }
-              placeholder={t(
-                "e.g.\nAngkor Beer Can,48\nCoca Cola 330ml,24",
-                "ឧ.\nAngkor Beer Can,48\nCoca Cola 330ml,24",
-              )}
-              className="app-input min-h-28 w-full min-w-0 resize-y rounded-none border border-[var(--border-soft)] px-4 py-3 text-xs font-mono"
-            />
-
-            <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
-              <Button
-                size="sm"
-                onClick={handleImport}
-                className="rounded-none"
-              >
-                {t(
-                  "Import Inventory",
-                  "នាំចូលស្តុក",
-                )}
-              </Button>
-
-              {csvMessage ? (
-                <span className="min-w-0 break-words text-xs text-[var(--muted-foreground)]">
-                  {csvMessage}
-                </span>
-              ) : null}
-            </div>
-          </div>
-        </section>
-
-        {/* Stock In Modal */}
-        <AnimatePresence>
-          {stockInModal.open &&
-            stockInModal.product ? (
-            <div
-              className="fixed inset-0 z-50 flex items-center justify-center overflow-x-hidden overflow-y-auto bg-black/60 px-3 py-4 backdrop-blur-sm sm:px-4"
-              onClick={() =>
-                setStockInModal(
-                  (current) => ({
-                    ...current,
-                    open: false,
-                  }),
-                )
-              }
-              style={{
-                scrollbarWidth: "none",
-                msOverflowStyle: "none",
-              }}
-            >
-              <motion.div
-                initial={{
-                  opacity: 0,
-                  scale: 0.98,
-                }}
-                animate={{
-                  opacity: 1,
-                  scale: 1,
-                }}
-                exit={{
-                  opacity: 0,
-                  scale: 0.98,
-                }}
-                className="relative my-auto w-full min-w-0 max-w-md border border-[var(--border-soft)] bg-[var(--surface-strong)] p-4 shadow-2xl rounded-none sm:p-6"
-                onClick={(event) =>
-                  event.stopPropagation()
-                }
-              >
-                <div className="flex min-w-0 items-center justify-between gap-4 border-b border-[var(--border-soft)] pb-3">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <div className="flex size-8 shrink-0 items-center justify-center bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 rounded-none">
-                      <PlusCircle className="size-5" />
-                    </div>
-
-                    <div className="min-w-0">
-                      <h3 className="break-words font-bold text-[var(--foreground)]">
-                        {t(
-                          "Stock In (Restock)",
-                          "បញ្ចូលស្តុក",
-                        )}
-                      </h3>
-
-                      <p className="break-words text-xs text-[var(--muted-foreground)]">
-                        {stockInModal.product.name}
-                      </p>
-                    </div>
+              <form onSubmit={submitStockIn} className="mt-4 space-y-4">
+                {Array.isArray(stockInModal.product.variants) && stockInModal.product.variants.length > 0 ? (
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Select Variant</label>
+                    <select
+                      value={stockInModal.variantId}
+                      onChange={(e) => setStockInModal((m) => ({ ...m, variantId: e.target.value }))}
+                      className="app-select mt-1 w-full px-3 py-2 text-sm"
+                    >
+                      {stockInModal.product.variants.map((v) => (
+                        <option key={v.id} value={v.id}>{v.name} (Current: {v.stock || 0})</option>
+                      ))}
+                    </select>
                   </div>
+                ) : null}
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setStockInModal(
-                        (current) => ({
-                          ...current,
-                          open: false,
-                        }),
-                      )
-                    }
-                    className="flex size-8 shrink-0 items-center justify-center text-[var(--muted-foreground)] transition hover:bg-[var(--surface-quiet)] hover:text-[var(--foreground)] rounded-none"
-                    aria-label={t(
-                      "Close",
-                      "បិទ",
-                    )}
-                  >
-                    <X className="size-5" />
-                  </button>
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Quantity to Add *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={stockInModal.quantity}
+                    onChange={(e) => setStockInModal((m) => ({ ...m, quantity: e.target.value }))}
+                    className="app-input mt-1 w-full px-3 py-2 text-sm"
+                    placeholder="e.g. 24"
+                    required
+                  />
                 </div>
 
-                <form
-                  onSubmit={submitStockIn}
-                  className="mt-4 space-y-4"
-                >
-                  {Array.isArray(
-                    stockInModal.product
-                      .variants,
-                  ) &&
-                    stockInModal.product
-                      .variants.length > 0 ? (
-                    <div className="min-w-0">
-                      <label className="block text-xs font-semibold text-[var(--muted-foreground)]">
-                        {t(
-                          "Select Variant",
-                          "ជ្រើសរើសវ៉ារ្យ៉ង់",
-                        )}
-                      </label>
-
-                      <select
-                        value={
-                          stockInModal.variantId
-                        }
-                        onChange={(event) =>
-                          setStockInModal(
-                            (current) => ({
-                              ...current,
-                              variantId:
-                                event.target
-                                  .value,
-                            }),
-                          )
-                        }
-                        className="app-select mt-1 w-full min-w-0 rounded-none px-3 py-2 text-sm"
-                      >
-                        {stockInModal.product.variants.map(
-                          (variant) => (
-                            <option
-                              key={variant.id}
-                              value={
-                                variant.id
-                              }
-                            >
-                              {variant.name}{" "}
-                              (
-                              {t(
-                                "Current",
-                                "បច្ចុប្បន្ន",
-                              )}{" "}
-                              {variant.stock ||
-                                0}
-                              )
-                            </option>
-                          ),
-                        )}
-                      </select>
-                    </div>
-                  ) : null}
-
-                  <div className="min-w-0">
-                    <label className="block text-xs font-semibold text-[var(--muted-foreground)]">
-                      {t(
-                        "Quantity to Add *",
-                        "ចំនួនដែលត្រូវបន្ថែម *",
-                      )}
-                    </label>
-
-                    <input
-                      type="number"
-                      min="1"
-                      value={
-                        stockInModal.quantity
-                      }
-                      onChange={(event) =>
-                        setStockInModal(
-                          (current) => ({
-                            ...current,
-                            quantity:
-                              event.target
-                                .value,
-                          }),
-                        )
-                      }
-                      className="app-input mt-1 w-full min-w-0 rounded-none px-3 py-2 text-sm"
-                      placeholder="e.g. 24"
-                      required
-                    />
-                  </div>
-
-                  <div className="min-w-0">
-                    <label className="block text-xs font-semibold text-[var(--muted-foreground)]">
-                      {t(
-                        "Restock Note / Supplier Batch",
-                        "ចំណាំបន្ថែមស្តុក / បាច់អ្នកផ្គត់ផ្គង់",
-                      )}
-                    </label>
-
-                    <input
-                      type="text"
-                      value={stockInModal.note}
-                      onChange={(event) =>
-                        setStockInModal(
-                          (current) => ({
-                            ...current,
-                            note: event.target
-                              .value,
-                          }),
-                        )
-                      }
-                      className="app-input mt-1 w-full min-w-0 rounded-none px-3 py-2 text-sm"
-                      placeholder={t(
-                        "e.g. Weekly wholesale restock shipment",
-                        "ឧ. ការដឹកជញ្ជូនបន្ថែមស្តុកប្រចាំសប្តាហ៍",
-                      )}
-                    />
-                  </div>
-
-                  {stockInModal.error ? (
-                    <div className="border border-rose-500/20 bg-rose-500/10 p-3 text-xs text-rose-600 dark:text-rose-400 rounded-none">
-                      {stockInModal.error}
-                    </div>
-                  ) : null}
-
-                  {stockInModal.success ? (
-                    <div className="border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs text-emerald-600 dark:text-emerald-400 rounded-none">
-                      {stockInModal.success}
-                    </div>
-                  ) : null}
-
-                  <div className="grid grid-cols-2 gap-3 pt-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() =>
-                        setStockInModal(
-                          (current) => ({
-                            ...current,
-                            open: false,
-                          }),
-                        )
-                      }
-                      className="rounded-none"
-                    >
-                      {t(
-                        "Cancel",
-                        "បោះបង់",
-                      )}
-                    </Button>
-
-                    <Button
-                      type="submit"
-                      disabled={
-                        stockInModal.loading
-                      }
-                      className="rounded-none"
-                    >
-                      {stockInModal.loading
-                        ? t(
-                          "Adding...",
-                          "កំពុងបន្ថែម...",
-                        )
-                        : t(
-                          "Confirm Stock In",
-                          "បញ្ជាក់ការបញ្ចូលស្តុក",
-                        )}
-                    </Button>
-                  </div>
-                </form>
-              </motion.div>
-            </div>
-          ) : null}
-        </AnimatePresence>
-
-        {/* Stock Adjustment Modal */}
-        <AnimatePresence>
-          {adjustModal.open &&
-            adjustModal.product ? (
-            <div
-              className="fixed inset-0 z-50 flex items-center justify-center overflow-x-hidden overflow-y-auto bg-black/60 px-3 py-4 backdrop-blur-sm sm:px-4"
-              onClick={() =>
-                setAdjustModal(
-                  (current) => ({
-                    ...current,
-                    open: false,
-                  }),
-                )
-              }
-              style={{
-                scrollbarWidth: "none",
-                msOverflowStyle: "none",
-              }}
-            >
-              <motion.div
-                initial={{
-                  opacity: 0,
-                  scale: 0.98,
-                }}
-                animate={{
-                  opacity: 1,
-                  scale: 1,
-                }}
-                exit={{
-                  opacity: 0,
-                  scale: 0.98,
-                }}
-                className="relative my-auto w-full min-w-0 max-w-md border border-[var(--border-soft)] bg-[var(--surface-strong)] p-4 shadow-2xl rounded-none sm:p-6"
-                onClick={(event) =>
-                  event.stopPropagation()
-                }
-              >
-                <div className="flex min-w-0 items-center justify-between gap-4 border-b border-[var(--border-soft)] pb-3">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <div className="flex size-8 shrink-0 items-center justify-center bg-amber-500/15 text-amber-600 dark:text-amber-400 rounded-none">
-                      <ArrowUpDown className="size-5" />
-                    </div>
-
-                    <div className="min-w-0">
-                      <h3 className="break-words font-bold text-[var(--foreground)]">
-                        {t(
-                          "Inventory Adjustment",
-                          "កែសម្រួលសារពើភ័ណ្ឌ",
-                        )}
-                      </h3>
-
-                      <p className="break-words text-xs text-[var(--muted-foreground)]">
-                        {adjustModal.product.name}{" "}
-                        (
-                        {t(
-                          "Current",
-                          "បច្ចុប្បន្ន",
-                        )}:{" "}
-                        {getProductTotalStock(
-                          adjustModal.product,
-                        )}
-                        )
-                      </p>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setAdjustModal(
-                        (current) => ({
-                          ...current,
-                          open: false,
-                        }),
-                      )
-                    }
-                    className="flex size-8 shrink-0 items-center justify-center text-[var(--muted-foreground)] transition hover:bg-[var(--surface-quiet)] hover:text-[var(--foreground)] rounded-none"
-                    aria-label={t(
-                      "Close",
-                      "បិទ",
-                    )}
-                  >
-                    <X className="size-5" />
-                  </button>
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Restock Note / Supplier Batch</label>
+                  <input
+                    type="text"
+                    value={stockInModal.note}
+                    onChange={(e) => setStockInModal((m) => ({ ...m, note: e.target.value }))}
+                    className="app-input mt-1 w-full px-3 py-2 text-sm"
+                    placeholder="e.g. Weekly wholesale restock shipment"
+                  />
                 </div>
 
-                <form
-                  onSubmit={
-                    submitStockAdjustment
-                  }
-                  className="mt-4 space-y-4"
-                >
-                  <div className="min-w-0">
-                    <label className="block text-xs font-semibold text-[var(--muted-foreground)]">
-                      {t(
-                        "Adjustment Type *",
-                        "ប្រភេទការកែសម្រួល *",
-                      )}
-                    </label>
+                {stockInModal.error ? <div className="rounded-xl bg-rose-500/10 p-3 text-xs text-rose-600 dark:text-rose-400">{stockInModal.error}</div> : null}
+                {stockInModal.success ? <div className="rounded-xl bg-emerald-500/10 p-3 text-xs text-emerald-600 dark:text-emerald-400">{stockInModal.success}</div> : null}
 
-                    <div className="mt-1 grid min-w-0 grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setAdjustModal(
-                            (current) => ({
-                              ...current,
-                              type: "ADJUSTMENT_INCREASE",
-                            }),
-                          )
-                        }
-                        className={cn(
-                          "flex min-w-0 items-center justify-center gap-1.5 border px-2 py-2 text-[11px] font-bold transition rounded-none sm:px-3 sm:text-xs",
-                          adjustModal.type ===
-                            "ADJUSTMENT_INCREASE"
-                            ? "border-emerald-500 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-                            : "border-[var(--border-soft)] bg-[var(--surface)] text-[var(--muted-foreground)]",
-                        )}
-                      >
-                        <PlusCircle className="size-4 shrink-0" />
+                <div className="flex gap-3 pt-2">
+                  <Button type="button" variant="outline" onClick={() => setStockInModal((m) => ({ ...m, open: false }))} className="flex-1">
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={stockInModal.loading} className="flex-1">
+                    {stockInModal.loading ? "Adding..." : "Confirm Stock In"}
+                  </Button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        ) : null}
+      </AnimatePresence>
 
-                        <span className="break-words">
-                          {t(
-                            "Increase Stock (+)",
-                            "បង្កើនស្តុក (+)",
-                          )}
-                        </span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setAdjustModal(
-                            (current) => ({
-                              ...current,
-                              type: "ADJUSTMENT_DECREASE",
-                            }),
-                          )
-                        }
-                        className={cn(
-                          "flex min-w-0 items-center justify-center gap-1.5 border px-2 py-2 text-[11px] font-bold transition rounded-none sm:px-3 sm:text-xs",
-                          adjustModal.type ===
-                            "ADJUSTMENT_DECREASE"
-                            ? "border-rose-500 bg-rose-500/15 text-rose-600 dark:text-rose-400"
-                            : "border-[var(--border-soft)] bg-[var(--surface)] text-[var(--muted-foreground)]",
-                        )}
-                      >
-                        <MinusCircle className="size-4 shrink-0" />
-
-                        <span className="break-words">
-                          {t(
-                            "Decrease Stock (-)",
-                            "បន្ថយស្តុក (-)",
-                          )}
-                        </span>
-                      </button>
-                    </div>
+      {/* Stock Adjustment Modal */}
+      <AnimatePresence>
+        {adjustModal.open && adjustModal.product ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm" onClick={() => setAdjustModal((m) => ({ ...m, open: false }))}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-6 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-[var(--border-soft)] pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex size-8 items-center justify-center rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                    <ArrowUpDown className="size-5" />
                   </div>
-
-                  {Array.isArray(
-                    adjustModal.product
-                      .variants,
-                  ) &&
-                    adjustModal.product
-                      .variants.length > 0 ? (
-                    <div className="min-w-0">
-                      <label className="block text-xs font-semibold text-[var(--muted-foreground)]">
-                        {t(
-                          "Select Variant",
-                          "ជ្រើសរើសវ៉ារ្យ៉ង់",
-                        )}
-                      </label>
-
-                      <select
-                        value={
-                          adjustModal.variantId
-                        }
-                        onChange={(event) =>
-                          setAdjustModal(
-                            (current) => ({
-                              ...current,
-                              variantId:
-                                event.target
-                                  .value,
-                            }),
-                          )
-                        }
-                        className="app-select mt-1 w-full min-w-0 rounded-none px-3 py-2 text-sm"
-                      >
-                        {adjustModal.product.variants.map(
-                          (variant) => (
-                            <option
-                              key={variant.id}
-                              value={
-                                variant.id
-                              }
-                            >
-                              {variant.name}{" "}
-                              (
-                              {t(
-                                "Stock",
-                                "ស្តុក",
-                              )}:{" "}
-                              {variant.stock ||
-                                0}
-                              )
-                            </option>
-                          ),
-                        )}
-                      </select>
-                    </div>
-                  ) : null}
-
-                  <div className="min-w-0">
-                    <label className="block text-xs font-semibold text-[var(--muted-foreground)]">
-                      {t(
-                        "Quantity *",
-                        "ចំនួន *",
-                      )}
-                    </label>
-
-                    <input
-                      type="number"
-                      min="1"
-                      value={
-                        adjustModal.quantity
-                      }
-                      onChange={(event) =>
-                        setAdjustModal(
-                          (current) => ({
-                            ...current,
-                            quantity:
-                              event.target
-                                .value,
-                          }),
-                        )
-                      }
-                      className="app-input mt-1 w-full min-w-0 rounded-none px-3 py-2 text-sm"
-                      placeholder={t(
-                        "Quantity to adjust",
-                        "ចំនួនត្រូវកែសម្រួល",
-                      )}
-                      required
-                    />
+                  <div>
+                    <h3 className="font-bold text-[var(--foreground)]">Inventory Adjustment</h3>
+                    <p className="text-xs text-[var(--muted-foreground)]">{adjustModal.product.name} (Current: {getProductTotalStock(adjustModal.product)})</p>
                   </div>
+                </div>
+                <button type="button" onClick={() => setAdjustModal((m) => ({ ...m, open: false }))} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+                  <X className="size-5" />
+                </button>
+              </div>
 
-                  <div className="min-w-0">
-                    <label className="block text-xs font-semibold text-[var(--muted-foreground)]">
-                      {t(
-                        "Adjustment Reason *",
-                        "មូលហេតុនៃការកែសម្រួល *",
-                      )}{" "}
-                      <span className="font-normal text-rose-500">
-                        (
-                        {t(
-                          "Required",
-                          "ត្រូវការ",
-                        )}
-                        )
-                      </span>
-                    </label>
-
-                    <input
-                      type="text"
-                      value={adjustModal.reason}
-                      onChange={(event) =>
-                        setAdjustModal(
-                          (current) => ({
-                            ...current,
-                            reason:
-                              event.target
-                                .value,
-                          }),
-                        )
-                      }
-                      className="app-input mt-1 w-full min-w-0 rounded-none px-3 py-2 text-sm"
-                      placeholder={t(
-                        "e.g. Broken packaging, Found inventory, Audit shrinkage",
-                        "ឧ. វេចខ្ចប់ខូច រកឃើញស្តុក ឬបាត់បង់តាមសវនកម្ម",
-                      )}
-                      required
-                    />
-                  </div>
-
-                  {adjustModal.error ? (
-                    <div className="border border-rose-500/20 bg-rose-500/10 p-3 text-xs text-rose-600 dark:text-rose-400 rounded-none">
-                      {adjustModal.error}
-                    </div>
-                  ) : null}
-
-                  {adjustModal.success ? (
-                    <div className="border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs text-emerald-600 dark:text-emerald-400 rounded-none">
-                      {adjustModal.success}
-                    </div>
-                  ) : null}
-
-                  <div className="grid grid-cols-2 gap-3 pt-2">
-                    <Button
+              <form onSubmit={submitStockAdjustment} className="mt-4 space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Adjustment Type *</label>
+                  <div className="mt-1 grid grid-cols-2 gap-2">
+                    <button
                       type="button"
-                      variant="outline"
-                      onClick={() =>
-                        setAdjustModal(
-                          (current) => ({
-                            ...current,
-                            open: false,
-                          }),
-                        )
-                      }
-                      className="rounded-none"
+                      onClick={() => setAdjustModal((m) => ({ ...m, type: "ADJUSTMENT_INCREASE" }))}
+                      className={cn("flex items-center justify-center gap-1.5 rounded-xl border py-2 text-xs font-bold transition", adjustModal.type === "ADJUSTMENT_INCREASE" ? "border-emerald-500 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" : "border-[var(--border-soft)] bg-[var(--surface)] text-[var(--muted-foreground)]")}
                     >
-                      {t(
-                        "Cancel",
-                        "បោះបង់",
-                      )}
-                    </Button>
-
-                    <Button
-                      type="submit"
-                      disabled={
-                        adjustModal.loading
-                      }
-                      className="rounded-none"
+                      <PlusCircle className="size-4" />
+                      Increase Stock (+)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAdjustModal((m) => ({ ...m, type: "ADJUSTMENT_DECREASE" }))}
+                      className={cn("flex items-center justify-center gap-1.5 rounded-xl border py-2 text-xs font-bold transition", adjustModal.type === "ADJUSTMENT_DECREASE" ? "border-rose-500 bg-rose-500/15 text-rose-600 dark:text-rose-400" : "border-[var(--border-soft)] bg-[var(--surface)] text-[var(--muted-foreground)]")}
                     >
-                      {adjustModal.loading
-                        ? t(
-                          "Adjusting...",
-                          "កំពុងកែសម្រួល...",
-                        )
-                        : t(
-                          "Apply Adjustment",
-                          "អនុវត្តការកែសម្រួល",
-                        )}
-                    </Button>
+                      <MinusCircle className="size-4" />
+                      Decrease Stock (-)
+                    </button>
                   </div>
-                </form>
-              </motion.div>
-            </div>
-          ) : null}
-        </AnimatePresence>
-      </div>
+                </div>
+
+                {Array.isArray(adjustModal.product.variants) && adjustModal.product.variants.length > 0 ? (
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Select Variant</label>
+                    <select
+                      value={adjustModal.variantId}
+                      onChange={(e) => setAdjustModal((m) => ({ ...m, variantId: e.target.value }))}
+                      className="app-select mt-1 w-full px-3 py-2 text-sm"
+                    >
+                      {adjustModal.product.variants.map((v) => (
+                        <option key={v.id} value={v.id}>{v.name} (Stock: {v.stock || 0})</option>
+                      ))}
+                    </select>
+                  </div>
+                ) : null}
+
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Quantity *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={adjustModal.quantity}
+                    onChange={(e) => setAdjustModal((m) => ({ ...m, quantity: e.target.value }))}
+                    className="app-input mt-1 w-full px-3 py-2 text-sm"
+                    placeholder="Quantity to adjust"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--muted-foreground)]">
+                    Adjustment Reason * <span className="font-normal text-rose-500">(Required)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={adjustModal.reason}
+                    onChange={(e) => setAdjustModal((m) => ({ ...m, reason: e.target.value }))}
+                    className="app-input mt-1 w-full px-3 py-2 text-sm"
+                    placeholder="e.g. Broken packaging, Found inventory, Audit shrinkage"
+                    required
+                  />
+                </div>
+
+                {adjustModal.error ? <div className="rounded-xl bg-rose-500/10 p-3 text-xs text-rose-600 dark:text-rose-400">{adjustModal.error}</div> : null}
+                {adjustModal.success ? <div className="rounded-xl bg-emerald-500/10 p-3 text-xs text-emerald-600 dark:text-emerald-400">{adjustModal.success}</div> : null}
+
+                <div className="flex gap-3 pt-2">
+                  <Button type="button" variant="outline" onClick={() => setAdjustModal((m) => ({ ...m, open: false }))} className="flex-1">
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={adjustModal.loading} className="flex-1">
+                    {adjustModal.loading ? "Adjusting..." : "Apply Adjustment"}
+                  </Button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        ) : null}
+      </AnimatePresence>
     </div>
   );
 }
 
 export function AdminOrderManagementPageView() {
   const store = useAppStore();
-
-  const isKhmer = store.language === "km" || store.language === "kh";
-
-  const t = (english, khmer) => (isKhmer ? khmer : english);
-
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [statusUpdating, setStatusUpdating] = useState(false);
 
+  // Edit Carrier/Tracking modal state
   const [trackingModal, setTrackingModal] = useState({
     open: false,
     order: null,
@@ -4339,1349 +2825,440 @@ export function AdminOrderManagementPageView() {
 
   const ordersList = useMemo(() => {
     const lower = query.trim().toLowerCase();
-
     return store.orders.filter((order) => {
-      const orderStatus = String(order.status || "").toLowerCase();
-
-      if (
-        statusFilter !== "all" &&
-        orderStatus !== statusFilter.toLowerCase()
-      ) {
+      if (statusFilter !== "all" && String(order.status).toLowerCase() !== statusFilter.toLowerCase()) {
         return false;
       }
-
       if (lower) {
-        const matchId = String(order.orderNumber || order.id || "")
-          .toLowerCase()
-          .includes(lower);
-
-        const matchCustomer = String(
-          order.customer?.name || order.user?.name || ""
-        )
-          .toLowerCase()
-          .includes(lower);
-
-        const matchPhone = String(
-          order.customer?.phone || order.user?.phone || ""
-        )
-          .toLowerCase()
-          .includes(lower);
-
-        const matchAddress = String(
-          order.shippingAddress || order.delivery?.address || ""
-        )
-          .toLowerCase()
-          .includes(lower);
-
+        const matchId = String(order.orderNumber || order.id).toLowerCase().includes(lower);
+        const matchCustomer = String(order.customer?.name || order.user?.name || "").toLowerCase().includes(lower);
+        const matchPhone = String(order.customer?.phone || order.user?.phone || "").toLowerCase().includes(lower);
+        const matchAddress = String(order.shippingAddress || order.delivery?.address || "").toLowerCase().includes(lower);
         if (!matchId && !matchCustomer && !matchPhone && !matchAddress) {
           return false;
         }
       }
-
       return true;
     });
   }, [store.orders, query, statusFilter]);
 
   const statusCounts = useMemo(() => {
-    const counts = {
-      all: store.orders.length,
-      pending: 0,
-      confirmed: 0,
-      preparing: 0,
-      ready: 0,
-      shipped: 0,
-      delivered: 0,
-      cancelled: 0,
-    };
-
-    store.orders.forEach((order) => {
-      const status = String(order.status || "").toLowerCase();
-
-      if (counts[status] !== undefined) {
-        counts[status] += 1;
-      }
+    const counts = { all: store.orders.length, pending: 0, confirmed: 0, preparing: 0, ready: 0, shipped: 0, delivered: 0, cancelled: 0 };
+    store.orders.forEach((o) => {
+      const s = String(o.status).toLowerCase();
+      if (counts[s] !== undefined) counts[s]++;
     });
-
     return counts;
   }, [store.orders]);
 
-  function formatOrderDate(value) {
-    if (!value) return "—";
-
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-      return "—";
-    }
-
-    return date.toLocaleString();
-  }
-
-  function getCustomerName(order) {
-    return (
-      order?.customer?.name ||
-      order?.user?.name ||
-      t("Customer", "អតិថិជន")
-    );
-  }
-
-  function getCustomerPhone(order) {
-    return order?.customer?.phone || order?.user?.phone || "";
-  }
-
-  function getOrderItems(order) {
-    return order?.items || order?.lines || [];
-  }
-
-  function getItemCount(order) {
-    return getOrderItems(order).reduce(
-      (sum, item) => sum + (Number(item?.quantity) || 1),
-      0
-    );
-  }
-
-  function getOrderAddress(order) {
-    return (
-      order?.shippingAddress ||
-      order?.delivery?.address ||
-      t("Store Pickup", "ទទួលនៅហាង")
-    );
-  }
-
-  function getPaymentMethod(order) {
-    return order?.paymentMethod || "COD";
-  }
-
   async function updateOrderStatus(orderId, newStatus) {
-    if (!orderId || statusUpdating) return;
-
     setStatusUpdating(true);
-
     try {
       const res = await fetch(`/api/orders/${orderId}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          status: newStatus,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
       });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || "Status update failed");
 
-      let data = {};
-
-      try {
-        data = await res.json();
-      } catch {
-        data = {};
+      store.updateOrder(orderId, { status: newStatus.toLowerCase() });
+      if (selectedOrder && selectedOrder.id === orderId) {
+        setSelectedOrder((o) => ({ ...o, status: newStatus.toLowerCase() }));
       }
-
-      if (!res.ok) {
-        const message =
-          typeof data?.error === "string"
-            ? data.error
-            : data?.error?.message ||
-            t(
-              "Status update failed",
-              "ការធ្វើបច្ចុប្បន្នភាពស្ថានភាពបរាជ័យ"
-            );
-
-        throw new Error(message);
-      }
-
-      const normalizedStatus = String(newStatus).toLowerCase();
-
-      store.updateOrder(orderId, {
-        status: normalizedStatus,
-      });
-
-      setSelectedOrder((current) => {
-        if (!current || current.id !== orderId) {
-          return current;
-        }
-
-        return {
-          ...current,
-          status: normalizedStatus,
-        };
-      });
     } catch (err) {
-      alert(
-        err?.message ||
-        t(
-          "Status update failed",
-          "ការធ្វើបច្ចុប្បន្នភាពស្ថានភាពបរាជ័យ"
-        )
-      );
+      alert(err.message);
     } finally {
       setStatusUpdating(false);
     }
   }
 
-  function openTrackingModal(order) {
-    setTrackingModal({
-      open: true,
-      order,
-      carrier: order?.trackingCarrier || "",
-      trackingNumber: order?.trackingNumber || "",
-      driverName: order?.delivery?.driver?.name || "",
-      driverPhone: order?.delivery?.driver?.phone || "",
-      deliveryNote: order?.note || order?.delivery?.note || "",
-      scheduledAt: order?.delivery?.scheduledAt
-        ? new Date(order.delivery.scheduledAt).toISOString().slice(0, 10)
-        : "",
-      deliveryStatus: order?.delivery?.status || "PENDING",
-      loading: false,
-      error: "",
-      success: "",
-    });
-  }
-
-  function closeTrackingModal() {
-    setTrackingModal((current) => ({
-      ...current,
-      open: false,
-    }));
-  }
-
   async function saveTrackingInfo(e) {
     e.preventDefault();
+    if (!trackingModal.order) return;
 
-    if (!trackingModal.order || trackingModal.loading) return;
-
-    setTrackingModal((current) => ({
-      ...current,
-      loading: true,
-      error: "",
-      success: "",
-    }));
-
-    const orderId = trackingModal.order.id;
-
-    const carrier = trackingModal.carrier.trim();
-    const trackingNumber = trackingModal.trackingNumber.trim();
-    const driverName = trackingModal.driverName.trim();
-    const driverPhone = trackingModal.driverPhone.trim();
-    const deliveryNote = trackingModal.deliveryNote.trim();
-
+    setTrackingModal((m) => ({ ...m, loading: true, error: "" }));
     try {
-      const res = await fetch(`/api/orders/${orderId}`, {
+      const res = await fetch(`/api/orders/${trackingModal.order.id}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          trackingCarrier: carrier || null,
-          trackingNumber: trackingNumber || null,
-          driverName: driverName || null,
-          driverPhone: driverPhone || null,
-          deliveryNote: deliveryNote || null,
+          trackingCarrier: trackingModal.carrier.trim() || null,
+          trackingNumber: trackingModal.trackingNumber.trim() || null,
+          driverName: trackingModal.driverName.trim() || null,
+          driverPhone: trackingModal.driverPhone.trim() || null,
+          deliveryNote: trackingModal.deliveryNote.trim() || null,
           scheduledAt: trackingModal.scheduledAt || null,
           deliveryStatus: trackingModal.deliveryStatus || undefined,
         }),
       });
 
-      let data = {};
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || "Failed to update tracking");
 
-      try {
-        data = await res.json();
-      } catch {
-        data = {};
-      }
-
-      if (!res.ok) {
-        const message =
-          typeof data?.error === "string"
-            ? data.error
-            : data?.error?.message ||
-            t(
-              "Failed to update tracking",
-              "ការធ្វើបច្ចុប្បន្នភាពការតាមដានបរាជ័យ"
-            );
-
-        throw new Error(message);
-      }
-
-      const previousDelivery = trackingModal.order.delivery || {};
-
-      const nextDriver =
-        driverName || driverPhone
-          ? {
-            name: driverName,
-            phone: driverPhone,
-          }
-          : null;
-
-      const nextDelivery = {
-        ...previousDelivery,
-        note: deliveryNote || null,
-        driver: nextDriver,
-        scheduledAt: trackingModal.scheduledAt || null,
-        status: trackingModal.deliveryStatus || "PENDING",
-      };
-
-      store.updateOrder(orderId, {
-        trackingCarrier: carrier || null,
-        trackingNumber: trackingNumber || null,
-        delivery: nextDelivery,
+      const updated = data.data || data.order;
+      store.updateOrder(trackingModal.order.id, {
+        trackingCarrier: trackingModal.carrier.trim() || "",
+        trackingNumber: trackingModal.trackingNumber.trim() || "",
+        delivery: {
+          ...(trackingModal.order.delivery || {}),
+          note: trackingModal.deliveryNote.trim(),
+          driver: trackingModal.driverName || trackingModal.driverPhone ? { name: trackingModal.driverName, phone: trackingModal.driverPhone } : trackingModal.order.delivery?.driver,
+        },
       });
 
-      setSelectedOrder((current) => {
-        if (!current || current.id !== orderId) {
-          return current;
-        }
-
-        return {
-          ...current,
-          trackingCarrier: carrier || null,
-          trackingNumber: trackingNumber || null,
+      if (selectedOrder && selectedOrder.id === trackingModal.order.id) {
+        setSelectedOrder((prev) => ({
+          ...prev,
+          trackingCarrier: trackingModal.carrier.trim() || "",
+          trackingNumber: trackingModal.trackingNumber.trim() || "",
           delivery: {
-            ...(current.delivery || {}),
-            ...nextDelivery,
+            ...(prev.delivery || {}),
+            note: trackingModal.deliveryNote.trim(),
+            driver: trackingModal.driverName || trackingModal.driverPhone ? { name: trackingModal.driverName, phone: trackingModal.driverPhone } : prev.delivery?.driver,
           },
-        };
-      });
+        }));
+      }
 
-      setTrackingModal((current) => ({
-        ...current,
-        loading: false,
-        success: t(
-          "Carrier & tracking updated!",
-          "ការដឹកជញ្ជូន និងលេខតាមដានត្រូវបានធ្វើបច្ចុប្បន្នភាព!"
-        ),
-      }));
-
+      setTrackingModal((m) => ({ ...m, loading: false, success: "Carrier & tracking updated!" }));
       setTimeout(() => {
-        setTrackingModal({
-          open: false,
-          order: null,
-          carrier: "",
-          trackingNumber: "",
-          driverName: "",
-          driverPhone: "",
-          deliveryNote: "",
-          scheduledAt: "",
-          deliveryStatus: "PENDING",
-          loading: false,
-          error: "",
-          success: "",
-        });
+        setTrackingModal({ open: false, order: null, carrier: "", trackingNumber: "", driverName: "", driverPhone: "", deliveryNote: "", scheduledAt: "", deliveryStatus: "PENDING", loading: false, error: "", success: "" });
       }, 1000);
     } catch (err) {
-      setTrackingModal((current) => ({
-        ...current,
-        loading: false,
-        error:
-          err?.message ||
-          t(
-            "Failed to update tracking",
-            "ការធ្វើបច្ចុប្បន្នភាពការតាមដានបរាជ័យ"
-          ),
-      }));
+      setTrackingModal((m) => ({ ...m, loading: false, error: err.message }));
     }
   }
 
-  const statusTabs = [
-    {
-      key: "all",
-      label: t("All Orders", "ការបញ្ជាទិញទាំងអស់"),
-      count: statusCounts.all,
-    },
-    {
-      key: "pending",
-      label: t("Pending", "កំពុងរង់ចាំ"),
-      count: statusCounts.pending,
-    },
-    {
-      key: "confirmed",
-      label: t("Confirmed", "បានបញ្ជាក់"),
-      count: statusCounts.confirmed,
-    },
-    {
-      key: "preparing",
-      label: t("Preparing", "កំពុងរៀបចំ"),
-      count: statusCounts.preparing,
-    },
-    {
-      key: "ready",
-      label: t("Ready", "ត្រៀមរួច"),
-      count: statusCounts.ready,
-    },
-    {
-      key: "shipped",
-      label: t("Shipped", "បានដឹកជញ្ជូន"),
-      count: statusCounts.shipped,
-    },
-    {
-      key: "delivered",
-      label: t("Delivered", "បានប្រគល់"),
-      count: statusCounts.delivered,
-    },
-    {
-      key: "cancelled",
-      label: t("Cancelled", "បានលុបចោល"),
-      count: statusCounts.cancelled,
-    },
-  ];
-
   return (
-    <div
-      className="
-        admin-order-management-page
-        mx-auto
-        flex
-        w-full
-        max-w-[1400px]
-        min-w-0
-        flex-col
-        space-y-5
-        overflow-x-hidden
-        px-3
-        py-3
-        sm:px-4
-        sm:py-4
-        md:px-6
-        md:py-5
-        lg:px-8
-        lg:py-6
-      "
-    >
-      {/* Operations / Logistics Header + Filters + Search */}
-      <Card
-        className="
-          w-full
-          min-w-0
-          space-y-5
-          !rounded-none
-          bg-[var(--surface-strong)]
-          p-4
-          shadow-sm
-          sm:p-5
-          md:p-6
-        "
-      >
-        <div className="min-w-0 space-y-1">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
-            {t("Operations & Logistics", "ប្រតិបត្តិការ និងដឹកជញ្ជូន")}
-          </p>
-
-          <h1 className="break-words text-2xl font-extrabold tracking-tight text-[var(--foreground)] sm:text-3xl">
-            {t("Admin Order Management", "ការគ្រប់គ្រងការបញ្ជាទិញ")}
-          </h1>
-
-          <p className="max-w-3xl break-words text-xs leading-5 text-[var(--muted-foreground)] sm:text-sm">
-            {t(
-              "Manage workflow status, driver/carrier assignments, and view interactive customer delivery maps.",
-              "គ្រប់គ្រងស្ថានភាពការងារ ការកំណត់អ្នកដឹកជញ្ជូន/ក្រុមហ៊ុនដឹកជញ្ជូន និងមើលផែនទីដឹកជញ្ជូនអតិថិជន។"
-            )}
-          </p>
-        </div>
-
-        {/* Status Filter Tabs */}
-        <div className="w-full min-w-0">
-          <div
-            className="
-              flex
-              w-full
-              min-w-0
-              flex-wrap
-              items-center
-              gap-1.5
-              overflow-x-hidden
-              text-xs
-              font-medium
-              text-[var(--muted-foreground)]
-            "
-          >
-            {statusTabs.map((tab) => {
-              const active = statusFilter === tab.key;
-
-              return (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => setStatusFilter(tab.key)}
-                  className={cn(
-                    `
-                      inline-flex
-                      min-h-9
-                      min-w-0
-                      max-w-full
-                      shrink
-                      items-center
-                      gap-1.5
-                      !rounded-none
-                      px-3
-                      py-1.5
-                      text-xs
-                      font-semibold
-                      transition-colors
-                      focus:outline-none
-                      focus-visible:ring-2
-                      focus-visible:ring-[var(--action)]
-                    `,
-                    active
-                      ? "bg-[var(--action)] text-white shadow-sm"
-                      : "bg-[var(--surface-quiet)] text-[var(--muted-foreground)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]"
-                  )}
-                >
-                  <span className="min-w-0 break-words">
-                    {tab.label}
-                  </span>
-
-                  <span
-                    className={cn(
-                      "shrink-0 px-1.5 py-0.5 text-[10px] font-mono leading-none",
-                      active
-                        ? "bg-white/20 text-white"
-                        : "bg-[var(--surface-hover)] text-[var(--foreground)]"
-                    )}
-                  >
-                    {tab.count}
-                  </span>
-                </button>
-              );
-            })}
+    <div className="space-y-6">
+      <Card className="space-y-4">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-wider text-[var(--muted-foreground)]">Operations & Logistics</p>
+            <h1 className="text-3xl font-bold tracking-tight text-[var(--foreground)]">Admin Order Management</h1>
+            <p className="mt-1 text-xs text-[var(--muted-foreground)]">Manage workflow status, driver/carrier assignments, and view interactive customer delivery maps.</p>
           </div>
         </div>
 
-        {/* Search */}
-        <div className="relative w-full min-w-0">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
+        {/* Status Filter Tabs */}
+        <div className="flex flex-wrap gap-2 pt-2">
+          {[
+            { key: "all", label: "All Orders", count: statusCounts.all },
+            { key: "pending", label: "Pending", count: statusCounts.pending },
+            { key: "confirmed", label: "Confirmed", count: statusCounts.confirmed },
+            { key: "preparing", label: "Preparing", count: statusCounts.preparing },
+            { key: "ready", label: "Ready", count: statusCounts.ready },
+            { key: "shipped", label: "Shipped", count: statusCounts.shipped },
+            { key: "delivered", label: "Delivered", count: statusCounts.delivered },
+            { key: "cancelled", label: "Cancelled", count: statusCounts.cancelled },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setStatusFilter(tab.key)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition",
+                statusFilter === tab.key
+                  ? "bg-[var(--action)] text-white shadow-sm"
+                  : "bg-[var(--surface-quiet)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+              )}
+            >
+              <span>{tab.label}</span>
+              <span className={cn("rounded-full px-1.5 py-0.2 text-[10px]", statusFilter === tab.key ? "bg-white/20 text-white" : "bg-[var(--surface-hover)] text-[var(--foreground)]")}>
+                {tab.count}
+              </span>
+            </button>
+          ))}
+        </div>
 
+        <div className="relative">
+          <Search className="absolute left-3.5 top-3 size-4 text-[var(--muted-foreground)]" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={t(
-              "Search by order number, customer name, phone number, or address...",
-              "ស្វែងរកតាមលេខបញ្ជាទិញ ឈ្មោះអតិថិជន លេខទូរស័ព្ទ ឬអាសយដ្ឋាន..."
-            )}
-            className="
-              app-input
-              w-full
-              min-w-0
-              !rounded-none
-              bg-[var(--surface)]
-              px-4
-              py-2.5
-              pl-10
-              text-xs
-              sm:text-sm
-              focus:outline-none
-              focus:ring-2
-              focus:ring-[var(--action)]
-            "
+            placeholder="Search by order number, customer name, phone number, or address..."
+            className="app-input w-full pl-10 pr-4 py-2.5 text-sm"
           />
         </div>
       </Card>
 
-      {/* Orders */}
-      <div className="w-full min-w-0 space-y-3.5 overflow-x-hidden">
+      {/* Orders Grid/List */}
+      <div className="space-y-3">
         {ordersList.length ? (
           ordersList.map((order) => {
-            const customerName = getCustomerName(order);
-            const customerPhone = getCustomerPhone(order);
-            const itemCount = getItemCount(order);
+            const customerName = order.customer?.name || order.user?.name || "Customer";
+            const customerPhone = order.customer?.phone || order.user?.phone || "";
+            const itemCount = (order.items || order.lines || []).reduce((sum, item) => sum + (item.quantity || 1), 0);
 
             return (
-              <article
-                key={order.id}
-                className="
-                  w-full
-                  min-w-0
-                  overflow-hidden
-                  !rounded-none
-                  bg-[var(--surface-strong)]
-                  p-4
-                  shadow-sm
-                  transition-colors
-                  hover:bg-[var(--surface-hover)]
-                  sm:p-5
-                "
-              >
-                <div
-                  className="
-                    flex
-                    min-w-0
-                    flex-col
-                    gap-4
-                    md:flex-row
-                    md:items-center
-                    md:justify-between
-                  "
-                >
-                  {/* Left Details */}
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <div className="flex min-w-0 flex-wrap items-center gap-2">
-                      <span className="max-w-full min-w-0 break-all font-mono text-sm font-bold tracking-tight text-[var(--foreground)]">
-                        {order.orderNumber || order.id}
-                      </span>
-
+              <div key={order.id} className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-5 shadow-sm transition hover:border-[var(--action)]">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                  <div className="space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-base font-bold text-[var(--foreground)]">{order.orderNumber || order.id}</span>
                       <StatusPill status={order.status} />
-
-                      <span className="max-w-full min-w-0 break-words !rounded-none bg-[var(--surface-quiet)] px-2 py-0.5 text-[10px] font-bold uppercase text-[var(--muted-foreground)]">
+                      <span className="rounded-md bg-[var(--surface-quiet)] px-2 py-0.5 text-[10px] font-bold uppercase text-[var(--muted-foreground)]">
                         {order.channel || "ONLINE"}
                       </span>
                     </div>
 
-                    <div
-                      className="
-                        flex
-                        min-w-0
-                        flex-wrap
-                        items-center
-                        gap-x-3
-                        gap-y-1
-                        text-xs
-                        text-[var(--muted-foreground)]
-                      "
-                    >
-                      <span className="inline-flex min-w-0 max-w-full items-center gap-1">
-                        <User className="size-3.5 shrink-0 text-[var(--action)]" />
-
-                        <strong className="min-w-0 break-words text-[var(--foreground)]">
-                          {customerName}
-                        </strong>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--muted-foreground)]">
+                      <span className="flex items-center gap-1">
+                        <User className="size-3.5 text-[var(--action)]" />
+                        <strong className="text-[var(--foreground)]">{customerName}</strong>
                       </span>
-
                       {customerPhone ? (
-                        <a
-                          href={`tel:${customerPhone}`}
-                          className="
-                            inline-flex
-                            min-w-0
-                            max-w-full
-                            items-center
-                            gap-1
-                            break-all
-                            hover:text-[var(--action)]
-                          "
-                        >
-                          <Phone className="size-3 shrink-0 text-[var(--action)]" />
-
-                          <span className="break-all">
-                            {customerPhone}
-                          </span>
+                        <a href={`tel:${customerPhone}`} className="flex items-center gap-1 hover:text-[var(--action)]">
+                          <Phone className="size-3 text-[var(--action)]" />
+                          <span>{customerPhone}</span>
                         </a>
                       ) : null}
-
-                      <span className="inline-flex min-w-0 max-w-full items-center gap-1">
-                        <Clock className="size-3 shrink-0 text-[var(--action)]" />
-
-                        <span className="break-words">
-                          {formatOrderDate(order.createdAt)}
-                        </span>
+                      <span className="flex items-center gap-1">
+                        <Clock className="size-3 text-[var(--action)]" />
+                        <span>{new Date(order.createdAt).toLocaleString()}</span>
                       </span>
                     </div>
 
-                    <div className="flex min-w-0 items-start gap-1.5 text-xs text-[var(--muted-foreground)]">
-                      <MapPin className="mt-0.5 size-3.5 shrink-0 text-[var(--muted-foreground)]" />
-
-                      <span className="min-w-0 break-words">
-                        {getOrderAddress(order)}
-                      </span>
+                    <div className="flex items-start gap-1 text-xs text-[var(--muted-foreground)]">
+                      <MapPin className="size-3.5 shrink-0 text-[var(--muted-foreground)] mt-0.5" />
+                      <span className="line-clamp-1">{order.shippingAddress || order.delivery?.address || "Store Pickup"}</span>
                     </div>
                   </div>
 
-                  {/* Right Price + Actions */}
-                  <div
-                    className="
-                      flex
-                      w-full
-                      min-w-0
-                      flex-col
-                      gap-3
-                      pt-1
-                      md:w-auto
-                      md:min-w-[330px]
-                      md:items-end
-                    "
-                  >
-                    <div className="w-full text-left md:text-right">
-                      <p className="break-all text-base font-extrabold text-[var(--foreground)] sm:text-lg">
-                        {formatCurrency(order.total)}
-                      </p>
-
-                      <p className="break-words text-[11px] font-medium text-[var(--muted-foreground)]">
-                        {itemCount} {t("items", "ទំនិញ")} •{" "}
-                        {getPaymentMethod(order)}
-                      </p>
+                  <div className="flex flex-wrap items-center justify-between gap-4 border-t border-[var(--border-soft)] pt-3 xl:border-0 xl:pt-0">
+                    <div className="text-left xl:text-right">
+                      <p className="text-lg font-bold text-[var(--foreground)]">{formatCurrency(order.total)}</p>
+                      <p className="text-xs text-[var(--muted-foreground)]">{itemCount} items &bull; {order.paymentMethod || "COD"}</p>
                     </div>
 
-                    <div className="grid w-full min-w-0 grid-cols-2 gap-2 md:w-auto md:min-w-[330px]">
-                      <div className="min-w-0">
-                        <div
-                          className="
-                            [&>button]:!flex
-                            [&>button]:!w-full
-                            [&>button]:!min-w-0
-                            [&>button]:!items-center
-                            [&>button]:!justify-center
-                            [&>button]:!whitespace-nowrap
-                            [&>button]:!rounded-none
-                          "
-                        >
-                          <OrderPrintView order={order} />
-                        </div>
-                      </div>
-
+                    <div className="flex items-center gap-2">
+                      <OrderPrintView order={order} />
                       <Button
                         variant="default"
                         size="sm"
                         onClick={() => setSelectedOrder(order)}
-                        className="
-                          !flex
-                          !w-full
-                          !min-w-0
-                          !shrink-0
-                          !items-center
-                          !justify-center
-                          !gap-1.5
-                          !whitespace-nowrap
-                          !rounded-none
-                          bg-[var(--surface-quiet)]
-                          px-2
-                          text-xs
-                          text-[var(--foreground)]
-                          hover:bg-[var(--surface-hover)]
-                          hover:text-[var(--action)]
-                          sm:px-3
-                        "
+                        className="gap-1.5"
                       >
-                        <FileText className="size-3.5 shrink-0" />
-
-                        <span className="min-w-0 truncate">
-                          {t(
-                            "Details & Map",
-                            "ព័ត៌មានលម្អិត និងផែនទី"
-                          )}
-                        </span>
+                        <FileText className="size-3.5" />
+                        Details & Map
                       </Button>
                     </div>
                   </div>
                 </div>
-              </article>
+              </div>
             );
           })
         ) : (
-          <div
-            className="
-              w-full
-              !rounded-none
-              bg-[var(--surface-quiet)]
-              p-8
-              text-center
-              text-sm
-              text-[var(--muted-foreground)]
-              sm:p-12
-            "
-          >
-            {t(
-              "No orders found matching the filter.",
-              "រកមិនឃើញការបញ្ជាទិញដែលត្រូវនឹងតម្រងទេ។"
-            )}
+          <div className="rounded-2xl border border-dashed border-[var(--border-soft)] p-12 text-center text-sm text-[var(--muted-foreground)]">
+            No orders found matching the filter.
           </div>
         )}
       </div>
 
-      {/* Details & Map Modal */}
+      {/* Order Detail Drawer / Modal */}
       <AnimatePresence>
         {selectedOrder ? (
-          <div
-            className="
-              fixed
-              inset-0
-              z-50
-              flex
-              items-center
-              justify-center
-              overflow-y-auto
-              overflow-x-hidden
-              bg-black/60
-              px-2
-              py-3
-              backdrop-blur-[1px]
-              sm:px-4
-              sm:py-5
-            "
-            onClick={() => setSelectedOrder(null)}
-            style={{
-              scrollbarWidth: "none",
-              msOverflowStyle: "none",
-            }}
-          >
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6 backdrop-blur-sm" onClick={() => setSelectedOrder(null)}>
             <motion.div
-              initial={{
-                opacity: 0,
-                scale: 0.985,
-                y: 8,
-              }}
-              animate={{
-                opacity: 1,
-                scale: 1,
-                y: 0,
-              }}
-              exit={{
-                opacity: 0,
-                scale: 0.985,
-                y: 8,
-              }}
-              transition={{ duration: 0.18 }}
-              className="
-                relative
-                my-auto
-                flex
-                max-h-[95vh]
-                w-full
-                max-w-2xl
-                min-w-0
-                flex-col
-                overflow-hidden
-                !rounded-none
-                bg-[var(--surface-strong)]
-                text-[var(--foreground)]
-                shadow-2xl
-              "
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              className="relative flex max-h-[92vh] w-full max-w-3xl flex-col rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] shadow-2xl overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Modal Header */}
-              <div
-                className="
-                  flex
-                  min-w-0
-                  shrink-0
-                  items-center
-                  justify-between
-                  gap-3
-                  !rounded-none
-                  bg-[var(--surface-strong)]
-                  px-4
-                  py-3.5
-                  sm:px-5
-                  sm:py-4
-                "
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex size-9 shrink-0 items-center justify-center !rounded-none bg-[var(--action-subtle)] text-[var(--action)]">
+              {/* Drawer Header */}
+              <div className="flex items-center justify-between border-b border-[var(--border-soft)] bg-[var(--surface)] px-6 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--action-subtle)] text-[var(--action)]">
                     <ReceiptText className="size-5" />
                   </div>
-
-                  <div className="min-w-0">
-                    <div className="flex min-w-0 flex-wrap items-center gap-2">
-                      <h2 className="max-w-full break-all font-mono text-base font-bold tracking-tight text-[var(--foreground)] sm:text-lg">
-                        {selectedOrder.orderNumber ||
-                          selectedOrder.id}
-                      </h2>
-
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-bold text-[var(--foreground)]">{selectedOrder.orderNumber || selectedOrder.id}</h2>
                       <StatusPill status={selectedOrder.status} />
                     </div>
-
-                    <p className="break-words text-[11px] text-[var(--muted-foreground)] sm:text-xs">
-                      {t("Placed on", "បានដាក់នៅ")}{" "}
-                      {formatOrderDate(selectedOrder.createdAt)}
-                    </p>
+                    <p className="text-xs text-[var(--muted-foreground)]">Placed on {new Date(selectedOrder.createdAt).toLocaleString()}</p>
                   </div>
                 </div>
-
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="flex items-center gap-2">
                   <OrderPrintView order={selectedOrder} />
-
-                  <button
-                    type="button"
-                    onClick={() => setSelectedOrder(null)}
-                    aria-label={t("Close", "បិទ")}
-                    className="
-                      flex
-                      size-9
-                      shrink-0
-                      items-center
-                      justify-center
-                      !rounded-none
-                      bg-[var(--surface-quiet)]
-                      text-[var(--muted-foreground)]
-                      transition-colors
-                      hover:bg-[var(--surface-hover)]
-                      hover:text-[var(--foreground)]
-                    "
-                  >
+                  <button type="button" onClick={() => setSelectedOrder(null)} className="rounded-lg p-1.5 text-[var(--muted-foreground)] hover:bg-[var(--surface-quiet)] hover:text-[var(--foreground)]">
                     <X className="size-5" />
                   </button>
                 </div>
               </div>
 
-              {/* Modal Body */}
-              <div
-                className="
-                  min-h-0
-                  flex-1
-                  space-y-4
-                  overflow-y-auto
-                  overflow-x-hidden
-                  !rounded-none
-                  bg-[var(--surface)]
-                  p-4
-                  sm:space-y-5
-                  sm:p-5
-                "
-                style={{
-                  scrollbarWidth: "none",
-                  msOverflowStyle: "none",
-                }}
-              >
-                {/* Status Workflow */}
-                <section className="!rounded-none bg-[var(--surface-quiet)] p-3 sm:p-3.5">
-                  <div className="mb-2.5 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
-                      {t("Status Workflow", "លំហូរស្ថានភាព")}
-                    </span>
-
-                    <span className="text-[11px] text-[var(--muted-foreground)]">
-                      {t(
-                        "Update customer progress",
-                        "ធ្វើបច្ចុប្បន្នភាពដំណើរការអតិថិជន"
-                      )}
-                    </span>
+              {/* Drawer Content */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                {/* Status Workflow Action Bar */}
+                <div className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-quiet)] p-4 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Status Workflow</span>
+                    <span className="text-xs text-[var(--muted-foreground)]">Update customer progress</span>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                  <div className="flex flex-wrap items-center gap-2">
                     {[
-                      {
-                        status: "CONFIRMED",
-                        label: t(
-                          "Confirm Order",
-                          "បញ្ជាក់ការបញ្ជាទិញ"
-                        ),
-                      },
-                      {
-                        status: "PREPARING",
-                        label: t(
-                          "Preparing",
-                          "កំពុងរៀបចំ"
-                        ),
-                      },
-                      {
-                        status: "READY",
-                        label: t(
-                          "Ready / Packed",
-                          "ត្រៀមរួច / វេចខ្ចប់"
-                        ),
-                      },
-                      {
-                        status: "SHIPPED",
-                        label: t(
-                          "Ship Order",
-                          "ផ្ញើការបញ្ជាទិញ"
-                        ),
-                      },
-                      {
-                        status: "DELIVERED",
-                        label: t(
-                          "Mark Delivered",
-                          "សម្គាល់ថាបានប្រគល់"
-                        ),
-                      },
-                      {
-                        status: "CANCELLED",
-                        label: t(
-                          "Cancel Order",
-                          "លុបចោលការបញ្ជាទិញ"
-                        ),
-                      },
-                    ].map((step) => {
-                      const isCurrent =
-                        String(
-                          selectedOrder.status || ""
-                        ).toUpperCase() === step.status;
-
-                      return (
-                        <button
-                          key={step.status}
-                          type="button"
-                          disabled={
-                            statusUpdating || isCurrent
-                          }
-                          onClick={() =>
-                            updateOrderStatus(
-                              selectedOrder.id,
-                              step.status
-                            )
-                          }
-                          className={cn(
-                            `
-                              min-h-9
-                              min-w-0
-                              !rounded-none
-                              px-2
-                              py-1.5
-                              text-center
-                              text-[11px]
-                              font-medium
-                              transition-colors
-                              disabled:cursor-not-allowed
-                              disabled:opacity-40
-                              focus:outline-none
-                              focus-visible:ring-2
-                              focus-visible:ring-[var(--action)]
-                            `,
-                            step.status === "DELIVERED"
-                              ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                              : step.status === "CANCELLED"
-                                ? "bg-rose-600 text-white hover:bg-rose-700"
-                                : "bg-[var(--surface-strong)] text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
-                          )}
-                        >
-                          <span className="break-words">
-                            {step.label}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </section>
-
-                {/* Customer + Carrier */}
-                <section className="grid min-w-0 gap-3 md:grid-cols-2">
-                  <div className="min-w-0 !rounded-none bg-[var(--surface-strong)] p-3.5 space-y-2">
-                    <div className="flex min-w-0 items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--action)]">
-                      <User className="size-3.5 shrink-0" />
-
-                      <span className="min-w-0 break-words">
-                        {t(
-                          "Customer Details",
-                          "ព័ត៌មានអតិថិជន"
+                      { status: "CONFIRMED", label: "Confirm Order" },
+                      { status: "PREPARING", label: "Preparing" },
+                      { status: "READY", label: "Ready / Packed" },
+                      { status: "SHIPPED", label: "Ship Order" },
+                      { status: "DELIVERED", label: "Mark Delivered" },
+                      { status: "CANCELLED", label: "Cancel Order" },
+                    ].map((step) => (
+                      <button
+                        key={step.status}
+                        type="button"
+                        disabled={statusUpdating || String(selectedOrder.status).toUpperCase() === step.status}
+                        onClick={() => updateOrderStatus(selectedOrder.id, step.status)}
+                        className={cn(
+                          "rounded-lg px-3 py-1.5 text-xs font-semibold transition disabled:opacity-40",
+                          step.status === "DELIVERED"
+                            ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                            : step.status === "CANCELLED"
+                              ? "bg-rose-600 text-white hover:bg-rose-700"
+                              : "border border-[var(--border-soft)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
                         )}
-                      </span>
+                      >
+                        {step.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Customer & Carrier Information Grid */}
+                <div className="grid gap-4 md:grid-cols-2">
+                  {/* Customer Card */}
+                  <div className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] p-4 space-y-2">
+                    <div className="flex items-center gap-2 text-xs font-bold uppercase text-[var(--muted-foreground)]">
+                      <User className="size-3.5 text-[var(--action)]" />
+                      <span>Customer Details</span>
                     </div>
-
                     <div className="space-y-1 text-sm">
-                      <p className="break-words font-semibold text-[var(--foreground)]">
-                        {getCustomerName(selectedOrder)}
-                      </p>
-
-                      {getCustomerPhone(selectedOrder) ? (
-                        <p className="break-words text-xs text-[var(--muted-foreground)]">
-                          {t("Phone", "ទូរស័ព្ទ")}:{" "}
-                          <a
-                            href={`tel:${getCustomerPhone(
-                              selectedOrder
-                            )}`}
-                            className="font-medium text-[var(--action)] hover:underline"
-                          >
-                            {getCustomerPhone(selectedOrder)}
+                      <p className="font-semibold text-[var(--foreground)]">{selectedOrder.customer?.name || selectedOrder.user?.name || "Customer"}</p>
+                      {selectedOrder.customer?.phone || selectedOrder.user?.phone ? (
+                        <p className="text-xs text-[var(--muted-foreground)]">
+                          Phone:{" "}
+                          <a href={`tel:${selectedOrder.customer?.phone || selectedOrder.user?.phone}`} className="font-medium text-[var(--action)] hover:underline">
+                            {selectedOrder.customer?.phone || selectedOrder.user?.phone}
                           </a>
                         </p>
                       ) : null}
-
-                      <p className="break-words text-xs text-[var(--muted-foreground)]">
-                        {t("Payment", "ការទូទាត់")}:{" "}
-                        <strong className="text-[var(--foreground)]">
-                          {getPaymentMethod(selectedOrder)}
-                        </strong>{" "}
-                        (
-                        {String(
-                          selectedOrder.paymentStatus ||
-                          "PENDING"
-                        ).toUpperCase()}
-                        )
+                      <p className="text-xs text-[var(--muted-foreground)]">
+                        Payment: <strong>{selectedOrder.paymentMethod || "COD"}</strong> ({String(selectedOrder.paymentStatus || "PENDING").toUpperCase()})
                       </p>
                     </div>
                   </div>
 
-                  <div className="min-w-0 !rounded-none bg-[var(--surface-strong)] p-3.5 space-y-2">
-                    <div className="flex min-w-0 items-center justify-between gap-2">
-                      <div className="flex min-w-0 items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--action)]">
-                        <Truck className="size-3.5 shrink-0" />
-
-                        <span className="min-w-0 break-words">
-                          {t(
-                            "Carrier & Delivery",
-                            "អ្នកដឹកជញ្ជូន និងការដឹកជញ្ជូន"
-                          )}
-                        </span>
+                  {/* Carrier Tracking Card */}
+                  <div className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs font-bold uppercase text-[var(--muted-foreground)]">
+                        <Truck className="size-3.5 text-[var(--action)]" />
+                        <span>Carrier & Delivery</span>
                       </div>
-
                       <button
                         type="button"
-                        onClick={() =>
-                          openTrackingModal(selectedOrder)
-                        }
-                        className="
-                          shrink-0
-                          !rounded-none
-                          text-[11px]
-                          font-bold
-                          text-[var(--action)]
-                          hover:underline
-                        "
+                        onClick={() => {
+                          setTrackingModal({
+                            open: true,
+                            order: selectedOrder,
+                            carrier: selectedOrder.trackingCarrier || "",
+                            trackingNumber: selectedOrder.trackingNumber || "",
+                            driverName: selectedOrder.delivery?.driver?.name || "",
+                            driverPhone: selectedOrder.delivery?.driver?.phone || "",
+                            deliveryNote: selectedOrder.note || selectedOrder.delivery?.note || "",
+                            scheduledAt: selectedOrder.delivery?.scheduledAt ? new Date(selectedOrder.delivery.scheduledAt).toISOString().slice(0, 10) : "",
+                            deliveryStatus: selectedOrder.delivery?.status || "PENDING",
+                            loading: false,
+                            error: "",
+                            success: "",
+                          });
+                        }}
+                        className="text-xs font-bold text-[var(--action)] hover:underline"
                       >
-                        {t(
-                          "Edit Tracking",
-                          "កែតម្រូវការតាមដាន"
-                        )}
+                        Edit Tracking
                       </button>
                     </div>
-
                     <div className="space-y-1 text-xs text-[var(--muted-foreground)]">
-                      <p className="break-words">
-                        {t(
-                          "Carrier",
-                          "អ្នកដឹកជញ្ជូន"
-                        )}:{" "}
-                        <strong className="text-[var(--foreground)]">
-                          {selectedOrder.trackingCarrier ||
-                            t("Standard", "ស្តង់ដារ")}
-                        </strong>
-                      </p>
-
-                      <p className="break-all">
-                        {t(
-                          "Tracking #",
-                          "លេខតាមដាន"
-                        )}:{" "}
-                        <strong className="text-[var(--foreground)]">
-                          {selectedOrder.trackingNumber ||
-                            t("None", "គ្មាន")}
-                        </strong>
-                      </p>
-
+                      <p>Carrier: <strong className="text-[var(--foreground)]">{selectedOrder.trackingCarrier || "Standard"}</strong></p>
+                      <p>Tracking #: <strong className="text-[var(--foreground)]">{selectedOrder.trackingNumber || "None"}</strong></p>
                       {selectedOrder.delivery?.driver ? (
-                        <p className="break-words">
-                          {t(
-                            "Driver",
-                            "អ្នកដឹកជញ្ជូន"
-                          )}:{" "}
-                          <strong className="text-[var(--foreground)]">
-                            {selectedOrder.delivery.driver
-                              .name ||
-                              t(
-                                "Unnamed",
-                                "គ្មានឈ្មោះ"
-                              )}
-                          </strong>
-
-                          {selectedOrder.delivery.driver
-                            .phone
-                            ? ` (${selectedOrder.delivery.driver.phone})`
-                            : ""}
-                        </p>
+                        <p>Driver: <strong className="text-[var(--foreground)]">{selectedOrder.delivery.driver.name}</strong> ({selectedOrder.delivery.driver.phone})</p>
                       ) : null}
                     </div>
                   </div>
-                </section>
+                </div>
 
-                {/* Delivery Location */}
-                <section className="min-w-0 space-y-2">
-                  <h3 className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
-                    {t(
-                      "Delivery Location",
-                      "ទីតាំងដឹកជញ្ជូន"
-                    )}
-                  </h3>
+                {/* Delivery Map */}
+                <div>
+                  <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Delivery Location</h3>
+                  <OrderDeliveryMap
+                    lat={selectedOrder.delivery?.lat}
+                    lng={selectedOrder.delivery?.lng}
+                    address={selectedOrder.shippingAddress || selectedOrder.delivery?.address}
+                    deliveryNote={selectedOrder.note || selectedOrder.delivery?.note}
+                    driver={selectedOrder.delivery?.driver}
+                    status={selectedOrder.status}
+                  />
+                </div>
 
-                  <div className="min-w-0 overflow-hidden !rounded-none bg-[var(--surface-strong)]">
-                    <OrderDeliveryMap
-                      lat={selectedOrder.delivery?.lat}
-                      lng={selectedOrder.delivery?.lng}
-                      address={
-                        selectedOrder.shippingAddress ||
-                        selectedOrder.delivery?.address
-                      }
-                      deliveryNote={
-                        selectedOrder.note ||
-                        selectedOrder.delivery?.note
-                      }
-                      driver={
-                        selectedOrder.delivery?.driver
-                      }
-                      status={selectedOrder.status}
-                    />
-                  </div>
-
-                  {selectedOrder.shippingAddress ||
-                    selectedOrder.delivery?.address ? (
-                    <div className="!rounded-none bg-[var(--surface-strong)] p-3 text-xs">
-                      <span className="font-semibold text-[var(--muted-foreground)]">
-                        {t("Address", "អាសយដ្ឋាន")}:
-                      </span>{" "}
-                      <span className="break-words text-[var(--foreground)]">
-                        {selectedOrder.shippingAddress ||
-                          selectedOrder.delivery?.address}
-                      </span>
-                    </div>
-                  ) : null}
-                </section>
-
-                {/* Ordered Items */}
-                <section className="min-w-0 space-y-2">
-                  <h3 className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
-                    {t(
-                      "Ordered Items",
-                      "ទំនិញដែលបានបញ្ជាទិញ"
-                    )}
-                  </h3>
-
-                  <div className="w-full min-w-0 overflow-hidden !rounded-none bg-[var(--surface-strong)]">
-                    <table className="w-full table-fixed text-left text-[11px] sm:text-xs">
-                      <thead className="bg-[var(--surface-quiet)] text-[var(--muted-foreground)]">
+                {/* Ordered Items Table */}
+                <div>
+                  <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Ordered Items</h3>
+                  <div className="overflow-hidden rounded-xl border border-[var(--border-soft)]">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-[var(--surface-quiet)] uppercase text-[var(--muted-foreground)]">
                         <tr>
-                          <th className="w-[42%] px-2.5 py-2.5 font-semibold sm:px-3">
-                            {t("Item", "ទំនិញ")}
-                          </th>
-
-                          <th className="w-[12%] px-2 py-2.5 text-center font-semibold sm:px-3">
-                            {t("Qty", "ចំនួន")}
-                          </th>
-
-                          <th className="w-[23%] px-2 py-2.5 text-right font-semibold sm:px-3">
-                            {t(
-                              "Unit Price",
-                              "តម្លៃឯកតា"
-                            )}
-                          </th>
-
-                          <th className="w-[23%] px-2 py-2.5 text-right font-semibold sm:px-3">
-                            {t(
-                              "Line Total",
-                              "សរុបបន្ទាត់"
-                            )}
-                          </th>
+                          <th className="px-4 py-2.5 font-semibold">Item</th>
+                          <th className="px-4 py-2.5 font-semibold text-center">Qty</th>
+                          <th className="px-4 py-2.5 font-semibold text-right">Unit Price</th>
+                          <th className="px-4 py-2.5 font-semibold text-right">Line Total</th>
                         </tr>
                       </thead>
-
-                      <tbody>
-                        {getOrderItems(selectedOrder).map(
-                          (item, index) => (
-                            <tr
-                              key={
-                                item.id || index
-                              }
-                            >
-                              <td className="min-w-0 px-2.5 py-2.5 sm:px-3">
-                                <p className="break-words font-semibold text-[var(--foreground)]">
-                                  {item.productName ||
-                                    item.variantName ||
-                                    t(
-                                      "Product",
-                                      "ផលិតផល"
-                                    )}
-                                </p>
-
-                                {item.variantName &&
-                                  item.variantName !==
-                                  "Default" &&
-                                  item.variantName !==
-                                  item.productName ? (
-                                  <p className="break-words text-[11px] text-[var(--muted-foreground)]">
-                                    {
-                                      item.variantName
-                                    }
-                                  </p>
-                                ) : null}
-                              </td>
-
-                              <td className="px-2 py-2.5 text-center font-bold text-[var(--foreground)] sm:px-3">
-                                {item.quantity}
-                              </td>
-
-                              <td className="break-all px-2 py-2.5 text-right text-[var(--muted-foreground)] sm:px-3">
-                                {formatCurrency(
-                                  item.unitPrice
-                                )}
-                              </td>
-
-                              <td className="break-all px-2 py-2.5 text-right font-bold text-[var(--foreground)] sm:px-3">
-                                {formatCurrency(
-                                  item.lineTotal ||
-                                  item.quantity *
-                                  item.unitPrice
-                                )}
-                              </td>
-                            </tr>
-                          )
-                        )}
+                      <tbody className="divide-y divide-[var(--border-soft)]">
+                        {(selectedOrder.items || selectedOrder.lines || []).map((item, i) => (
+                          <tr key={item.id || i}>
+                            <td className="px-4 py-2.5">
+                              <p className="font-semibold text-[var(--foreground)]">{item.productName || item.variantName || "Product"}</p>
+                              {item.variantName && item.variantName !== "Default" && item.variantName !== item.productName ? (
+                                <p className="text-[11px] text-[var(--muted-foreground)]">{item.variantName}</p>
+                              ) : null}
+                            </td>
+                            <td className="px-4 py-2.5 text-center font-bold text-[var(--foreground)]">{item.quantity}</td>
+                            <td className="px-4 py-2.5 text-right text-[var(--muted-foreground)]">{formatCurrency(item.unitPrice)}</td>
+                            <td className="px-4 py-2.5 text-right font-bold text-[var(--foreground)]">
+                              {formatCurrency(item.lineTotal || item.quantity * item.unitPrice)}
+                            </td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>
-                </section>
+                </div>
 
                 {/* Financial Totals */}
-                <section className="!rounded-none bg-[var(--surface-quiet)] p-4 space-y-2 text-xs">
-                  <div className="flex items-start justify-between gap-4 text-[var(--muted-foreground)]">
-                    <span>
-                      {t(
-                        "Subtotal",
-                        "សរុបរង"
-                      )}
-                      :
-                    </span>
-
-                    <span className="break-all text-right font-semibold text-[var(--foreground)]">
-                      {formatCurrency(
-                        selectedOrder.subtotal ||
-                        selectedOrder.total
-                      )}
-                    </span>
+                <div className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-quiet)] p-4 space-y-2 text-xs">
+                  <div className="flex justify-between text-[var(--muted-foreground)]">
+                    <span>Subtotal:</span>
+                    <span className="font-semibold text-[var(--foreground)]">{formatCurrency(selectedOrder.subtotal || selectedOrder.total)}</span>
                   </div>
-
                   {selectedOrder.shippingFee ? (
-                    <div className="flex items-start justify-between gap-4 text-[var(--muted-foreground)]">
-                      <span>
-                        {t(
-                          "Shipping Fee",
-                          "ថ្លៃដឹកជញ្ជូន"
-                        )}
-                        :
-                      </span>
-
-                      <span className="break-all text-right font-semibold text-[var(--foreground)]">
-                        {formatCurrency(
-                          selectedOrder.shippingFee
-                        )}
-                      </span>
+                    <div className="flex justify-between text-[var(--muted-foreground)]">
+                      <span>Shipping Fee:</span>
+                      <span className="font-semibold text-[var(--foreground)]">{formatCurrency(selectedOrder.shippingFee)}</span>
                     </div>
                   ) : null}
-
                   {selectedOrder.couponDiscount ? (
-                    <div className="flex items-start justify-between gap-4 text-rose-600 dark:text-rose-400">
-                      <span className="break-words">
-                        {t(
-                          "Discount",
-                          "បញ្ចុះតម្លៃ"
-                        )}{" "}
-                        (
-                        {selectedOrder.couponCode ||
-                          t(
-                            "Promo",
-                            "ប្រូម៉ូ"
-                          )}
-                        ):
-                      </span>
-
-                      <span className="break-all text-right font-semibold">
-                        -
-                        {formatCurrency(
-                          selectedOrder.couponDiscount
-                        )}
-                      </span>
+                    <div className="flex justify-between text-rose-600 dark:text-rose-400">
+                      <span>Discount ({selectedOrder.couponCode || "Promo"}):</span>
+                      <span className="font-semibold">-{formatCurrency(selectedOrder.couponDiscount)}</span>
                     </div>
                   ) : null}
-
-                  <div className="flex items-start justify-between gap-4 pt-2 text-sm font-bold text-[var(--foreground)]">
-                    <span>
-                      {t(
-                        "Grand Total",
-                        "សរុបចុងក្រោយ"
-                      )}
-                      :
-                    </span>
-
-                    <span className="break-all text-right text-base text-[var(--action)] sm:text-lg">
-                      {formatCurrency(
-                        selectedOrder.total
-                      )}
-                    </span>
+                  <div className="border-t border-[var(--border-soft)] pt-2 flex justify-between text-sm font-bold text-[var(--foreground)]">
+                    <span>Grand Total:</span>
+                    <span className="text-base text-[var(--action)]">{formatCurrency(selectedOrder.total)}</span>
                   </div>
-                </section>
+                </div>
               </div>
             </motion.div>
           </div>
@@ -5690,416 +3267,106 @@ export function AdminOrderManagementPageView() {
 
       {/* Edit Carrier / Driver Tracking Modal */}
       <AnimatePresence>
-        {trackingModal.open &&
-          trackingModal.order ? (
-          <div
-            className="
-              fixed
-              inset-0
-              z-[60]
-              flex
-              items-center
-              justify-center
-              overflow-y-auto
-              overflow-x-hidden
-              bg-black/60
-              px-2
-              py-3
-              backdrop-blur-[1px]
-              sm:px-4
-              sm:py-5
-            "
-            onClick={closeTrackingModal}
-            style={{
-              scrollbarWidth: "none",
-              msOverflowStyle: "none",
-            }}
-          >
+        {trackingModal.open && trackingModal.order ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm" onClick={() => setTrackingModal((m) => ({ ...m, open: false }))}>
             <motion.div
-              initial={{
-                opacity: 0,
-                scale: 0.985,
-                y: 8,
-              }}
-              animate={{
-                opacity: 1,
-                scale: 1,
-                y: 0,
-              }}
-              exit={{
-                opacity: 0,
-                scale: 0.985,
-                y: 8,
-              }}
-              transition={{ duration: 0.18 }}
-              className="
-                my-auto
-                max-h-[94vh]
-                w-full
-                max-w-md
-                min-w-0
-                overflow-y-auto
-                overflow-x-hidden
-                !rounded-none
-                bg-[var(--surface-strong)]
-                p-4
-                shadow-2xl
-                sm:p-5
-              "
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-6 shadow-2xl"
               onClick={(e) => e.stopPropagation()}
-              style={{
-                scrollbarWidth: "none",
-                msOverflowStyle: "none",
-              }}
             >
-              <div className="flex min-w-0 items-center justify-between gap-3 pb-3">
-                <div className="flex min-w-0 items-center gap-2">
-                  <div className="flex size-8 shrink-0 items-center justify-center !rounded-none bg-[var(--action-subtle)] text-[var(--action)]">
+              <div className="flex items-center justify-between border-b border-[var(--border-soft)] pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex size-8 items-center justify-center rounded-lg bg-[var(--action-subtle)] text-[var(--action)]">
                     <Truck className="size-5" />
                   </div>
-
-                  <div className="min-w-0">
-                    <h3 className="break-words font-bold text-[var(--foreground)]">
-                      {t(
-                        "Carrier & Delivery Info",
-                        "ព័ត៌មានអ្នកដឹកជញ្ជូន និងការដឹកជញ្ជូន"
-                      )}
-                    </h3>
-
-                    <p className="break-all text-xs text-[var(--muted-foreground)]">
-                      {t(
-                        "Order",
-                        "ការបញ្ជាទិញ"
-                      )}{" "}
-                      {trackingModal.order
-                        .orderNumber ||
-                        trackingModal.order.id}
-                    </p>
+                  <div>
+                    <h3 className="font-bold text-[var(--foreground)]">Carrier & Delivery Info</h3>
+                    <p className="text-xs text-[var(--muted-foreground)]">Order {trackingModal.order.orderNumber || trackingModal.order.id}</p>
                   </div>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={closeTrackingModal}
-                  aria-label={t(
-                    "Close",
-                    "បិទ"
-                  )}
-                  className="
-                    flex
-                    size-8
-                    shrink-0
-                    items-center
-                    justify-center
-                    !rounded-none
-                    bg-[var(--surface-quiet)]
-                    text-[var(--muted-foreground)]
-                    hover:bg-[var(--surface-hover)]
-                    hover:text-[var(--foreground)]
-                  "
-                >
+                <button type="button" onClick={() => setTrackingModal((m) => ({ ...m, open: false }))} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
                   <X className="size-5" />
                 </button>
               </div>
 
-              <form
-                onSubmit={saveTrackingInfo}
-                className="mt-1 space-y-3"
-              >
+              <form onSubmit={saveTrackingInfo} className="mt-4 space-y-3">
                 <div>
-                  <label className="block text-xs font-semibold text-[var(--muted-foreground)]">
-                    {t(
-                      "Carrier Name",
-                      "ឈ្មោះអ្នកដឹកជញ្ជូន"
-                    )}
-                  </label>
-
+                  <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Carrier Name</label>
                   <input
                     type="text"
                     value={trackingModal.carrier}
-                    onChange={(e) =>
-                      setTrackingModal(
-                        (current) => ({
-                          ...current,
-                          carrier:
-                            e.target.value,
-                        })
-                      )
-                    }
-                    className="
-                      app-input
-                      mt-1
-                      w-full
-                      !rounded-none
-                      px-3
-                      py-2
-                      text-sm
-                      focus:outline-none
-                      focus:ring-2
-                      focus:ring-[var(--action)]
-                    "
-                    placeholder={t(
-                      "e.g. Standard, J&T Express, Virak Buntham, In-House",
-                      "ឧ. Standard, J&T Express, Virak Buntham, In-House"
-                    )}
+                    onChange={(e) => setTrackingModal((m) => ({ ...m, carrier: e.target.value }))}
+                    className="app-input mt-1 w-full px-3 py-2 text-sm"
+                    placeholder="e.g. Standard, J&T Express, Virak Buntham, In-House"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[var(--muted-foreground)]">
-                    {t(
-                      "Tracking Number",
-                      "លេខតាមដាន"
-                    )}
-                  </label>
-
+                  <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Tracking Number</label>
                   <input
                     type="text"
-                    value={
-                      trackingModal.trackingNumber
-                    }
-                    onChange={(e) =>
-                      setTrackingModal(
-                        (current) => ({
-                          ...current,
-                          trackingNumber:
-                            e.target.value,
-                        })
-                      )
-                    }
-                    className="
-                      app-input
-                      mt-1
-                      w-full
-                      !rounded-none
-                      px-3
-                      py-2
-                      text-sm
-                      focus:outline-none
-                      focus:ring-2
-                      focus:ring-[var(--action)]
-                    "
+                    value={trackingModal.trackingNumber}
+                    onChange={(e) => setTrackingModal((m) => ({ ...m, trackingNumber: e.target.value }))}
+                    className="app-input mt-1 w-full px-3 py-2 text-sm"
                     placeholder="e.g. VET-SR-998234"
                   />
                 </div>
 
-                <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="min-w-0">
-                    <label className="block text-xs font-semibold text-[var(--muted-foreground)]">
-                      {t(
-                        "Driver Name",
-                        "ឈ្មោះអ្នកដឹកជញ្ជូន"
-                      )}
-                    </label>
-
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Driver Name</label>
                     <input
                       type="text"
-                      value={
-                        trackingModal.driverName
-                      }
-                      onChange={(e) =>
-                        setTrackingModal(
-                          (current) => ({
-                            ...current,
-                            driverName:
-                              e.target.value,
-                          })
-                        )
-                      }
-                      className="
-                        app-input
-                        mt-1
-                        w-full
-                        !rounded-none
-                        px-3
-                        py-2
-                        text-sm
-                        focus:outline-none
-                        focus:ring-2
-                        focus:ring-[var(--action)]
-                      "
-                      placeholder={t(
-                        "e.g. Sok Chea",
-                        "ឧ. សុខជា"
-                      )}
+                      value={trackingModal.driverName}
+                      onChange={(e) => setTrackingModal((m) => ({ ...m, driverName: e.target.value }))}
+                      className="app-input mt-1 w-full px-3 py-2 text-sm"
+                      placeholder="e.g. Sok Chea"
                     />
                   </div>
-
-                  <div className="min-w-0">
-                    <label className="block text-xs font-semibold text-[var(--muted-foreground)]">
-                      {t(
-                        "Driver Phone",
-                        "លេខទូរស័ព្ទអ្នកដឹកជញ្ជូន"
-                      )}
-                    </label>
-
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Driver Phone</label>
                     <input
                       type="tel"
-                      value={
-                        trackingModal.driverPhone
-                      }
-                      onChange={(e) =>
-                        setTrackingModal(
-                          (current) => ({
-                            ...current,
-                            driverPhone:
-                              e.target.value,
-                          })
-                        )
-                      }
-                      className="
-                        app-input
-                        mt-1
-                        w-full
-                        !rounded-none
-                        px-3
-                        py-2
-                        text-sm
-                        focus:outline-none
-                        focus:ring-2
-                        focus:ring-[var(--action)]
-                      "
+                      value={trackingModal.driverPhone}
+                      onChange={(e) => setTrackingModal((m) => ({ ...m, driverPhone: e.target.value }))}
+                      className="app-input mt-1 w-full px-3 py-2 text-sm"
                       placeholder="e.g. 012 345 678"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[var(--muted-foreground)]">
-                    {t(
-                      "Delivery Notes",
-                      "កំណត់សម្គាល់ដឹកជញ្ជូន"
-                    )}
-                  </label>
-
+                  <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Delivery Notes</label>
                   <input
                     type="text"
-                    value={
-                      trackingModal.deliveryNote
-                    }
-                    onChange={(e) =>
-                      setTrackingModal(
-                        (current) => ({
-                          ...current,
-                          deliveryNote:
-                            e.target.value,
-                        })
-                      )
-                    }
-                    className="
-                      app-input
-                      mt-1
-                      w-full
-                      !rounded-none
-                      px-3
-                      py-2
-                      text-sm
-                      focus:outline-none
-                      focus:ring-2
-                      focus:ring-[var(--action)]
-                    "
-                    placeholder={t(
-                      "e.g. House near Wat Bo temple gate",
-                      "ឧ. ផ្ទះជិតច្រកចូលវត្តបូ"
-                    )}
+                    value={trackingModal.deliveryNote}
+                    onChange={(e) => setTrackingModal((m) => ({ ...m, deliveryNote: e.target.value }))}
+                    className="app-input mt-1 w-full px-3 py-2 text-sm"
+                    placeholder="e.g. House near Wat Bo temple gate"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[var(--muted-foreground)]">
-                    {t(
-                      "Estimated Delivery Date",
-                      "កាលបរិច្ឆេទដឹកជញ្ជូនប៉ាន់ស្មាន"
-                    )}
-                  </label>
-
+                  <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Estimated Delivery Date</label>
                   <input
                     type="date"
-                    value={
-                      trackingModal.scheduledAt
-                    }
-                    onChange={(e) =>
-                      setTrackingModal(
-                        (current) => ({
-                          ...current,
-                          scheduledAt:
-                            e.target.value,
-                        })
-                      )
-                    }
-                    className="
-                      app-input
-                      mt-1
-                      w-full
-                      !rounded-none
-                      px-3
-                      py-2
-                      text-sm
-                      focus:outline-none
-                      focus:ring-2
-                      focus:ring-[var(--action)]
-                    "
+                    value={trackingModal.scheduledAt}
+                    onChange={(e) => setTrackingModal((m) => ({ ...m, scheduledAt: e.target.value }))}
+                    className="app-input mt-1 w-full px-3 py-2 text-sm"
                   />
                 </div>
 
-                {trackingModal.error ? (
-                  <div className="!rounded-none bg-rose-500/10 p-3 text-xs text-rose-600 dark:text-rose-400">
-                    {trackingModal.error}
-                  </div>
-                ) : null}
+                {trackingModal.error ? <div className="rounded-xl bg-rose-500/10 p-3 text-xs text-rose-600 dark:text-rose-400">{trackingModal.error}</div> : null}
+                {trackingModal.success ? <div className="rounded-xl bg-emerald-500/10 p-3 text-xs text-emerald-600 dark:text-emerald-400">{trackingModal.success}</div> : null}
 
-                {trackingModal.success ? (
-                  <div className="!rounded-none bg-emerald-500/10 p-3 text-xs text-emerald-600 dark:text-emerald-400">
-                    {trackingModal.success}
-                  </div>
-                ) : null}
-
-                <div className="grid w-full grid-cols-2 gap-3 pt-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={closeTrackingModal}
-                    className="
-                      !min-h-10
-                      !w-full
-                      !min-w-0
-                      !rounded-none
-                      bg-[var(--surface-quiet)]
-                      px-3
-                      text-center
-                      text-[var(--foreground)]
-                      hover:bg-[var(--surface-hover)]
-                    "
-                  >
-                    {t(
-                      "Cancel",
-                      "បោះបង់"
-                    )}
+                <div className="flex gap-3 pt-2">
+                  <Button type="button" variant="outline" onClick={() => setTrackingModal((m) => ({ ...m, open: false }))} className="flex-1">
+                    Cancel
                   </Button>
-
-                  <Button
-                    type="submit"
-                    disabled={
-                      trackingModal.loading
-                    }
-                    className="
-                      !min-h-10
-                      !w-full
-                      !min-w-0
-                      !rounded-none
-                      px-3
-                      text-center
-                    "
-                  >
-                    {trackingModal.loading
-                      ? t(
-                        "Saving...",
-                        "កំពុងរក្សាទុក..."
-                      )
-                      : t(
-                        "Save Tracking",
-                        "រក្សាទុកការតាមដាន"
-                      )}
+                  <Button type="submit" disabled={trackingModal.loading} className="flex-1">
+                    {trackingModal.loading ? "Saving..." : "Save Tracking"}
                   </Button>
                 </div>
               </form>
@@ -6111,1089 +3378,171 @@ export function AdminOrderManagementPageView() {
   );
 }
 
-
 export function AdminCouponsPageView() {
   const store = useAppStore();
-  const [now] = useState(() => Date.now());
-
   const [code, setCode] = useState("");
   const [type, setType] = useState("percent");
   const [value, setValue] = useState("10");
+  const [description, setDescription] = useState("");
   const [audience, setAudience] = useState("all");
   const [userEmail, setUserEmail] = useState("");
-  const [description, setDescription] = useState("");
-  const [redemptionLimit, setRedemptionLimit] = useState("");
-  const [validUntil, setValidUntil] = useState("");
-  const [editingCouponId, setEditingCouponId] = useState(null);
   const [formMessage, setFormMessage] = useState("");
   const [formTone, setFormTone] = useState("neutral");
-  const [couponSearch, setCouponSearch] = useState("");
-  const [couponView, setCouponView] = useState("all");
-  const couponLabelClass = "block text-[11px] font-bold uppercase tracking-wider text-[var(--foreground)]";
-  const couponInputClass = "w-full border border-[var(--border-strong)] bg-[var(--input-fill)] px-3 py-2 text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)] focus:border-[var(--action)] focus:ring-1 focus:ring-[var(--action)]";
-  const couponSelectClass = `${couponInputClass} appearance-none pr-8`;
-  const couponHelpClass = "text-[11px] font-normal text-[var(--muted-foreground)]";
-  const couponIconClass = "pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5 text-[var(--muted-foreground)]";
-
-  const coupons = Array.isArray(store.coupons) ? store.coupons : [];
-
-  const getCouponStartDate = (coupon) => {
-    return (
-      coupon.startDate ||
-      coupon.startsAt ||
-      coupon.validFrom ||
-      coupon.scheduledAt ||
-      ""
-    );
-  };
-
-  const getCouponExpiry = (coupon) => {
-    return (
-      coupon.validUntil ||
-      coupon.expiresAt ||
-      coupon.expiryDate ||
-      coupon.endDate ||
-      ""
-    );
-  };
-
-  const isScheduledCoupon = (coupon) => {
-    const startDate = getCouponStartDate(coupon);
-
-    if (!startDate) {
-      return false;
-    }
-
-    const time = new Date(startDate).getTime();
-
-    if (Number.isNaN(time)) {
-      return false;
-    }
-
-    return time > now;
-  };
-
-  const getUsageCount = (coupon) => {
-    return (
-      coupon.usageCount ??
-      coupon.usedCount ??
-      coupon.redemptionCount ??
-      coupon.redeemedCount ??
-      0
-    );
-  };
-
-  const getUsageLimit = (coupon) => {
-    return (
-      coupon.redemptionLimit ??
-      coupon.usageLimit ??
-      coupon.maxRedemptions ??
-      ""
-    );
-  };
-
-  const filteredCoupons = coupons.filter((coupon) => {
-    const query = couponSearch.trim().toLowerCase();
-
-    const matchesSearch =
-      !query ||
-      String(coupon.code || "")
-        .toLowerCase()
-        .includes(query) ||
-      String(coupon.description || "")
-        .toLowerCase()
-        .includes(query);
-
-    if (!matchesSearch) {
-      return false;
-    }
-
-    const scheduled = isScheduledCoupon(coupon);
-
-    if (couponView === "active") {
-      return Boolean(coupon.isActive) && !scheduled;
-    }
-
-    if (couponView === "scheduled") {
-      return scheduled;
-    }
-
-    if (couponView === "inactive") {
-      return !coupon.isActive && !scheduled;
-    }
-
-    return true;
-  });
-
-  const allCount = coupons.length;
-
-  const activeCount = coupons.filter(
-    (coupon) => Boolean(coupon.isActive) && !isScheduledCoupon(coupon)
-  ).length;
-
-  const scheduledCount = coupons.filter((coupon) =>
-    isScheduledCoupon(coupon)
-  ).length;
-
-  const inactiveCount = coupons.filter(
-    (coupon) => !coupon.isActive && !isScheduledCoupon(coupon)
-  ).length;
-
-  const getDiscountUnit = () => {
-    if (type === "percent") {
-      return "%";
-    }
-
-    if (type === "fixed") {
-      return "$";
-    }
-
-    return "FLAT";
-  };
-
-  const generateRandomCode = () => {
-    const prefixes = [
-      "SUMMER",
-      "WINTER",
-      "BULK",
-      "REBATE",
-      "VIP",
-      "BEV",
-      "BEER",
-      "SODA",
-    ];
-
-    const prefix =
-      prefixes[Math.floor(Math.random() * prefixes.length)];
-
-    const number = Math.floor(10 + Math.random() * 90);
-
-    setCode(`${prefix}${number}`);
-  };
-
-  const clearForm = () => {
-    setCode("");
-    setType("percent");
-    setValue("10");
-    setAudience("all");
-    setUserEmail("");
-    setDescription("");
-    setRedemptionLimit("");
-    setValidUntil("");
-    setEditingCouponId(null);
-    setFormMessage("");
-    setFormTone("neutral");
-  };
-
-  const handleCreateCoupon = async (event) => {
-    event.preventDefault();
-
-    if (!code.trim() || !String(value).trim() || !description.trim()) {
-      setFormMessage(
-        "Please fill in Coupon Code, Discount Value, and Description."
-      );
-      setFormTone("error");
-      return;
-    }
-
-    try {
-      const couponPayload = {
-        code: code.toUpperCase().trim(),
-        type,
-        value: Number(value),
-        description: description.trim(),
-        audience,
-        userEmail: userEmail.trim(),
-        redemptionLimit: redemptionLimit
-          ? Number(redemptionLimit)
-          : null,
-        validUntil: validUntil || null,
-      };
-      const result = editingCouponId
-        ? await store.updateCoupon(editingCouponId, couponPayload)
-        : await store.createCoupon(couponPayload);
-
-      if (!result?.success) {
-        throw new Error(result?.message || "Unable to create the coupon.");
-      }
-
-      setFormMessage(
-        `Coupon "${code.toUpperCase().trim()}" has been ${editingCouponId ? "updated" : "created"} successfully.`
-      );
-      setFormTone("success");
-
-      setCode("");
-      setDescription("");
-      setUserEmail("");
-      setRedemptionLimit("");
-      setValidUntil("");
-      setEditingCouponId(null);
-    } catch (error) {
-      setFormMessage(
-        error?.message || "Unable to create the coupon."
-      );
-      setFormTone("error");
-    }
-  };
-
-  const copyCouponCode = async (couponCode) => {
-    try {
-      await navigator.clipboard.writeText(String(couponCode || ""));
-    } catch {
-      // Clipboard access may be unavailable in some browsers.
-    }
-  };
-
-  const exportCoupons = () => {
-    const headers = [
-      "Code",
-      "Discount Type",
-      "Discount Value",
-      "Audience",
-      "User Restriction",
-      "Description",
-      "Redemption Limit",
-      "Valid Until",
-      "Status",
-    ];
-
-    const rows = coupons.map((coupon) => [
-      coupon.code || "",
-      coupon.type || "",
-      coupon.value ?? "",
-      coupon.audience || "",
-      coupon.userEmail || "",
-      coupon.description || "",
-      getUsageLimit(coupon),
-      getCouponExpiry(coupon),
-      isScheduledCoupon(coupon)
-        ? "Scheduled"
-        : coupon.isActive
-          ? "Active"
-          : "Inactive",
-    ]);
-
-    const csv = [headers, ...rows]
-      .map((row) =>
-        row
-          .map((item) => `"${String(item).replace(/"/g, '""')}"`)
-          .join(",")
-      )
-      .join("\n");
-
-    const blob = new Blob([csv], {
-      type: "text/csv;charset=utf-8;",
-    });
-
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-
-    anchor.href = url;
-    anchor.download = "coupons.csv";
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-
-    URL.revokeObjectURL(url);
-  };
-
-  const editCoupon = (coupon) => {
-    setEditingCouponId(coupon.id);
-    setCode(String(coupon.code || ""));
-    setType(coupon.type || "percent");
-    setValue(String(coupon.value ?? 0));
-    setAudience(coupon.audience || "all");
-    setUserEmail(coupon.userEmail || "");
-    setDescription(coupon.description || "");
-    setRedemptionLimit(
-      getUsageLimit(coupon) === ""
-        ? ""
-        : String(getUsageLimit(coupon))
-    );
-    setValidUntil(String(getCouponExpiry(coupon) || ""));
-
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
-  };
-
-  const getAudienceLabel = (coupon) => {
-    switch (coupon.audience) {
-      case "wholesale":
-        return "Wholesale Key Accounts";
-      case "retail":
-        return "B2C Walk-in Retail";
-      case "distributor":
-        return "Regional Distributors";
-      case "user":
-        return "Specific User";
-      default:
-        return "All Shoppers";
-    }
-  };
-
-  const getTypeLabel = (coupon) => {
-    if (coupon.type === "percent") {
-      return "PERCENT OFF";
-    }
-
-    if (coupon.type === "fixed") {
-      return "FIXED AMOUNT OFF";
-    }
-
-    return "BULK DISCOUNT";
-  };
-
-  const getValueLabel = (coupon) => {
-    if (coupon.type === "percent") {
-      return `${coupon.value}%`;
-    }
-
-    if (coupon.type === "fixed") {
-      return formatCurrency(coupon.value);
-    }
-
-    return `${coupon.value}%`;
-  };
-
-  const formatDateLabel = (valueToFormat) => {
-    if (!valueToFormat) {
-      return "";
-    }
-
-    const date = new Date(valueToFormat);
-
-    if (Number.isNaN(date.getTime())) {
-      return String(valueToFormat);
-    }
-
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "2-digit",
-      year: "numeric",
-    });
-  };
-
-  const getStatus = (coupon) => {
-    if (isScheduledCoupon(coupon)) {
-      return "SCHEDULED";
-    }
-
-    return coupon.isActive ? "ACTIVE" : "INACTIVE";
-  };
 
   return (
-    <div className="w-full min-w-0 overflow-x-hidden bg-[var(--background)] text-[var(--foreground)] transition-colors duration-200">
-      <main className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-5 md:px-8 md:py-8">
-        {/* Page Title Banner */}
-        <section className="!rounded-none border border-[var(--border-soft)] bg-[var(--surface-strong)] p-6 shadow-[var(--shadow-card)] transition-colors md:p-8">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="min-w-0">
-              <span className="mb-1 block text-[11px] font-bold uppercase tracking-widest text-[var(--muted-foreground)]">
-                COUPONS
-              </span>
-
-              <h2 className="text-2xl font-extrabold tracking-tight text-[var(--foreground)] md:text-3xl">
-                Create and manage active promotions.
-              </h2>
-
-              <p className="mt-1.5 text-sm text-[var(--muted-foreground)]">
-                Configure discount vouchers, bulk distributor rebates, and
-                seasonal wholesale campaigns.
-              </p>
-            </div>
-
-            <div className="flex shrink-0 items-center space-x-2 self-start border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--muted-foreground)] md:self-center">
-              <span className="inline-block h-2.5 w-2.5 bg-[var(--action)]" />
-              <span>
-                POS Engine:{" "}
-                <strong className="text-[var(--foreground)]">
-                  Sync Active
-                </strong>
-              </span>
-            </div>
-          </div>
-        </section>
-
-        {/* Coupon Generator */}
-        <section className="!rounded-none border border-[var(--border-soft)] bg-[var(--surface-strong)] shadow-[var(--shadow-card)] transition-colors">
-          {/* Header */}
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border-soft)] px-6 py-4">
-            <div className="flex items-center space-x-2 text-xs font-bold uppercase tracking-wide text-[var(--action-on-muted)]">
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"
-                  strokeLinecap="square"
-                  strokeLinejoin="miter"
-                  strokeWidth="2"
-                />
-              </svg>
-
-              <span>COUPON GENERATOR &amp; PARAMETERS</span>
-            </div>
-
-            <span className="text-xs font-normal text-[var(--muted-foreground)]">
-              * Required configuration
-            </span>
-          </div>
-
-          {/* Form */}
-          <form
-            className="space-y-6 p-6 md:p-8"
-            onSubmit={handleCreateCoupon}
-          >
-            {/* Row 1 */}
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-12">
-              {/* Coupon Code */}
-              <div className="space-y-1.5 md:col-span-5">
-                <label
-                  className={couponLabelClass}
-                  htmlFor="coupon-code"
-                >
-                  COUPON CODE <span className="text-red-500">*</span>
-                </label>
-
-                <div className="flex">
-                  <input
-                    id="coupon-code"
-                    value={code}
-                    onChange={(event) =>
-                      setCode(event.target.value.toUpperCase())
-                    }
-                    required
-                    type="text"
-                    placeholder="e.g. SUMMERBEV15"
-                    className={`${couponInputClass} min-w-0 font-mono font-bold uppercase tracking-wider`}
-                  />
-
-                  <button
-                    type="button"
-                    onClick={generateRandomCode}
-                    title="Generate Random Promo Code"
-                    className="flex shrink-0 items-center space-x-1.5 border-y border-r border-[var(--border-strong)] bg-[var(--surface-soft)] px-3 py-2 text-xs font-bold uppercase text-[var(--foreground)] transition-colors hover:bg-[var(--surface-quiet)] active:bg-[var(--action-surface)]"
-                  >
-                    <RefreshCw className="h-3.5 w-3.5" />
-                    <span>GEN</span>
-                  </button>
-                </div>
-
-                <p className={couponHelpClass}>
-                  Codes will automatically be formatted in uppercase.
-                </p>
-              </div>
-
-              {/* Discount Type */}
-              <div className="space-y-1.5 md:col-span-4">
-                <label
-                  className={couponLabelClass}
-                  htmlFor="discount-type"
-                >
-                  DISCOUNT TYPE <span className="text-red-500">*</span>
-                </label>
-
-                <div className="relative">
-                  <select
-                    id="discount-type"
-                    value={type}
-                    onChange={(event) => {
-                      setType(event.target.value);
-
-                      if (
-                        event.target.value === "percent" &&
-                        Number(value) > 100
-                      ) {
-                        setValue("100");
-                      }
-                    }}
-                    className={couponSelectClass}
-                  >
-                    <option value="percent">
-                      Percent Discount (%)
-                    </option>
-                    <option value="fixed">
-                      Fixed Dollar Off ($)
-                    </option>
-                    <option value="wholesale">
-                      Bulk Wholesale Tiered (Flat)
-                    </option>
-                  </select>
-
-                  <span className={couponIconClass}>
-                    <svg
-                      className="h-4 w-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        d="M19 9l-7 7-7-7"
-                        strokeLinecap="square"
-                        strokeLinejoin="miter"
-                        strokeWidth="2"
-                      />
-                    </svg>
-                  </span>
-                </div>
-              </div>
-
-              {/* Discount Value */}
-              <div className="space-y-1.5 md:col-span-3">
-                <label
-                  className={couponLabelClass}
-                  htmlFor="discount-value"
-                >
-                  DISCOUNT VALUE <span className="text-red-500">*</span>
-                </label>
-
-                <div className="relative flex items-center">
-                  <input
-                    id="discount-value"
-                    value={value}
-                    onChange={(event) => setValue(event.target.value)}
-                    required
-                    type="number"
-                    min="1"
-                    max={type === "percent" ? "100" : undefined}
-                    className={`${couponInputClass} pr-8 font-semibold`}
-                  />
-
-                  <span className="pointer-events-none absolute right-3 text-xs font-bold text-[var(--muted-foreground)]">
-                    {getDiscountUnit()}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Row 2 */}
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-12">
-              {/* Customer Eligibility */}
-              <div className="space-y-1.5 md:col-span-6">
-                <label
-                  className={couponLabelClass}
-                  htmlFor="customer-eligibility"
-                >
-                  CUSTOMER ELIGIBILITY{" "}
-                  <span className="text-red-500">*</span>
-                </label>
-
-                <div className="relative">
-                  <select
-                    id="customer-eligibility"
-                    value={audience}
-                    onChange={(event) =>
-                      setAudience(event.target.value)
-                    }
-                    className={couponSelectClass}
-                  >
-                    <option value="all">
-                      All shoppers (Retail &amp; Wholesale)
-                    </option>
-                    <option value="wholesale">
-                      Wholesale Key Accounts Only
-                    </option>
-                    <option value="retail">
-                      B2C Walk-in Retail Only
-                    </option>
-                    <option value="distributor">
-                      Designated Regional Distributors
-                    </option>
-                  </select>
-
-                  <span className={couponIconClass}>
-                    <svg
-                      className="h-4 w-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        d="M19 9l-7 7-7-7"
-                        strokeLinecap="square"
-                        strokeLinejoin="miter"
-                        strokeWidth="2"
-                      />
-                    </svg>
-                  </span>
-                </div>
-              </div>
-
-              {/* User Restriction */}
-              <div className="space-y-1.5 md:col-span-6">
-                <label
-                  className={couponLabelClass}
-                  htmlFor="user-restriction"
-                >
-                  USER PHONENUMBER{" "}
-                  <span className="font-normal normal-case text-[var(--muted-foreground)]">
-                    (optional restriction)
-                  </span>
-                </label>
-
-                <input
-                  id="user-restriction"
-                  value={userEmail}
-                  onChange={(event) =>
-                    setUserEmail(event.target.value)
-                  }
-                  placeholder="e.g. 012 345 678 or distributor@cambodiabev.com"
-                  type="text"
-                  className={couponInputClass}
-                />
-              </div>
-            </div>
-
-            {/* Row 3 */}
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-12">
-              {/* Description */}
-              <div className="space-y-1.5 md:col-span-6">
-                <label
-                  className={couponLabelClass}
-                  htmlFor="coupon-desc"
-                >
-                  DESCRIPTION <span className="text-red-500">*</span>
-                </label>
-
-                <textarea
-                  id="coupon-desc"
-                  value={description}
-                  onChange={(event) =>
-                    setDescription(event.target.value)
-                  }
-                  required
-                  rows={3}
-                  placeholder="Summer beverage stock replenishment promotion for regional retailers."
-                  className={couponInputClass}
-                />
-              </div>
-
-              {/* Redemption Limit */}
-              <div className="space-y-1.5 md:col-span-3">
-                <label
-                  className={couponLabelClass}
-                  htmlFor="redemption-limit"
-                >
-                  REDEMPTION LIMIT
-                </label>
-
-                <input
-                  id="redemption-limit"
-                  value={redemptionLimit}
-                  onChange={(event) =>
-                    setRedemptionLimit(event.target.value)
-                  }
-                  min="1"
-                  type="number"
-                  placeholder="Unlimited"
-                  className={`${couponInputClass} font-mono`}
-                />
-
-                <p className={couponHelpClass}>
-                  Total times usable across system
-                </p>
-              </div>
-
-              {/* Valid Until */}
-              <div className="space-y-1.5 md:col-span-3">
-                <label
-                  className={couponLabelClass}
-                  htmlFor="valid-until"
-                >
-                  VALID UNTIL
-                </label>
-
-                <div className="relative">
-                  <input
-                    id="valid-until"
-                    value={validUntil}
-                    onChange={(event) =>
-                      setValidUntil(event.target.value)
-                    }
-                    type="date"
-                    className={`${couponInputClass} pr-9 font-mono`}
-                  />
-
-                  <span className={couponIconClass}>
-                    <svg
-                      className="h-4 w-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                        strokeLinecap="square"
-                        strokeLinejoin="miter"
-                        strokeWidth="2"
-                      />
-                    </svg>
-                  </span>
-                </div>
-
-                <p className={couponHelpClass}>
-                  Auto-expires at 23:59 ICT
-                </p>
-              </div>
-            </div>
-
-            {/* Form Footer */}
-            <div className="flex flex-col items-center justify-between gap-4 border-t border-[var(--border-soft)] pt-5 sm:flex-row">
-              <div className="flex min-w-0 items-center space-x-2 text-xs text-[var(--muted-foreground)]">
-                <span className="shrink-0 text-[var(--action)]">
-                  <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                      strokeLinecap="square"
-                      strokeLinejoin="miter"
-                      strokeWidth="2"
-                    />
-                  </svg>
-                </span>
-
-                <span>
-                  Promotions apply automatically to cart upon POS
-                  cashier checkout.
-                </span>
-              </div>
-
-              <div className="flex w-full items-center justify-end gap-3 sm:w-auto">
-                <button
-                  type="button"
-                  onClick={clearForm}
-                  className="border border-[var(--border-strong)] bg-transparent px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-[var(--foreground)] transition-colors hover:bg-[var(--surface-soft)]"
-                >
-                  CLEAR
-                </button>
-
-                <button
-                  type="submit"
-                  className="flex items-center space-x-1.5 border border-transparent bg-[var(--action)] px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-[var(--action-foreground)] shadow-sm transition-colors hover:bg-[var(--action-hover)]"
-                >
-                  <svg
-                    className="h-3.5 w-3.5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      d="M5 13l4 4L19 7"
-                      strokeLinecap="square"
-                      strokeLinejoin="miter"
-                      strokeWidth="2.5"
-                    />
-                  </svg>
-
-                  <span>{editingCouponId ? "UPDATE COUPON" : "CREATE COUPON"}</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Form Message */}
+    <div className="space-y-6">
+      <Card>
+        <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted-foreground)]">Coupons</p>
+        <h1 className="mt-2 text-4xl font-semibold tracking-tight text-[var(--foreground)]">Create and manage active promotions.</h1>
+      </Card>
+      <Card>
+        <form
+          className="grid gap-4 md:grid-cols-2"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            const result = await store.createCoupon({
+              code,
+              type,
+              value: Number(value),
+              description,
+              audience,
+              userEmail,
+            });
+            setFormMessage(result.message);
+            setFormTone(result.success ? "success" : "error");
+            if (!result.success) {
+              return;
+            }
+            setCode("");
+            setDescription("");
+            setUserEmail("");
+            setValue("10");
+            setAudience("all");
+          }}
+        >
+          <input value={code} onChange={(event) => setCode(event.target.value)} placeholder="Coupon code" className="rounded-[1.2rem] bg-[var(--surface)] px-4 py-3 text-sm outline-none" />
+          <select value={type} onChange={(event) => setType(event.target.value)} className="rounded-[1.2rem] bg-[var(--surface)] px-4 py-3 text-sm outline-none">
+            <option value="percent">Percent</option>
+            <option value="fixed">Fixed</option>
+          </select>
+          <input value={value} onChange={(event) => setValue(event.target.value)} type="number" placeholder="Value" className="rounded-[1.2rem] bg-[var(--surface)] px-4 py-3 text-sm outline-none" />
+          <select value={audience} onChange={(event) => setAudience(event.target.value)} className="rounded-[1.2rem] bg-[var(--surface)] px-4 py-3 text-sm outline-none">
+            <option value="all">All shoppers</option>
+            <option value="user">Specific user</option>
+          </select>
+          <input value={userEmail} onChange={(event) => setUserEmail(event.target.value)} placeholder={audience === "user" ? "Required user email" : "User email optional"} className="rounded-[1.2rem] bg-[var(--surface)] px-4 py-3 text-sm outline-none" />
+          <input value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Description" className="rounded-[1.2rem] bg-[var(--surface)] px-4 py-3 text-sm outline-none" />
+          <div className="md:col-span-2">
+            <Button type="submit">Create coupon</Button>
             {formMessage ? (
-              <div
-                className={
-                  formTone === "error"
-                    ? "border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300"
-                    : "border border-[var(--border-soft)] bg-[var(--action-surface)] px-3 py-2 text-xs font-medium text-[var(--action-on-muted)]"
-                }
-              >
-                {formMessage}
-              </div>
+              <p className={cn("mt-3 text-sm", formTone === "error" ? "text-rose-600" : "text-emerald-700")}>{formMessage}</p>
             ) : null}
-          </form>
-        </section>
-
-        {/* Active Ledger */}
-        <div className="space-y-4">
-          {/* Filter Bar */}
-          <div className="flex flex-col gap-3 border border-[var(--border-soft)] bg-[var(--surface-strong)] p-3 shadow-[var(--shadow-card)] transition-colors sm:p-4 md:flex-row md:items-center md:justify-between">
-            {/* Tabs */}
-            <div className="flex flex-wrap items-center gap-1 text-xs sm:gap-2">
-              {[
-                ["all", `ALL (${allCount})`],
-                ["active", `ACTIVE (${activeCount})`],
-                ["scheduled", `SCHEDULED (${scheduledCount})`],
-                ["inactive", `INACTIVE (${inactiveCount})`],
-              ].map(([key, label]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setCouponView(key)}
-                  className={
-                    couponView === key
-                      ? "border border-[var(--action)] bg-[var(--action-surface)] px-3.5 py-1.5 font-bold uppercase text-[var(--action-on-muted)] transition-colors"
-                      : "px-3.5 py-1.5 font-semibold uppercase text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface-soft)] hover:text-[var(--foreground)]"
-                  }
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {/* Search + Export */}
-            <div className="flex items-center gap-2 self-stretch md:self-auto">
-              <div className="relative min-w-0 flex-1 md:w-64">
-                <input
-                  type="text"
-                  value={couponSearch}
-                  onChange={(event) =>
-                    setCouponSearch(event.target.value)
-                  }
-                  placeholder="Filter by code..."
-                  className="w-full border border-[var(--border-strong)] bg-[var(--input-fill)] py-1.5 pl-3 pr-8 text-xs text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)] focus:border-[var(--action)] focus:ring-1 focus:ring-[var(--action)]"
-                />
-
-                <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5 text-[var(--muted-foreground)]">
-                  <svg
-                    className="h-3.5 w-3.5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                      strokeLinecap="square"
-                      strokeLinejoin="miter"
-                      strokeWidth="2"
-                    />
-                  </svg>
+          </div>
+        </form>
+      </Card>
+      <div className="space-y-4">
+        {store.coupons.map((coupon) => (
+          <div key={coupon.id} className="rounded-[1.6rem] border border-[var(--border-soft)] bg-[var(--surface-strong)] p-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-[var(--foreground)]">{coupon.code}</h2>
+                <p className="mt-2 text-sm text-[var(--muted-foreground)]">{coupon.description}</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="rounded-full bg-[var(--surface)] px-3 py-1 text-sm font-semibold">
+                  {coupon.type === "percent" ? `${coupon.value}%` : formatCurrency(coupon.value)}
                 </span>
+                <button type="button" onClick={() => store.toggleCoupon(coupon.id)} className="rounded-full bg-[var(--surface)] px-4 py-2 text-sm font-semibold">
+                  {coupon.isActive ? "Deactivate" : "Activate"}
+                </button>
               </div>
-
-              <button
-                type="button"
-                onClick={exportCoupons}
-                className="inline-flex shrink-0 items-center gap-1.5 border border-[var(--border-strong)] bg-[var(--surface-strong)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] transition-colors hover:bg-[var(--surface-soft)]"
-              >
-                <svg
-                  className="h-3.5 w-3.5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                    strokeLinecap="square"
-                    strokeLinejoin="miter"
-                    strokeWidth="2"
-                  />
-                </svg>
-
-                <span>Export</span>
-              </button>
             </div>
           </div>
-
-          {/* Coupon Cards */}
-          <div className="space-y-3.5">
-            {filteredCoupons.length === 0 ? (
-              <div className="border border-[var(--border-soft)] bg-[var(--surface-strong)] p-10 text-center">
-                <p className="text-sm font-semibold text-[var(--foreground)]">
-                  No coupons found.
-                </p>
-
-                <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-                  Create a coupon or change the current ledger filter.
-                </p>
-              </div>
-            ) : (
-              filteredCoupons.map((coupon) => {
-                const status = getStatus(coupon);
-                const usageCount = getUsageCount(coupon);
-                const usageLimit = getUsageLimit(coupon);
-                const expiry = getCouponExpiry(coupon);
-                const startDate = getCouponStartDate(coupon);
-
-                const statusIsActive = status === "ACTIVE";
-                const statusIsScheduled = status === "SCHEDULED";
-
-                return (
-                  <div
-                    key={coupon.id}
-                    className="flex flex-col justify-between gap-5 border border-[var(--border-soft)] bg-[var(--surface-strong)] p-5 shadow-[var(--shadow-card)] transition-colors hover:border-[var(--border-strong)] md:flex-row md:items-center md:p-6"
-                  >
-                    {/* Left */}
-                    <div className="min-w-0 flex-1 space-y-2.5">
-                      <div className="flex flex-wrap items-center gap-2.5">
-                        {/* Code */}
-                        <span className="inline-flex items-center gap-1.5 border border-[var(--border-soft)] bg-[var(--surface-soft)] px-2.5 py-1 font-mono text-xs font-bold uppercase tracking-wider text-[var(--foreground)]">
-                          <span className="break-all">
-                            {coupon.code}
-                          </span>
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              copyCouponCode(coupon.code)
-                            }
-                            title="Copy Code"
-                            className="shrink-0 text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                          >
-                            <svg
-                              className="h-3.5 w-3.5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                                strokeLinecap="square"
-                                strokeLinejoin="miter"
-                                strokeWidth="2"
-                              />
-                            </svg>
-                          </button>
-                        </span>
-
-                        {/* Status */}
-                        <span
-                          className={
-                            statusIsActive
-                              ? "inline-flex items-center gap-1 border border-emerald-300 bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
-                              : statusIsScheduled
-                                ? "inline-flex items-center gap-1 border border-amber-300 bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-800 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
-                                : "inline-flex items-center gap-1 border border-[var(--border-strong)] bg-[var(--surface-soft)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]"
-                          }
-                        >
-                          <span
-                            className={
-                              statusIsActive
-                                ? "inline-block h-1.5 w-1.5 bg-emerald-600 dark:bg-emerald-400"
-                                : statusIsScheduled
-                                  ? "inline-block h-1.5 w-1.5 bg-amber-600 dark:bg-amber-400"
-                                  : "inline-block h-1.5 w-1.5 bg-[var(--muted-foreground)]"
-                            }
-                          />
-
-                          {status}
-                        </span>
-
-                        <span className="text-xs text-[var(--muted-foreground)]">
-                          Target:{" "}
-                          <strong className="font-semibold text-[var(--foreground)]">
-                            {getAudienceLabel(coupon)}
-                          </strong>
-                        </span>
-                      </div>
-
-                      <p className="text-sm font-normal leading-relaxed text-[var(--muted-foreground)]">
-                        {coupon.description ||
-                          "No promotion description provided."}
-                      </p>
-
-                      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 pt-0.5 font-mono text-xs text-[var(--muted-foreground)]">
-                        <span>
-                          Usage:{" "}
-                          <strong className="font-bold text-[var(--foreground)]">
-                            {usageCount}
-                            {usageLimit !== ""
-                              ? ` / ${usageLimit}`
-                              : " redeemed"}
-                          </strong>
-                        </span>
-
-                        <span>/</span>
-
-                        <span>
-                          Limit:{" "}
-                          <span className="text-[var(--foreground)]">
-                            {usageLimit !== ""
-                              ? usageLimit
-                              : "Open"}
-                          </span>
-                        </span>
-
-                        <span>/</span>
-
-                        {statusIsScheduled && startDate ? (
-                          <span>
-                            Starts:{" "}
-                            <span className="text-[var(--foreground)]">
-                              {formatDateLabel(startDate)}
-                            </span>
-                          </span>
-                        ) : expiry ? (
-                          <span>
-                            Expires:{" "}
-                            <span className="text-[var(--foreground)]">
-                              {formatDateLabel(expiry)}
-                            </span>
-                          </span>
-                        ) : (
-                          <span>No Expiry</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Right */}
-                    <div className="flex shrink-0 flex-col gap-4 border-t border-[var(--border-soft)] pt-3 md:flex-row md:items-center md:justify-end md:border-t-0 md:pt-0">
-                      <div className="text-left md:text-right">
-                        <div
-                          className={
-                            coupon.type === "fixed"
-                              ? "text-2xl font-extrabold leading-none tracking-tight text-[var(--foreground)] sm:text-3xl"
-                              : "text-3xl font-extrabold leading-none tracking-tight text-[var(--foreground)]"
-                          }
-                        >
-                          {getValueLabel(coupon)}
-                        </div>
-
-                        <div className="mt-1 text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
-                          {getTypeLabel(coupon)}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => editCoupon(coupon)}
-                          className="border border-[var(--border-strong)] bg-[var(--surface-strong)] px-4 py-2 text-xs font-bold uppercase tracking-wider text-[var(--foreground)] transition-colors hover:bg-[var(--surface-soft)]"
-                        >
-                          EDIT
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            store.toggleCoupon(coupon.id)
-                          }
-                          className={
-                            coupon.isActive
-                              ? "border border-red-600 bg-red-600 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-sm transition-colors hover:bg-red-700 dark:border-red-500 dark:bg-red-500 dark:text-white dark:hover:bg-red-600"
-                              : "border border-[var(--action)] bg-[var(--action-surface)] px-4 py-2 text-xs font-bold uppercase tracking-wider text-[var(--action-on-muted)] transition-colors hover:bg-[var(--surface-soft)]"
-                          }
-                        >
-                          {coupon.isActive
-                            ? "DEACTIVATE"
-                            : "ACTIVATE NOW"}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-      </main>
+        ))}
+      </div>
     </div>
   );
 }
 
-
 export function AdminSupportInboxPageView({ user }) {
   const store = useAppStore();
   const [drafts, setDrafts] = useState({});
+  const [closingIds, setClosingIds] = useState(new Set());
+
+  function handleClose(ticketId) {
+    setClosingIds((prev) => new Set([...prev, ticketId]));
+    store.closeSupport(ticketId);
+    // Remove from "closing" state after a short delay
+    setTimeout(() => {
+      setClosingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(ticketId);
+        return next;
+      });
+    }, 1500);
+  }
+
+  const openTickets = store.supportTickets.filter((t) => t.status !== "closed");
+  const closedTickets = store.supportTickets.filter((t) => t.status === "closed");
+
+  function renderTicket(ticket) {
+    const isClosed = ticket.status === "closed";
+    const isClosing = closingIds.has(ticket.id);
+    return (
+      <div key={ticket.id} className={cn("rounded-[1.6rem] border border-[var(--border-soft)] bg-[var(--surface-strong)] p-5 transition-opacity", isClosed && "opacity-60")}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-xl font-semibold text-[var(--foreground)]">{ticket.subject}</h2>
+            <p className="mt-1 text-sm text-[var(--muted-foreground)]">{ticket.id}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {isClosed ? (
+              <span className="rounded-full bg-[var(--surface-quiet)] px-4 py-2 text-sm font-semibold text-[var(--muted-foreground)]">
+                Closed
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => handleClose(ticket.id)}
+                disabled={isClosing}
+                className="rounded-full bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-500/20 dark:text-rose-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isClosing ? "Closing…" : "Close Ticket"}
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="mt-4 space-y-3">
+          {ticket.messages.map((entry) => (
+            <div key={entry.id} className="rounded-[1.2rem] bg-[var(--surface)] px-4 py-3 text-sm">
+              <p className="font-semibold text-[var(--foreground)]">{entry.authorRole === "ADMIN" ? "Admin" : entry.authorEmail}</p>
+              <p className="mt-1 text-[var(--muted-foreground)]">{entry.message}</p>
+            </div>
+          ))}
+        </div>
+        {!isClosed ? (
+          <div className="mt-4 flex flex-col gap-3 md:flex-row">
+            <input
+              value={drafts[ticket.id] || ""}
+              onChange={(event) => setDrafts((current) => ({ ...current, [ticket.id]: event.target.value }))}
+              placeholder="Reply as admin…"
+              className="flex-1 rounded-[1.2rem] bg-[var(--surface)] px-4 py-3 text-sm outline-none focus:ring-1 focus:ring-[var(--action)]"
+            />
+            <Button
+              onClick={() => {
+                const message = (drafts[ticket.id] || "").trim();
+                if (!message) return;
+                store.replySupport(ticket.id, message, user.email, "ADMIN");
+                setDrafts((current) => ({ ...current, [ticket.id]: "" }));
+              }}
+            >
+              Reply
+            </Button>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -7201,54 +3550,36 @@ export function AdminSupportInboxPageView({ user }) {
         <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted-foreground)]">Support Inbox</p>
         <h1 className="mt-2 text-4xl font-semibold tracking-tight text-[var(--foreground)]">Respond to customer tickets and close threads.</h1>
       </Card>
-      <div className="space-y-4">
-        {store.supportTickets.map((ticket) => (
-          <div key={ticket.id} className="rounded-[1.6rem] border border-[var(--border-soft)] bg-[var(--surface-strong)] p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-xl font-semibold text-[var(--foreground)]">{ticket.subject}</h2>
-                <p className="mt-1 text-sm text-[var(--muted-foreground)]">{ticket.id}</p>
-              </div>
-              <button type="button" onClick={() => store.closeSupport(ticket.id)} className="rounded-full bg-[var(--surface)] px-4 py-2 text-sm font-semibold">
-                Close
-              </button>
+
+      {store.supportTickets.length === 0 ? (
+        <div className="rounded-[1.6rem] border border-[var(--border-soft)] bg-[var(--surface-strong)] p-10 text-center">
+          <p className="text-sm text-[var(--muted-foreground)]">No support tickets yet.</p>
+        </div>
+      ) : (
+        <>
+          {openTickets.length > 0 && (
+            <div className="space-y-4">
+              <p className="text-xs font-bold uppercase tracking-widest text-[var(--muted-foreground)]">Open ({openTickets.length})</p>
+              {openTickets.map(renderTicket)}
             </div>
-            <div className="mt-4 space-y-3">
-              {ticket.messages.map((entry) => (
-                <div key={entry.id} className="rounded-[1.2rem] bg-[var(--surface)] px-4 py-3 text-sm">
-                  <p className="font-semibold text-[var(--foreground)]">{entry.authorRole === "ADMIN" ? "Admin" : entry.authorEmail}</p>
-                  <p className="mt-1 text-[var(--muted-foreground)]">{entry.message}</p>
-                </div>
-              ))}
-            </div>
-            {ticket.status !== "closed" ? (
-              <div className="mt-4 flex flex-col gap-3 md:flex-row">
-                <input value={drafts[ticket.id] || ""} onChange={(event) => setDrafts((current) => ({ ...current, [ticket.id]: event.target.value }))} placeholder="Reply as admin" className="flex-1 rounded-[1.2rem] bg-[var(--surface)] px-4 py-3 text-sm outline-none" />
-                <Button
-                  onClick={() => {
-                    const message = (drafts[ticket.id] || "").trim();
-                    if (!message) {
-                      return;
-                    }
-                    store.replySupport(ticket.id, message, user.email, "ADMIN");
-                    setDrafts((current) => ({ ...current, [ticket.id]: "" }));
-                  }}
-                >
-                  Reply
-                </Button>
+          )}
+          {closedTickets.length > 0 && (
+            <details className="group">
+              <summary className="cursor-pointer list-none text-xs font-bold uppercase tracking-widest text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors py-2">
+                Closed ({closedTickets.length}) ▸ Click to expand
+              </summary>
+              <div className="mt-3 space-y-4">
+                {closedTickets.map(renderTicket)}
               </div>
-            ) : null}
-          </div>
-        ))}
-      </div>
+            </details>
+          )}
+        </>
+      )}
     </div>
   );
 }
-// Admin Team & Roles
 
 export function AdminUsersPageView({ currentUserId }) {
-  const store = useAppStore();
-  const { t, language } = useTranslation(store.language || "en");
   const [users, setUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -7259,22 +3590,6 @@ export function AdminUsersPageView({ currentUserId }) {
   const [addForm, setAddForm] = useState({ name: "", phoneNumber: "", password: "", role: "CASHIER" });
   const [addLoading, setAddLoading] = useState(false);
   const [addError, setAddError] = useState("");
-  const roleOptions = [
-    "CLIENT",
-    "CASHIER",
-    "MANAGER",
-    "WAREHOUSE_STAFF",
-    "DRIVER",
-    "ADMIN",
-  ];
-  const addRoleOptions = [
-    { value: "CLIENT", label: t("team_role_client") },
-    { value: "CASHIER", label: t("team_role_cashier") },
-    { value: "MANAGER", label: t("team_role_manager") },
-    { value: "WAREHOUSE_STAFF", label: t("team_role_warehouse") },
-    { value: "DRIVER", label: t("team_role_driver") },
-    { value: "ADMIN", label: t("team_role_admin") },
-  ];
 
   useEffect(() => {
     let mounted = true;
@@ -7294,17 +3609,12 @@ export function AdminUsersPageView({ currentUserId }) {
     return () => { mounted = false; };
   }, []);
 
-  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
-  const filteredUsers = users.filter((user) => {
-    if (!normalizedSearchQuery) return true;
-
-    return [
-      user.name,
-      user.username,
-      user.phoneNumber,
-      user.role,
-    ].some((value) => String(value || "").toLowerCase().includes(normalizedSearchQuery));
-  });
+  const filteredUsers = users.filter(user =>
+    (user.name && user.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (user.username && user.username.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    user.phoneNumber.includes(searchQuery) ||
+    user.role.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   async function updateUserRole(userId, newRole) {
     setIsLoading(true);
@@ -7324,7 +3634,7 @@ export function AdminUsersPageView({ currentUserId }) {
       }
 
       setUsers(users.map(u => u.id === userId ? { ...u, role: newRole } : u));
-      setMessage(t("team_role_updated"));
+      setMessage("User role updated successfully.");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -7351,7 +3661,7 @@ export function AdminUsersPageView({ currentUserId }) {
       }
 
       setUsers(users.map(u => u.id === userId ? { ...u, status: newStatus } : u));
-      setMessage(t("team_status_updated"));
+      setMessage("User status updated successfully.");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -7360,7 +3670,7 @@ export function AdminUsersPageView({ currentUserId }) {
   }
 
   async function deleteUser(userId) {
-    if (!confirm(t("team_delete_confirm"))) return;
+    if (!confirm("Are you sure you want to delete this user? This cannot be undone.")) return;
 
     setIsLoading(true);
     setError("");
@@ -7377,7 +3687,7 @@ export function AdminUsersPageView({ currentUserId }) {
       }
 
       setUsers(users.filter(u => u.id !== userId));
-      setMessage(t("team_user_deleted"));
+      setMessage("User deleted successfully.");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -7401,7 +3711,7 @@ export function AdminUsersPageView({ currentUserId }) {
       if (!res.ok) throw new Error(data.error || "Failed to create user");
 
       setUsers([data.user, ...users]);
-      setMessage(t("team_user_created"));
+      setMessage("User created successfully.");
       setShowAddModal(false);
       setAddForm({ name: "", phoneNumber: "", password: "", role: "CASHIER" });
     } catch (err) {
@@ -7413,108 +3723,102 @@ export function AdminUsersPageView({ currentUserId }) {
 
   if (fetching) {
     return (
-      <Card className="!rounded-none">
-        <div className="py-8 text-center text-sm text-[var(--muted-foreground)]">{t("team_loading_users")}</div>
+      <Card>
+        <div className="py-8 text-center text-sm text-[var(--muted-foreground)]">Loading users...</div>
       </Card>
     );
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1536px] space-y-6 overflow-x-hidden px-0 sm:px-2 lg:px-4">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <input
           type="text"
-          placeholder={t("team_search_placeholder")}
+          placeholder="Search users by name, phone, or role..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="app-input w-full rounded-none px-4 py-3 text-sm md:max-w-sm"
+          className="app-input w-full max-w-sm px-4 py-3 text-sm"
         />
-        <Button
-          onClick={() => { setShowAddModal(true); setAddError(""); }}
-          className="w-full rounded-none md:w-auto"
-        >
+        <Button onClick={() => { setShowAddModal(true); setAddError(""); }}>
           <UserPlus className="mr-2 h-4 w-4" />
-          {t("team_add_new_user")}
+          Add New User
         </Button>
       </div>
 
-      {error && <div className="rounded-none bg-red-50 p-4 text-sm text-red-600 dark:bg-red-950/40 dark:text-red-300">{error}</div>}
-      {message && <div className="rounded-none bg-emerald-50 p-4 text-sm text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300">{message}</div>}
+      {error && <div className="rounded-lg bg-red-50 p-4 text-sm text-red-600">{error}</div>}
+      {message && <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-600">{message}</div>}
 
-      <Card className="!rounded-none">
-        <div className="overflow-x-hidden">
-          <table className="block w-full table-fixed text-left text-sm text-[var(--foreground)] md:table">
-            <thead className="hidden border-b border-[var(--border-soft)] text-xs uppercase text-[var(--muted-foreground)] md:table-header-group">
+      <Card>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm text-[var(--foreground)]">
+            <thead className="border-b border-[var(--border-soft)] text-xs uppercase text-[var(--muted-foreground)]">
               <tr>
-                <th className="px-4 py-4 font-semibold lg:px-6">{t("team_user")}</th>
-                <th className="px-4 py-4 font-semibold lg:px-6">{t("phone")}</th>
-                <th className="px-4 py-4 font-semibold lg:px-6">{t("role")}</th>
-                <th className="px-4 py-4 font-semibold lg:px-6">{t("status")}</th>
-                <th className="px-4 py-4 font-semibold lg:px-6">{t("team_joined")}</th>
-                <th className="px-4 py-4 text-right font-semibold lg:px-6">{t("actions")}</th>
+                <th className="px-6 py-4 font-semibold">User</th>
+                <th className="px-6 py-4 font-semibold">Phone</th>
+                <th className="px-6 py-4 font-semibold">Role</th>
+                <th className="px-6 py-4 font-semibold">Status</th>
+                <th className="px-6 py-4 font-semibold">Joined</th>
+                <th className="px-6 py-4 text-right font-semibold">Actions</th>
               </tr>
             </thead>
-            <tbody className="block divide-y divide-[var(--border-soft)] md:table-row-group md:divide-y md:divide-[var(--border-soft)]">
+            <tbody className="divide-y divide-[var(--border-soft)]">
               {filteredUsers.map((user) => (
-                <tr
-                  key={user.id}
-                  className="grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2 bg-[var(--surface-strong)] px-5 py-5 transition-colors hover:bg-[var(--surface-quiet)] md:table-row md:p-0"
-                >
-                  <td className="col-start-1 row-start-1 min-w-0 pr-2 text-sm font-semibold text-[var(--foreground)] md:table-cell md:px-4 md:py-4 md:font-medium lg:px-6">
-                    <span className="block truncate">{user.name || user.username || "Unknown User"}</span>
+                <tr key={user.id} className="hover:bg-[var(--surface-quiet)]">
+                  <td className="px-6 py-4 font-medium">
+                    {user.name || user.username || "Unknown User"}
                   </td>
-                  <td className="col-start-1 row-start-2 min-w-0 font-mono text-[11px] text-[var(--muted-foreground)] md:table-cell md:px-4 md:py-4 md:text-xs md:text-[var(--foreground)] lg:px-6">
-                    <span className="block break-all">{user.phoneNumber}</span>
-                  </td>
-                  <td className="col-start-2 row-start-1 flex min-w-[86px] justify-end md:table-cell md:px-4 md:py-4 lg:px-6">
+                  <td className="px-6 py-4 font-mono text-xs">{user.phoneNumber}</td>
+                  <td className="px-6 py-4">
                     {user.id !== currentUserId && user.role !== "SUPER_ADMIN" ? (
                       <select
                         value={user.role}
                         onChange={(e) => updateUserRole(user.id, e.target.value)}
                         disabled={isLoading}
-                        className="w-[108px] rounded-none border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-2.5 py-1 text-xs font-semibold text-[var(--foreground)] outline-none cursor-pointer disabled:opacity-50 sm:w-[120px] md:w-full md:max-w-[190px]"
+                        className="rounded-lg border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-2.5 py-1 text-xs font-semibold outline-none cursor-pointer"
                       >
-                        {roleOptions.map((role) => (
-                          <option key={role} value={role}>{role}</option>
-                        ))}
+                        <option value="CLIENT">CLIENT</option>
+                        <option value="CASHIER">CASHIER</option>
+                        <option value="MANAGER">MANAGER</option>
+                        <option value="WAREHOUSE_STAFF">WAREHOUSE_STAFF</option>
+                        <option value="DRIVER">DRIVER</option>
+                        <option value="ADMIN">ADMIN</option>
                       </select>
                     ) : (
-                      <span className="rounded-none bg-[var(--surface-quiet)] px-2.5 py-0.5 text-xs font-semibold">
+                      <span className="rounded-full bg-[var(--surface-quiet)] px-2.5 py-0.5 text-xs font-semibold">
                         {user.role}
                       </span>
                     )}
                   </td>
-                  <td className="col-start-2 row-start-2 flex justify-end md:table-cell md:px-4 md:py-4 lg:px-6">
-                    <span className={`inline-flex items-center gap-1 rounded-none px-2.5 py-0.5 text-xs font-semibold ${user.status === "ACTIVE" ? "bg-emerald-100/50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300" : "bg-red-100/50 text-red-700 dark:bg-red-950/60 dark:text-red-300"
+                  <td className="px-6 py-4">
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${user.status === "ACTIVE" ? "bg-emerald-100/50 text-emerald-700" : "bg-red-100/50 text-red-700"
                       }`}>
                       {user.status === "ACTIVE" ? <UserCheck className="h-3 w-3" /> : <UserX className="h-3 w-3" />}
-                      {user.status === "ACTIVE" ? t("active").toUpperCase() : t("inactive").toUpperCase()}
+                      {user.status}
                     </span>
                   </td>
-                  <td className="col-start-1 row-start-3 min-w-0 whitespace-nowrap font-mono text-[11px] text-[var(--muted-foreground)] md:table-cell md:px-4 md:py-4 md:font-sans md:text-sm lg:px-6">
-                    <span className="md:hidden">{t("team_joined")}: </span>
-                    <span>{new Date(user.createdAt).toLocaleDateString(language === "km" ? "km-KH" : undefined)}</span>
+                  <td className="whitespace-nowrap px-6 py-4 text-[var(--muted-foreground)]">
+                    {new Date(user.createdAt).toLocaleDateString()}
                   </td>
-                  <td className="col-start-2 row-start-3 flex justify-end md:table-cell md:px-4 md:py-4 md:text-right lg:px-6">
+                  <td className="px-6 py-4 text-right">
                     {user.id !== currentUserId && user.role !== "SUPER_ADMIN" ? (
-                      <div className="flex flex-wrap justify-end gap-3">
+                      <div className="flex justify-end gap-3">
                         <button
                           onClick={() => toggleStatus(user.id, user.status)}
                           disabled={isLoading}
                           className="text-xs font-semibold text-amber-500 hover:underline disabled:opacity-50"
                         >
-                          {user.status === "ACTIVE" ? t("team_suspend") : t("team_activate")}
+                          {user.status === "ACTIVE" ? "Suspend" : "Activate"}
                         </button>
                         <button
                           onClick={() => deleteUser(user.id)}
                           disabled={isLoading}
                           className="text-xs font-semibold text-red-500 hover:underline disabled:opacity-50"
                         >
-                          {t("delete")}
+                          Delete
                         </button>
                       </div>
                     ) : (
-                      <span className="text-xs text-[var(--muted-foreground)]">{t("team_protected")}</span>
+                      <span className="text-xs text-[var(--muted-foreground)]">Protected</span>
                     )}
                   </td>
                 </tr>
@@ -7523,7 +3827,7 @@ export function AdminUsersPageView({ currentUserId }) {
           </table>
 
           {filteredUsers.length === 0 && (
-            <div className="py-8 text-center text-[var(--muted-foreground)]">{t("team_no_users")}</div>
+            <div className="py-8 text-center text-[var(--muted-foreground)]">No users found.</div>
           )}
         </div>
       </Card>
@@ -7531,7 +3835,7 @@ export function AdminUsersPageView({ currentUserId }) {
       {/* Add User Modal */}
       <AnimatePresence>
         {showAddModal ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overflow-x-hidden px-4 py-6">
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -7545,76 +3849,78 @@ export function AdminUsersPageView({ currentUserId }) {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 12 }}
               transition={{ duration: 0.3 }}
-              className="app-card relative w-full max-w-md rounded-none p-6"
+              className="app-card relative w-full max-w-md p-6"
               onClick={(e) => e.stopPropagation()}
             >
-              <h2 className="text-xl font-semibold text-[var(--foreground)]">{t("team_add_new_user")}</h2>
-              <p className="mt-1 text-sm text-[var(--muted-foreground)]">{t("team_create_account")}</p>
+              <h2 className="text-xl font-semibold text-[var(--foreground)]">Add New User</h2>
+              <p className="mt-1 text-sm text-[var(--muted-foreground)]">Create a new system user account.</p>
 
               <form onSubmit={handleAddUser} className="mt-5 space-y-4">
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-[var(--foreground)]">{t("team_full_name_optional")}</label>
+                  <label className="mb-1.5 block text-sm font-medium text-[var(--foreground)]">Full Name (Optional)</label>
                   <input
                     type="text"
                     value={addForm.name}
                     onChange={(e) => setAddForm(f => ({ ...f, name: e.target.value }))}
                     placeholder="e.g. Soksan Staff"
-                    className="app-input rounded-none px-4 py-3 text-sm"
+                    className="app-input px-4 py-3 text-sm"
                   />
                 </div>
 
-
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-[var(--foreground)]">{t("phone_number")} <span className="text-red-500">*</span></label>
+                  <label className="mb-1.5 block text-sm font-medium text-[var(--foreground)]">Phone Number <span className="text-red-500">*</span></label>
                   <input
                     type="tel"
                     value={addForm.phoneNumber}
                     onChange={(e) => setAddForm(f => ({ ...f, phoneNumber: e.target.value }))}
                     placeholder="+855..."
                     required
-                    className="app-input rounded-none px-4 py-3 text-sm"
+                    className="app-input px-4 py-3 text-sm"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-[var(--foreground)]">{t("team_password")} <span className="text-red-500">*</span></label>
+                  <label className="mb-1.5 block text-sm font-medium text-[var(--foreground)]">Password <span className="text-red-500">*</span></label>
                   <input
                     type="password"
                     value={addForm.password}
                     onChange={(e) => setAddForm(f => ({ ...f, password: e.target.value }))}
-                    placeholder={t("team_password_placeholder")}
+                    placeholder="Min. 6 characters"
                     required
-                    className="app-input rounded-none px-4 py-3 text-sm"
+                    className="app-input px-4 py-3 text-sm"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-[var(--foreground)]">{t("role")} <span className="text-red-500">*</span></label>
+                  <label className="mb-1.5 block text-sm font-medium text-[var(--foreground)]">Role <span className="text-red-500">*</span></label>
                   <select
                     value={addForm.role}
                     onChange={(e) => setAddForm(f => ({ ...f, role: e.target.value }))}
-                    className="app-input rounded-none px-4 py-3 text-sm"
+                    className="app-input px-4 py-3 text-sm"
                   >
-                    {addRoleOptions.map((role) => (
-                      <option key={role.value} value={role.value}>{role.label}</option>
-                    ))}
+                    <option value="CLIENT">Client (Customer)</option>
+                    <option value="CASHIER">Cashier</option>
+                    <option value="MANAGER">Manager</option>
+                    <option value="WAREHOUSE_STAFF">Warehouse Staff</option>
+                    <option value="DRIVER">Driver</option>
+                    <option value="ADMIN">Admin</option>
                   </select>
                 </div>
 
                 {addError && (
-                  <div className="rounded-none bg-red-50 p-3 text-sm text-red-600 dark:bg-red-950/40 dark:text-red-300">{addError}</div>
+                  <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600">{addError}</div>
                 )}
 
-                <div className="flex flex-col gap-3 pt-2 sm:flex-row">
-                  <Button type="submit" disabled={addLoading} className="flex-1 rounded-none">
-                    {addLoading ? t("team_creating") : t("team_create_user")}
+                <div className="flex gap-3 pt-2">
+                  <Button type="submit" disabled={addLoading} className="flex-1">
+                    {addLoading ? "Creating..." : "Create User"}
                   </Button>
                   <button
                     type="button"
                     onClick={() => setShowAddModal(false)}
-                    className="rounded-none border border-[var(--border-soft)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--surface-quiet)]"
+                    className="rounded-xl border border-[var(--border-soft)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--surface-quiet)]"
                   >
-                    {t("cancel")}
+                    Cancel
                   </button>
                 </div>
               </form>

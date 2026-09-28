@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -380,6 +380,8 @@ function TopHeader({
   notificationOpen,
   setNotificationOpen,
   notificationAlerts,
+  notificationDbNotifs,
+  onNotificationBellClick,
   openTab,
   t,
   lang,
@@ -505,6 +507,7 @@ function TopHeader({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
+              if (onNotificationBellClick) onNotificationBellClick();
               setNotificationOpen(!notificationOpen);
             }}
             className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border-soft)] text-[var(--muted-foreground)] hover:bg-[var(--surface-quiet)] hover:text-[var(--foreground)] transition-colors"
@@ -541,7 +544,7 @@ function TopHeader({
                   )}
                 </div>
                 <div className="max-h-80 overflow-y-auto">
-                  {notificationAlerts.length ? (
+                  {notificationAlerts.length > 0 ? (
                     notificationAlerts.slice(0, 10).map((alert) => (
                       <Link
                         key={alert.id}
@@ -572,9 +575,34 @@ function TopHeader({
                         </div>
                       </Link>
                     ))
-                  ) : (
+                  ) : null}
+                  {notificationDbNotifs.filter((n) => !n.isRead).length > 0 ? (
+                    <>
+                      {notificationAlerts.length > 0 && (
+                        <p className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-[var(--muted-foreground)] bg-[var(--surface-quiet)]/60">
+                          {t ? t("recent_activity") : "Recent Activity"}
+                        </p>
+                      )}
+                      {notificationDbNotifs.filter((n) => !n.isRead).slice(0, 8).map((notif) => (
+                        <div
+                          key={notif.id}
+                          className="flex gap-3 px-4 py-3 text-sm border-b border-[var(--border-soft)] last:border-0 bg-[var(--surface-quiet)]/30"
+                        >
+                          <span className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-blue-500/15 text-blue-600 dark:text-blue-400 text-[10px]">
+                            <Bell className="size-3" />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-semibold text-xs text-[var(--foreground)]">{notif.title}</p>
+                            <p className="mt-0.5 text-[var(--muted-foreground)] text-xs leading-relaxed line-clamp-2">{notif.message}</p>
+                          </div>
+                          {!notif.isRead && <span className="mt-1.5 size-2 rounded-full bg-blue-500 flex-shrink-0" />}
+                        </div>
+                      ))}
+                    </>
+                  ) : null}
+                  {notificationAlerts.length === 0 && notificationDbNotifs.filter((n) => !n.isRead).length === 0 ? (
                     <p className="py-10 text-center text-sm text-[var(--muted-foreground)]">{t ? t("no_notifications") : "All clear — no pending alerts."}</p>
-                  )}
+                  ) : null}
                 </div>
               </motion.div>
             )}
@@ -682,6 +710,7 @@ export function AdminShell({ user, initialTab = "dashboard" }) {
   const [alertOpen, setAlertOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [notificationAlerts, setNotificationAlerts] = useState([]);
+  const [notificationDbNotifs, setNotificationDbNotifs] = useState([]);
   const [notificationTotal, setNotificationTotal] = useState(0);
   const [lastAlertSignature, setLastAlertSignature] = useState("");
 
@@ -752,30 +781,30 @@ export function AdminShell({ user, initialTab = "dashboard" }) {
   }, [activeAlerts, alertOpen, lastAlertSignature]);
 
   // Load notifications API
-  useEffect(() => {
-    let mounted = true;
-    async function loadNotifications() {
-      try {
-        const res = await fetch("/api/notifications", { cache: "no-store" });
-        if (!res.ok || !mounted) return;
-        const payload = await res.json();
-        if (!mounted) return;
-        setNotificationAlerts(Array.isArray(payload.alerts) ? payload.alerts : []);
-        setNotificationTotal(Number(payload.total || 0));
-      } catch {
-        if (mounted) {
-          setNotificationAlerts([]);
-          setNotificationTotal(0);
-        }
-      }
+  const loadNotifications = useCallback(async () => {
+    try {
+      const res = await fetch("/api/notifications", { cache: "no-store" });
+      if (!res.ok) return;
+      const payload = await res.json();
+      setNotificationAlerts(Array.isArray(payload.alerts) ? payload.alerts : []);
+      setNotificationDbNotifs(Array.isArray(payload.notifications) ? payload.notifications : []);
+      const alertTotal = Number(payload.total || 0);
+      const dbUnread = Array.isArray(payload.notifications)
+        ? payload.notifications.filter((n) => !n.isRead).length
+        : 0;
+      setNotificationTotal(alertTotal + dbUnread);
+    } catch {
+      setNotificationAlerts([]);
+      setNotificationDbNotifs([]);
+      setNotificationTotal(0);
     }
+  }, []);
+
+  useEffect(() => {
     loadNotifications();
     const interval = window.setInterval(loadNotifications, 60000);
-    return () => {
-      mounted = false;
-      window.clearInterval(interval);
-    };
-  }, []);
+    return () => window.clearInterval(interval);
+  }, [loadNotifications]);
 
   // Close notifications on window click
   useEffect(() => {
@@ -827,6 +856,8 @@ export function AdminShell({ user, initialTab = "dashboard" }) {
           notificationOpen={notificationOpen}
           setNotificationOpen={setNotificationOpen}
           notificationAlerts={notificationAlerts}
+          notificationDbNotifs={notificationDbNotifs}
+          onNotificationBellClick={loadNotifications}
           openTab={openTab}
           t={t}
           lang={lang}

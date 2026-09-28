@@ -32,7 +32,7 @@ export async function POST(request, { params }) {
       return fail("Ticket not found.", 404);
     }
 
-    if (user.role !== "ADMIN" && existing.userId !== user.id) {
+    if (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN" && existing.userId !== user.id) {
       return fail("Forbidden.", 403);
     }
 

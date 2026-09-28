@@ -8,6 +8,7 @@ import {
   RefreshCw,
   ShoppingBag,
 } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { formatPrimaryMoney } from "@/components/pos/format";
@@ -325,6 +326,8 @@ function getTransactionTotal(entry) {
 
 function getTransactionId(entry) {
   return (
+    entry?.receiptNumber ??
+    entry?.receipt_number ??
     entry?.orderNumber ??
     entry?.order_number ??
     entry?.orderId ??
@@ -791,9 +794,187 @@ export default function PosDashboardPage() {
     (entry) => getPaymentMethod(entry) === "CASH",
   ).length;
 
-  const handlePrintReceipt = () => {
-    if (typeof window !== "undefined") {
-      window.print();
+  const handlePrintReceipt = (entry) => {
+    if (typeof window === "undefined" || !entry) return;
+
+    const receiptId = getTransactionId(entry);
+    const items = getTransactionItems(entry);
+    const method = getPaymentMethod(entry);
+    const status = getTransactionStatus(entry);
+    const timestamp = getTimestamp(entry);
+    const totalAmount = getTransactionTotal(entry);
+    const formattedTotal = formatPrimaryMoney(totalAmount, settings, false);
+    const usdAmount = getUsdAmount(entry);
+    const cashier = entry?.cashierName || entry?.cashier || "Staff";
+    const dateFormatted = formatDateTime(timestamp, language);
+
+    const storeName = settings?.storeInfo?.storeName || "Soeum Savet Store";
+    const storeAddress = settings?.storeInfo?.storeAddress || "Siem Reap, Cambodia";
+    const storePhone = settings?.storeInfo?.phone || "Tel: 012 345 678";
+    const footerMsg = settings?.storeInfo?.receiptFooterMessage || "Thank you for your business!";
+
+    const itemsHtml = items.length > 0
+      ? items
+          .map((item) => {
+            const name = getItemName(item);
+            const qty = getItemQty(item);
+            const unitPrice = getItemUnitPrice(item);
+            const lineTotal = unitPrice != null ? unitPrice * qty : null;
+            return `
+              <tr>
+                <td style="padding: 6px 0; border-bottom: 1px dashed #e2e8f0; text-align: left;">
+                  <div style="font-weight: 600;">${name}</div>
+                  ${item.variantName && item.variantName !== "Default" ? `<div style="font-size: 11px; color: #64748b;">${item.variantName}</div>` : ""}
+                </td>
+                <td style="padding: 6px 0; border-bottom: 1px dashed #e2e8f0; text-align: center; vertical-align: top;">${qty}</td>
+                <td style="padding: 6px 0; border-bottom: 1px dashed #e2e8f0; text-align: right; vertical-align: top;">${unitPrice != null ? formatPrimaryMoney(unitPrice, settings, false) : "—"}</td>
+                <td style="padding: 6px 0; border-bottom: 1px dashed #e2e8f0; text-align: right; font-weight: 600; vertical-align: top;">${lineTotal != null ? formatPrimaryMoney(lineTotal, settings, false) : "—"}</td>
+              </tr>
+            `;
+          })
+          .join("")
+      : `
+        <tr>
+          <td colspan="4" style="padding: 10px 0; text-align: center; color: #64748b; font-style: italic;">Sale item details</td>
+        </tr>
+      `;
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Receipt #${receiptId}</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;600;700&display=swap');
+            * { box-sizing: border-box; }
+            body {
+              font-family: 'Noto Sans Khmer', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              font-size: 12px;
+              line-height: 1.4;
+              color: #0f172a;
+              margin: 0;
+              padding: 24px 16px;
+              background: #fff;
+              max-width: 380px;
+              margin-left: auto;
+              margin-right: auto;
+            }
+            .header { text-align: center; margin-bottom: 12px; }
+            .store-name { font-size: 16px; font-weight: 700; color: #0f172a; margin-bottom: 2px; }
+            .store-meta { font-size: 11px; color: #64748b; margin-bottom: 2px; }
+            .receipt-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #0284c7; margin: 8px 0; border-top: 1px dashed #cbd5e1; border-bottom: 1px dashed #cbd5e1; padding: 4px 0; }
+            .meta-grid { margin-bottom: 12px; font-size: 11px; }
+            .meta-row { display: flex; justify-content: space-between; margin-bottom: 3px; }
+            .meta-label { color: #64748b; }
+            .meta-val { font-weight: 600; font-family: monospace; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 11px; }
+            th { text-align: left; padding: 4px 0; border-bottom: 1.5px solid #0f172a; font-size: 11px; color: #475569; }
+            .totals { border-top: 1.5px solid #0f172a; border-bottom: 1.5px solid #0f172a; padding: 8px 0; margin-bottom: 12px; }
+            .total-row { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 11px; }
+            .grand-total { display: flex; justify-content: space-between; font-size: 14px; font-weight: 700; margin-top: 6px; padding-top: 6px; border-top: 1px dashed #cbd5e1; color: #0f172a; }
+            .badge { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 700; text-transform: uppercase; background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+            .footer { text-align: center; font-size: 11px; color: #64748b; margin-top: 16px; border-top: 1px dashed #cbd5e1; padding-top: 8px; }
+            @media print {
+              body { padding: 0; max-width: 100%; width: 100%; }
+              @page { margin: 4mm; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="store-name">${storeName}</div>
+            <div class="store-meta">${storeAddress} &bull; ${storePhone}</div>
+            <div class="receipt-title">Official POS Receipt</div>
+          </div>
+
+          <div class="meta-grid">
+            <div class="meta-row">
+              <span class="meta-label">Receipt #:</span>
+              <span class="meta-val">#${receiptId}</span>
+            </div>
+            <div class="meta-row">
+              <span class="meta-label">Date & Time:</span>
+              <span class="meta-val">${dateFormatted}</span>
+            </div>
+            <div class="meta-row">
+              <span class="meta-label">Cashier:</span>
+              <span class="meta-val">${cashier}</span>
+            </div>
+            <div class="meta-row">
+              <span class="meta-label">Payment / Status:</span>
+              <span class="meta-val">${method} / <span class="badge">${status}</span></span>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align: left;">Item</th>
+                <th style="text-align: center; width: 32px;">Qty</th>
+                <th style="text-align: right; width: 64px;">Price</th>
+                <th style="text-align: right; width: 70px;">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+
+          <div class="totals">
+            <div class="grand-total">
+              <span>TOTAL</span>
+              <span>${formattedTotal}</span>
+            </div>
+            ${usdAmount !== "—" ? `
+            <div class="total-row" style="margin-top: 2px; color: #64748b;">
+              <span>USD Equivalent</span>
+              <span style="font-family: monospace;">${usdAmount}</span>
+            </div>` : ""}
+          </div>
+
+          <div class="footer">
+            <div>${footerMsg}</div>
+            <div style="margin-top: 4px; font-size: 10px; color: #94a3b8;">Printed: ${new Date().toLocaleTimeString()}</div>
+          </div>
+
+          <script>
+            window.onload = function() {
+              window.focus();
+              window.print();
+              window.onafterprint = function() {
+                window.close();
+              };
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    const printWindow = window.open("", "_blank", "width=450,height=650");
+    if (printWindow) {
+      printWindow.document.open();
+      printWindow.document.write(htmlContent);
+      printWindow.document.close();
+    } else {
+      const iframe = document.createElement("iframe");
+      iframe.style.position = "fixed";
+      iframe.style.right = "0";
+      iframe.style.bottom = "0";
+      iframe.style.width = "0";
+      iframe.style.height = "0";
+      iframe.style.border = "0";
+      document.body.appendChild(iframe);
+      iframe.contentDocument.open();
+      iframe.contentDocument.write(htmlContent);
+      iframe.contentDocument.close();
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+      setTimeout(() => {
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
+      }, 1000);
     }
   };
 
@@ -1202,7 +1383,7 @@ export default function PosDashboardPage() {
                             type="button"
                             title={t.printReceipt}
                             aria-label={t.printReceipt}
-                            onClick={handlePrintReceipt}
+                            onClick={() => handlePrintReceipt(entry)}
                             className="shrink-0 border border-[var(--border-soft)] p-1.5 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface-soft)] hover:text-[var(--foreground)]"
                           >
                             <Printer
@@ -1411,7 +1592,7 @@ export default function PosDashboardPage() {
                                 type="button"
                                 title={t.printReceipt}
                                 aria-label={t.printReceipt}
-                                onClick={handlePrintReceipt}
+                                onClick={() => handlePrintReceipt(entry)}
                                 className="border border-[var(--border-soft)] p-1 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface-soft)] hover:text-[var(--foreground)]"
                               >
                                 <Printer
@@ -1443,8 +1624,8 @@ export default function PosDashboardPage() {
                   {filteredTransactions.length} {t.ordersLabel}
                 </span>
 
-                <a
-                  href="#orders"
+                <Link
+                  href="/pos/orders"
                   className="flex shrink-0 items-center gap-1 font-semibold text-[var(--pos-action)] hover:underline"
                 >
                   <span>{t.viewAll}</span>
@@ -1453,7 +1634,7 @@ export default function PosDashboardPage() {
                     className="size-3.5"
                     aria-hidden="true"
                   />
-                </a>
+                </Link>
               </div>
             </section>
           </div>
