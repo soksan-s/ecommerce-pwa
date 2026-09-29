@@ -3,10 +3,12 @@
 import {
   ChevronRight,
   DollarSign,
+  Eye,
   Package,
   Printer,
   RefreshCw,
   ShoppingBag,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -24,7 +26,8 @@ const fallbackStats = {
   pendingSync: 0,
 };
 
-const HOURS = Array.from({ length: 13 }, (_, index) => index + 7);
+// const HOURS = Array.from({ length: 13 }, (_, index) => index + 7);
+const HOURS = Array.from({ length: 18 }, (_, index) => index + 6);
 
 const TEXT = {
   en: {
@@ -262,17 +265,29 @@ function getItemStock(item) {
 }
 
 function getPaymentMethod(entry) {
+  const payment =
+    Array.isArray(entry?.payments) && entry.payments.length > 0
+      ? entry.payments[0]
+      : entry?.payment || null;
+
   const raw =
     entry?.paymentMethod ??
     entry?.payment_method ??
     entry?.method ??
     entry?.paymentType ??
     entry?.payment_type ??
+    payment?.method ??
+    payment?.paymentMethod ??
+    payment?.payment_method ??
     "";
 
   const normalized = String(raw).trim().toUpperCase();
 
-  if (normalized.includes("KHQR") || normalized.includes("BAKONG")) {
+  if (
+    normalized.includes("KHQR") ||
+    normalized.includes("BAKONG") ||
+    normalized.includes("QR")
+  ) {
     return "KHQR";
   }
 
@@ -282,7 +297,25 @@ function getPaymentMethod(entry) {
 
   return normalized || "OTHER";
 }
+function getTransactionChannel(entry) {
+  const raw =
+    entry?.channel ??
+    entry?.salesChannel ??
+    entry?.sales_channel ??
+    "";
 
+  const normalized = String(raw).trim().toUpperCase();
+
+  if (normalized === "ONLINE" || normalized === "E_COMMERCE" || normalized === "ECOMMERCE") {
+    return "ONLINE";
+  }
+
+  if (normalized === "POS") {
+    return "POS";
+  }
+
+  return "POS";
+}
 function getTransactionStatus(entry) {
   const raw = String(
     entry?.status ??
@@ -593,7 +626,9 @@ export default function PosDashboardPage() {
   const [stats, setStats] = useState(fallbackStats);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [transactionFilter, setTransactionFilter] = useState("ALL");
+  // const [transactionFilter, setTransactionFilter] = useState("ALL");
+  const [transactionFilter, setTransactionFilter] = useState("POS");
+  const [selectedTransaction, setSelectedTransaction] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -604,25 +639,39 @@ export default function PosDashboardPage() {
       }
 
       try {
+        // ------------------------------------------------------------
+        // 1. Always load local transactions first.
+        //    This preserves offline POS functionality.
+        // ------------------------------------------------------------
         const rawTransactions = await getAll("transactions");
+
         const safeTransactions = Array.isArray(rawTransactions)
           ? rawTransactions
           : [];
 
-        const salesTransactions = safeTransactions.filter(
+        const localTransactions = safeTransactions.filter(
           (entry) => entry?.type !== "stats",
         );
 
-        const localStats =
-          calculateStatsFromTransactions(salesTransactions);
-
+        // ------------------------------------------------------------
+        // 2. Get pending offline transactions.
+        // ------------------------------------------------------------
         const queuedResult = await getAll("offline_queue");
         const queued = Array.isArray(queuedResult) ? queuedResult : [];
 
         setPendingSyncCount(queued.length);
 
+        // ------------------------------------------------------------
+        // 3. Default to local IndexedDB transactions.
+        //    This is used when offline or when the server is unavailable.
+        // ------------------------------------------------------------
+        let dashboardTransactions = localTransactions;
+
+        const localStats =
+          calculateStatsFromTransactions(localTransactions);
+
         if (active) {
-          setTransactions(salesTransactions);
+          setTransactions(localTransactions);
 
           setStats({
             ...localStats,
@@ -630,6 +679,10 @@ export default function PosDashboardPage() {
           });
         }
 
+        // ------------------------------------------------------------
+        // 4. ONLINE:
+        //    Get the complete current-day POS sales from PostgreSQL.
+        // ------------------------------------------------------------
         if (isOnline) {
           try {
             const response = await fetch("/api/pos/stats", {
@@ -639,6 +692,70 @@ export default function PosDashboardPage() {
             if (response.ok) {
               const data = await response.json();
               const nextStats = data.data || data;
+
+              // The updated /api/pos/stats will return:
+              // nextStats.sales = today's complete POS sales.
+              const serverTransactions = Array.isArray(nextStats.sales)
+                ? nextStats.sales
+                : [];
+
+              // --------------------------------------------------------
+              // Keep local transactions that are not yet synced.
+              // These are important for offline POS sales that haven't
+              // reached PostgreSQL yet.
+              // --------------------------------------------------------
+              const unsyncedLocalTransactions = localTransactions.filter(
+                (entry) =>
+                  entry?.synced === false ||
+                  entry?.syncStatus === "pending" ||
+                  entry?.syncStatus === "failed",
+              );
+
+              // --------------------------------------------------------
+              // Server sales are the authoritative source for synced
+              // transactions. Add local unsynced transactions on top.
+              // --------------------------------------------------------
+              const serverIds = new Set(
+                serverTransactions
+                  .map((entry) =>
+                    String(entry?.id || entry?.receiptNumber || ""),
+                  )
+                  .filter(Boolean),
+              );
+
+              const serverReceiptNumbers = new Set(
+                serverTransactions
+                  .map((entry) => String(entry?.receiptNumber || ""))
+                  .filter(Boolean),
+              );
+
+              const uniqueUnsyncedLocalTransactions =
+                unsyncedLocalTransactions.filter((entry) => {
+                  const id = String(
+                    entry?.id ||
+                    entry?.receiptNumber ||
+                    "",
+                  );
+
+                  const receiptNumber = String(
+                    entry?.receiptNumber || "",
+                  );
+
+                  return (
+                    (!id || !serverIds.has(id)) &&
+                    (!receiptNumber ||
+                      !serverReceiptNumbers.has(receiptNumber))
+                  );
+                });
+
+              dashboardTransactions = [
+                ...serverTransactions,
+                ...uniqueUnsyncedLocalTransactions,
+              ];
+
+              // --------------------------------------------------------
+              // Store today's server statistics separately as before.
+              // --------------------------------------------------------
               const todayKey = getTodayKey();
 
               await put("transactions", {
@@ -650,6 +767,8 @@ export default function PosDashboardPage() {
               });
 
               if (active) {
+                setTransactions(dashboardTransactions);
+
                 setStats({
                   ...nextStats,
                   pendingSync: queued.length,
@@ -657,7 +776,8 @@ export default function PosDashboardPage() {
               }
             }
           } catch {
-            // Keep local IndexedDB stats when the backend is unavailable.
+            // Server unavailable.
+            // Keep the local IndexedDB transactions already loaded above.
           }
         }
       } catch {
@@ -671,6 +791,7 @@ export default function PosDashboardPage() {
         }
       }
     }
+
 
     loadStats();
 
@@ -696,13 +817,19 @@ export default function PosDashboardPage() {
       });
   }, [transactions]);
 
-  const filteredTransactions = useMemo(() => {
-    if (transactionFilter === "ALL") {
-      return todayTransactions;
-    }
+  // const filteredTransactions = useMemo(() => {
+  //   if (transactionFilter === "ALL") {
+  //     return todayTransactions;
+  //   }
 
+  //   return todayTransactions.filter(
+  //     (entry) => getPaymentMethod(entry) === transactionFilter,
+  //   );
+  // }, [todayTransactions, transactionFilter]);
+
+  const filteredTransactions = useMemo(() => {
     return todayTransactions.filter(
-      (entry) => getPaymentMethod(entry) === transactionFilter,
+      (entry) => getTransactionChannel(entry) === transactionFilter,
     );
   }, [todayTransactions, transactionFilter]);
 
@@ -786,12 +913,12 @@ export default function PosDashboardPage() {
     },
   ];
 
-  const khqrCount = todayTransactions.filter(
-    (entry) => getPaymentMethod(entry) === "KHQR",
+  const onlineCount = todayTransactions.filter(
+    (entry) => getTransactionChannel(entry) === "ONLINE",
   ).length;
 
-  const cashCount = todayTransactions.filter(
-    (entry) => getPaymentMethod(entry) === "CASH",
+  const posCount = todayTransactions.filter(
+    (entry) => getTransactionChannel(entry) === "POS",
   ).length;
 
   const handlePrintReceipt = (entry) => {
@@ -815,12 +942,12 @@ export default function PosDashboardPage() {
 
     const itemsHtml = items.length > 0
       ? items
-          .map((item) => {
-            const name = getItemName(item);
-            const qty = getItemQty(item);
-            const unitPrice = getItemUnitPrice(item);
-            const lineTotal = unitPrice != null ? unitPrice * qty : null;
-            return `
+        .map((item) => {
+          const name = getItemName(item);
+          const qty = getItemQty(item);
+          const unitPrice = getItemUnitPrice(item);
+          const lineTotal = unitPrice != null ? unitPrice * qty : null;
+          return `
               <tr>
                 <td style="padding: 6px 0; border-bottom: 1px dashed #e2e8f0; text-align: left;">
                   <div style="font-weight: 600;">${name}</div>
@@ -831,8 +958,8 @@ export default function PosDashboardPage() {
                 <td style="padding: 6px 0; border-bottom: 1px dashed #e2e8f0; text-align: right; font-weight: 600; vertical-align: top;">${lineTotal != null ? formatPrimaryMoney(lineTotal, settings, false) : "—"}</td>
               </tr>
             `;
-          })
-          .join("")
+        })
+        .join("")
       : `
         <tr>
           <td colspan="4" style="padding: 10px 0; text-align: center; color: #64748b; font-style: italic;">Sale item details</td>
@@ -1122,96 +1249,119 @@ export default function PosDashboardPage() {
                   </div>
                 </div>
 
-                <div className="flex min-h-[230px] w-full min-w-0 flex-1 items-end pt-4 pb-2">
-                  <div className="relative flex h-[210px] w-full min-w-0 items-end">
-                    <div className="pointer-events-none absolute inset-x-0 top-[15%] border-t border-dashed border-[var(--border-soft)] opacity-70" />
-                    <div className="pointer-events-none absolute inset-x-0 top-[38%] border-t border-dashed border-[var(--border-soft)] opacity-70" />
-                    <div className="pointer-events-none absolute inset-x-0 top-[61%] border-t border-dashed border-[var(--border-soft)] opacity-70" />
-                    <div className="pointer-events-none absolute inset-x-0 top-[84%] border-t border-[var(--border-soft)] opacity-70" />
+                <div className="mt-4 flex w-full min-w-0 flex-col gap-5">
+                  {[hourlySales.slice(0, 8), hourlySales.slice(8)].map(
+                    (hourGroup, groupIndex) => {
+                      const groupStartHour = hourGroup[0]?.hour ?? 0;
+                      const groupEndHour = hourGroup[hourGroup.length - 1]?.hour ?? 0;
 
-                    <div className="relative z-10 grid h-full w-full min-w-0 grid-cols-13 items-end gap-1 sm:gap-2">
-                      {hourlySales.map((item, index) => {
-                        const outerHeight =
-                          item.orders > 0
-                            ? Math.max(
-                              10,
-                              (item.orders / maxHourlyOrders) * 88,
-                            )
-                            : 2;
+                      return (
+                        <div key={groupIndex} className="w-full min-w-0">
+                          {/* Bars */}
+                          <div className="relative h-[170px] w-full min-w-0">
+                            <div className="pointer-events-none absolute inset-x-0 top-[15%] border-t border-dashed border-[var(--border-soft)] opacity-70" />
+                            <div className="pointer-events-none absolute inset-x-0 top-[38%] border-t border-dashed border-[var(--border-soft)] opacity-70" />
+                            <div className="pointer-events-none absolute inset-x-0 top-[61%] border-t border-dashed border-[var(--border-soft)] opacity-70" />
+                            <div className="pointer-events-none absolute inset-x-0 top-[84%] border-t border-dashed border-[var(--border-soft)] opacity-70" />
 
-                        const innerHeight =
-                          item.revenue > 0
-                            ? Math.max(
-                              8,
-                              (item.revenue / maxHourlyRevenue) * 82,
-                            )
-                            : 2;
-
-                        return (
-                          <div
-                            key={item.hour}
-                            className="flex h-full min-w-0 items-end justify-center"
-                            title={`${String(item.hour).padStart(2, "0")}:00 — ${item.orders} orders`}
-                          >
                             <div
-                              className="relative flex w-full max-w-7 items-end justify-center bg-[var(--surface-soft)]"
+                              className="relative z-10 grid h-full w-full min-w-0 items-end gap-1 sm:gap-2"
                               style={{
-                                height: `${outerHeight}%`,
+                                gridTemplateColumns: `repeat(${hourGroup.length}, minmax(0, 1fr))`,
                               }}
                             >
-                              <div
-                                className="w-full bg-[var(--pos-action)]"
-                                style={{
-                                  height: `${Math.min(
-                                    100,
-                                    (innerHeight / outerHeight) * 100,
-                                  )}%`,
-                                }}
-                              />
+                              {hourGroup.map((item) => {
+                                const outerHeight =
+                                  item.orders > 0
+                                    ? Math.max(
+                                      10,
+                                      (item.orders / maxHourlyOrders) * 88,
+                                    )
+                                    : 2;
+
+                                const innerHeight =
+                                  item.revenue > 0
+                                    ? Math.max(
+                                      8,
+                                      (item.revenue / maxHourlyRevenue) * 82,
+                                    )
+                                    : 2;
+
+                                return (
+                                  <div
+                                    key={item.hour}
+                                    className="flex h-full min-w-0 items-end justify-center"
+                                    title={`${String(item.hour).padStart(2, "0")}:00 — ${item.orders} orders`}
+                                  >
+                                    <div
+                                      className="relative flex h-full w-full max-w-7 items-end justify-center bg-[var(--surface-soft)]"
+                                      style={{
+                                        height: `${outerHeight}%`,
+                                      }}
+                                    >
+                                      <div
+                                        className="w-full bg-[var(--pos-action)]"
+                                        style={{
+                                          height: `${Math.min(
+                                            100,
+                                            (innerHeight / outerHeight) * 100,
+                                          )}%`,
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
                           </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
 
-                <div className="mt-3 grid w-full min-w-0 grid-cols-13 gap-1 px-1 font-mono text-[8px] text-[var(--muted-foreground)] sm:gap-2 sm:text-[10px]">
-                  {HOURS.map((hour, index) => {
-                    const isPeak =
-                      peakHour?.hour === hour ||
-                      peakHour?.hour + 1 === hour;
+                          {/* Hour labels directly under this row */}
+                          <div
+                            className="mt-2 grid w-full min-w-0 gap-1 px-1 font-mono text-[8px] text-[var(--muted-foreground)] sm:gap-2 sm:text-[10px]"
+                            style={{
+                              gridTemplateColumns: `repeat(${hourGroup.length}, minmax(0, 1fr))`,
+                            }}
+                          >
+                            {hourGroup.map((item) => {
+                              const hour = item.hour;
 
-                    const isNow =
-                      new Date().getHours() === hour;
+                              const isPeak =
+                                peakHour?.hour === hour ||
+                                peakHour?.hour + 1 === hour;
 
-                    return (
-                      <span
-                        key={hour}
-                        className={`min-w-0 text-center ${isPeak || isNow
-                          ? "font-bold text-[var(--foreground)]"
-                          : ""
-                          }`}
-                      >
-                        <span className="hidden sm:inline">
-                          {String(hour).padStart(2, "0")}:00
-                          {isNow ? ` ${t.now}` : ""}
-                        </span>
+                              const isNow =
+                                new Date().getHours() === hour;
 
-                        <span className="sm:hidden">
-                          {index % 2 === 0
-                            ? String(hour).padStart(2, "0")
-                            : ""}
-                        </span>
-                      </span>
-                    );
-                  })}
+                              return (
+                                <span
+                                  key={hour}
+                                  className={`min-w-0 text-center ${isPeak || isNow
+                                    ? "font-bold text-[var(--foreground)]"
+                                    : ""
+                                    }`}
+                                >
+                                  <span className="hidden sm:inline">
+                                    {String(hour).padStart(2, "0")}:00
+                                    {isNow ? ` ${t.now}` : ""}
+                                  </span>
+
+                                  <span className="sm:hidden">
+                                    {String(hour).padStart(2, "0")}
+                                  </span>
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    },
+                  )}
                 </div>
               </section>
 
               {/* Top Selling Items */}
               <section
-                className="flex min-w-0 flex-col border border-[var(--border-soft)] bg-[var(--surface-strong)] p-5"
+                className="min-w-0 flex-col border border-[var(--border-soft)] bg-[var(--surface-strong)] p-5"
                 data-purpose="top-selling-products"
               >
                 <div className="mb-3 flex min-w-0 items-start justify-between gap-3 border-b border-[var(--border-soft)] pb-3">
@@ -1316,7 +1466,7 @@ export default function PosDashboardPage() {
                 </div>
 
                 <div className="flex max-w-full min-w-0 items-center overflow-hidden border border-[var(--border-soft)] bg-[var(--surface-soft)] text-xs">
-                  <button
+                  {/* <button
                     type="button"
                     onClick={() => setTransactionFilter("ALL")}
                     className={`min-w-0 flex-1 px-2.5 py-1.5 font-semibold transition-colors sm:px-3 ${transactionFilter === "ALL"
@@ -1325,9 +1475,9 @@ export default function PosDashboardPage() {
                       }`}
                   >
                     {t.all} ({todayTransactions.length})
-                  </button>
+                  </button> */}
 
-                  <button
+                  {/* <button
                     type="button"
                     onClick={() => setTransactionFilter("KHQR")}
                     className={`min-w-0 flex-1 border-l border-[var(--border-soft)] px-2.5 py-1.5 font-medium transition-colors sm:px-3 ${transactionFilter === "KHQR"
@@ -1347,6 +1497,27 @@ export default function PosDashboardPage() {
                       }`}
                   >
                     {t.cash} ({cashCount})
+                  </button> */}
+                  <button
+                    type="button"
+                    onClick={() => setTransactionFilter("ONLINE")}
+                    className={`min-w-0 flex-1 border-l border-[var(--border-soft)] px-2.5 py-1.5 font-medium transition-colors sm:px-3 ${transactionFilter === "ONLINE"
+                      ? "bg-[var(--surface-strong)] text-[var(--pos-action)]"
+                      : "text-[var(--muted-foreground)] hover:bg-[var(--surface-strong)]"
+                      }`}
+                  >
+                    ONLINE ({onlineCount})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setTransactionFilter("POS")}
+                    className={`min-w-0 flex-1 border-l border-[var(--border-soft)] px-2.5 py-1.5 font-medium transition-colors sm:px-3 ${transactionFilter === "POS"
+                      ? "bg-[var(--surface-strong)] text-[var(--pos-action)]"
+                      : "text-[var(--muted-foreground)] hover:bg-[var(--surface-strong)]"
+                      }`}
+                  >
+                    POS ({posCount})
                   </button>
                 </div>
               </div>
@@ -1379,7 +1550,7 @@ export default function PosDashboardPage() {
                             </div>
                           </div>
 
-                          <button
+                          {/* <button
                             type="button"
                             title={t.printReceipt}
                             aria-label={t.printReceipt}
@@ -1390,7 +1561,34 @@ export default function PosDashboardPage() {
                               className="size-3.5"
                               aria-hidden="true"
                             />
-                          </button>
+                          </button> */}
+                          <div className="flex shrink-0 items-center gap-1">
+                            <button
+                              type="button"
+                              title="View Transaction"
+                              aria-label="View Transaction"
+                              onClick={() => setSelectedTransaction(entry)}
+                              className="border border-[var(--border-soft)] p-1.5 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface-soft)] hover:text-[var(--foreground)]"
+                            >
+                              <Eye
+                                className="size-3.5"
+                                aria-hidden="true"
+                              />
+                            </button>
+
+                            <button
+                              type="button"
+                              title={t.printReceipt}
+                              aria-label={t.printReceipt}
+                              onClick={() => handlePrintReceipt(entry)}
+                              className="border border-[var(--border-soft)] p-1.5 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface-soft)] hover:text-[var(--foreground)]"
+                            >
+                              <Printer
+                                className="size-3.5"
+                                aria-hidden="true"
+                              />
+                            </button>
+                          </div>
                         </div>
 
                         <div className="mt-3 min-w-0">
@@ -1587,7 +1785,7 @@ export default function PosDashboardPage() {
                               </span>
                             </td>
 
-                            <td className="px-4 py-3 text-right align-top font-sans">
+                            {/* <td className="px-4 py-3 text-right align-top font-sans">
                               <button
                                 type="button"
                                 title={t.printReceipt}
@@ -1600,6 +1798,35 @@ export default function PosDashboardPage() {
                                   aria-hidden="true"
                                 />
                               </button>
+                            </td> */}
+                            <td className="px-4 py-3 text-right align-top font-sans">
+                              <div className="flex items-center justify-end gap-1">
+                                <button
+                                  type="button"
+                                  title="View Transaction"
+                                  aria-label="View Transaction"
+                                  onClick={() => setSelectedTransaction(entry)}
+                                  className="border border-[var(--border-soft)] p-1 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface-soft)] hover:text-[var(--foreground)]"
+                                >
+                                  <Eye
+                                    className="size-3.5"
+                                    aria-hidden="true"
+                                  />
+                                </button>
+
+                                <button
+                                  type="button"
+                                  title={t.printReceipt}
+                                  aria-label={t.printReceipt}
+                                  onClick={() => handlePrintReceipt(entry)}
+                                  className="border border-[var(--border-soft)] p-1 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface-soft)] hover:text-[var(--foreground)]"
+                                >
+                                  <Printer
+                                    className="size-3.5"
+                                    aria-hidden="true"
+                                  />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -1691,6 +1918,174 @@ export default function PosDashboardPage() {
           }
         }
       `}</style>
+
+      {selectedTransaction ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setSelectedTransaction(null)}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto border border-[var(--border-soft)] bg-[var(--surface-strong)] shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-[var(--border-soft)] p-4">
+              <div>
+                <h3 className="text-sm font-bold uppercase tracking-tight text-[var(--foreground)]">
+                  Transaction Details
+                </h3>
+
+                <p className="mt-1 font-mono text-xs text-[var(--muted-foreground)]">
+                  #{String(getTransactionId(selectedTransaction))}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedTransaction(null)}
+                className="border border-[var(--border-soft)] p-1.5 text-[var(--muted-foreground)] hover:bg-[var(--surface-soft)] hover:text-[var(--foreground)]"
+                aria-label="Close"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <div className="space-y-5 p-5">
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <div>
+                  <p className="text-[10px] uppercase text-[var(--muted-foreground)]">
+                    Channel
+                  </p>
+                  <p className="mt-1 text-xs font-bold text-[var(--foreground)]">
+                    {getTransactionChannel(selectedTransaction)}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-[10px] uppercase text-[var(--muted-foreground)]">
+                    Status
+                  </p>
+                  <p className="mt-1 text-xs font-bold text-[var(--foreground)]">
+                    {getTransactionStatus(selectedTransaction)}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-[10px] uppercase text-[var(--muted-foreground)]">
+                    Payment
+                  </p>
+                  <p className="mt-1 text-xs font-bold text-[var(--foreground)]">
+                    {getPaymentMethod(selectedTransaction)}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-[10px] uppercase text-[var(--muted-foreground)]">
+                    Time
+                  </p>
+                  <p className="mt-1 text-xs font-bold text-[var(--foreground)]">
+                    {formatTime(
+                      getTimestamp(selectedTransaction),
+                      language,
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="mb-2 text-xs font-bold uppercase text-[var(--foreground)]">
+                  Items
+                </h4>
+
+                <div className="divide-y divide-[var(--border-soft)] border border-[var(--border-soft)]">
+                  {getTransactionItems(selectedTransaction).map(
+                    (item, index) => {
+                      const qty = getItemQty(item);
+                      const unitPrice = getItemUnitPrice(item);
+                      const lineTotal =
+                        unitPrice != null
+                          ? unitPrice * qty
+                          : null;
+
+                      return (
+                        <div
+                          key={item.id || `${getItemName(item)}-${index}`}
+                          className="flex items-center justify-between gap-4 p-3"
+                        >
+                          <div className="min-w-0">
+                            <p className="break-words text-xs font-semibold text-[var(--foreground)]">
+                              {getItemName(item)}
+                            </p>
+
+                            <p className="mt-0.5 text-[10px] text-[var(--muted-foreground)]">
+                              Qty: {qty}
+                            </p>
+                          </div>
+
+                          <div className="shrink-0 text-right">
+                            <p className="text-xs font-semibold text-[var(--foreground)]">
+                              {lineTotal != null
+                                ? formatPrimaryMoney(
+                                  lineTotal,
+                                  settings,
+                                  false,
+                                )
+                                : "—"}
+                            </p>
+
+                            {unitPrice != null ? (
+                              <p className="text-[10px] text-[var(--muted-foreground)]">
+                                {formatPrimaryMoney(
+                                  unitPrice,
+                                  settings,
+                                  false,
+                                )}{" "}
+                                each
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                      );
+                    },
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between border-t border-[var(--border-soft)] pt-4">
+                <span className="text-xs font-bold uppercase text-[var(--foreground)]">
+                  Total
+                </span>
+
+                <span className="font-mono text-lg font-bold text-[var(--foreground)]">
+                  {formatPrimaryMoney(
+                    getTransactionTotal(selectedTransaction),
+                    settings,
+                    false,
+                  )}
+                </span>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => handlePrintReceipt(selectedTransaction)}
+                  className="flex items-center gap-2 border border-[var(--border-soft)] px-3 py-2 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-soft)]"
+                >
+                  <Printer className="size-3.5" />
+                  {t.printReceipt}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedTransaction(null)}
+                  className="bg-[var(--pos-action)] px-3 py-2 text-xs font-semibold text-white"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }
