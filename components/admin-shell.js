@@ -51,6 +51,9 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { OnlineOrderAlertPopup } from "@/components/online-order-alert-popup";
+import { PushNotificationToggle } from "@/components/push-notification-toggle";
+import { useOnlineOrderAlerts } from "@/hooks/useOnlineOrderAlerts";
 import { useTranslation } from "@/lib/translations";
 import { cn } from "@/lib/utils";
 
@@ -442,6 +445,9 @@ function TopHeader({
           <span className="text-xs font-semibold">{t ? t("new_product") : "New Product"}</span>
         </Button>
 
+        {/* Web Push Toggle */}
+        <PushNotificationToggle lang={lang} className="hidden sm:inline-flex" />
+
         {/* Language Switcher Dropdown */}
         <div className="relative">
           <button
@@ -718,6 +724,13 @@ export function AdminShell({ user, initialTab = "dashboard" }) {
   const { t } = useTranslation(lang);
   const selectedTab = resolveAdminTab(searchParams.get("tab") || initialTab);
 
+  // Real-time online order alerts with popup toast & sound
+  const { activeAlerts: onlineOrderAlerts, dismissAlert: dismissOnlineAlert } = useOnlineOrderAlerts({
+    enabled: Boolean(user),
+    role: user?.role || "ADMIN",
+    viewHref: "/admin?tab=orders",
+  });
+
   const title = useMemo(() => {
     const found = adminTabs.find((t) => t.key === selectedTab);
     return found ? t(found.translationKey || found.label) : t("nav_overview");
@@ -801,9 +814,16 @@ export function AdminShell({ user, initialTab = "dashboard" }) {
   }, []);
 
   useEffect(() => {
-    loadNotifications();
+    let mounted = true;
+    const run = async () => {
+      if (mounted) await loadNotifications();
+    };
+    run();
     const interval = window.setInterval(loadNotifications, 60000);
-    return () => window.clearInterval(interval);
+    return () => {
+      mounted = false;
+      window.clearInterval(interval);
+    };
   }, [loadNotifications]);
 
   // Close notifications on window click
@@ -882,6 +902,13 @@ export function AdminShell({ user, initialTab = "dashboard" }) {
 
       {/* System Alerts Modal */}
       <AlertsModal activeAlerts={activeAlerts} alertOpen={alertOpen} setAlertOpen={setAlertOpen} />
+
+      {/* Online Order Live Notification Popup & Sound */}
+      <OnlineOrderAlertPopup
+        alerts={onlineOrderAlerts}
+        onDismiss={dismissOnlineAlert}
+        lang={lang}
+      />
     </div>
   );
 }
