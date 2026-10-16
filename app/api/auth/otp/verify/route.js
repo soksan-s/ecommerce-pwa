@@ -1,5 +1,6 @@
 import { fail, handleRouteError, ok } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
+import { normalizePhoneNumber } from "@/lib/phone";
 import bcrypt from "bcryptjs";
 
 export async function POST(request) {
@@ -10,10 +11,12 @@ export async function POST(request) {
       return fail("Missing required fields.", 400);
     }
 
+    const canonicalPhone = normalizePhoneNumber(phoneNumber) || phoneNumber;
+
     // Find the most recent unused OTP for this phone and purpose
     const otpRecord = await prisma.otp.findFirst({
       where: {
-        phone: phoneNumber,
+        phone: { in: [phoneNumber, canonicalPhone] },
         purpose,
         usedAt: null,
       },

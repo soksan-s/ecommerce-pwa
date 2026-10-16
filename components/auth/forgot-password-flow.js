@@ -145,7 +145,7 @@ export function ForgotPasswordFlow({ onSwitchToLogin }) {
         callback: () => {},
       });
 
-      const result = await signInWithPhoneNumber(firebaseAuth, trimmed, verifier);
+      const result = await signInWithPhoneNumber(firebaseAuth, phoneNumber, verifier);
       confirmationResultRef.current = result;
       setStep(2);
     } catch (err) {

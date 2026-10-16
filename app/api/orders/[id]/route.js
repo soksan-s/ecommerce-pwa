@@ -13,6 +13,13 @@ function mapStatus(status) {
     : null;
 }
 
+function mapDeliveryStatus(status) {
+  if (!status) return null;
+  const normalized = String(status).trim().toUpperCase().replace(/-/g, "_");
+  const VALID = ["PENDING", "ASSIGNED", "PICKED_UP", "IN_TRANSIT", "DELIVERED", "FAILED", "RETURNED"];
+  return VALID.includes(normalized) ? normalized : null;
+}
+
 async function allocateFefoBatches(tx, { order, userId }) {
   if (order.channel !== "ONLINE" || !order.branchId) {
     return;
@@ -328,6 +335,8 @@ export async function PATCH(request, { params }) {
       }
 
       // Handle Delivery record update or create
+      const deliveryStatus = mapDeliveryStatus(body.deliveryStatus);
+
       if (existing.delivery) {
         await tx.delivery.update({
           where: { orderId: id },
@@ -335,11 +344,11 @@ export async function PATCH(request, { params }) {
             ...(driverId ? { driverId } : {}),
             ...(body.deliveryNote !== undefined ? { note: body.deliveryNote } : {}),
             ...(body.scheduledAt ? { scheduledAt: new Date(body.scheduledAt) } : {}),
-            ...(body.deliveryStatus ? { status: body.deliveryStatus } : {}),
+            ...(deliveryStatus ? { status: deliveryStatus } : {}),
             ...(nextStatus === "DELIVERED" ? { deliveredAt: new Date(), status: "DELIVERED" } : {}),
           },
         });
-      } else if (driverId || body.deliveryNote || body.scheduledAt) {
+      } else if (driverId || body.deliveryNote || body.scheduledAt || deliveryStatus) {
         await tx.delivery.create({
           data: {
             orderId: id,
@@ -347,7 +356,7 @@ export async function PATCH(request, { params }) {
             driverId: driverId || null,
             note: body.deliveryNote || null,
             scheduledAt: body.scheduledAt ? new Date(body.scheduledAt) : null,
-            status: nextStatus === "DELIVERED" ? "DELIVERED" : "PENDING",
+            status: nextStatus === "DELIVERED" ? "DELIVERED" : (deliveryStatus || "PENDING"),
             deliveredAt: nextStatus === "DELIVERED" ? new Date() : null,
           },
         });
