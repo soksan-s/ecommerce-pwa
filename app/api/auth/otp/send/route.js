@@ -1,6 +1,7 @@
 import { fail, handleRouteError, ok } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
 import { sendOTP, generateOTPCode } from "@/lib/otp-provider";
+import { normalizePhoneNumber } from "@/lib/phone";
 import bcrypt from "bcryptjs";
 
 export async function POST(request) {
@@ -15,6 +16,16 @@ export async function POST(request) {
       return fail("Invalid OTP purpose.", 400);
     }
 
+    // Demo OTP guard: only allow the designated demo phone number
+    const demoOtpEnabled = process.env.DEMO_OTP_ENABLED === "true";
+    if (demoOtpEnabled) {
+      const demoPhone = normalizePhoneNumber(process.env.DEMO_OTP_PHONE || "");
+      const requestPhone = normalizePhoneNumber(phoneNumber);
+      if (!demoPhone || requestPhone !== demoPhone) {
+        return fail("Demo OTP is only available for the designated test phone number.", 403);
+      }
+    }
+
     // Basic rate limiting / cooldown check:
     // Ensure they haven't requested an OTP in the last 60 seconds
     const recentOtp = await prisma.otp.findFirst({
@@ -27,24 +38,26 @@ export async function POST(request) {
       },
     });
 
-    if (recentOtp) {
+    if (recentOtp && !demoOtpEnabled) {
       return fail("Please wait 60 seconds before requesting another code.", 429);
     }
 
-    const code = generateOTPCode();
+    const code = (demoOtpEnabled && process.env.DEMO_OTP_CODE) ? process.env.DEMO_OTP_CODE : generateOTPCode();
     const codeHash = await bcrypt.hash(code, 10);
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
+    const canonicalPhone = normalizePhoneNumber(phoneNumber) || phoneNumber;
+
     await prisma.otp.create({
       data: {
-        phone: phoneNumber,
+        phone: canonicalPhone,
         codeHash,
         purpose,
         expiresAt,
       },
     });
 
-    const sent = await sendOTP(phoneNumber, code);
+    const sent = await sendOTP(canonicalPhone, code);
     
     if (!sent) {
       return fail("Failed to send OTP.", 500);

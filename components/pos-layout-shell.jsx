@@ -6,8 +6,11 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { NotificationsDropdown } from "@/components/notifications-dropdown";
+import { OnlineOrderAlertPopup } from "@/components/online-order-alert-popup";
+import { PushNotificationToggle } from "@/components/push-notification-toggle";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useOffline } from "@/hooks/useOffline";
+import { useOnlineOrderAlerts } from "@/hooks/useOnlineOrderAlerts";
 import { usePOSSettings } from "@/hooks/usePOSSettings";
 import { authClient } from "@/lib/auth-client";
 import { getAll } from "@/lib/db";
@@ -53,6 +56,13 @@ export function PosLayoutShell({ children }) {
   const dismissLocalNotification = usePosStore(
     (state) => state.dismissLocalNotification
   );
+
+  // Real-time online order alerts for POS staff with popup & chime sound
+  const { activeAlerts: onlineOrderAlerts, dismissAlert: dismissOnlineAlert } = useOnlineOrderAlerts({
+    enabled: true,
+    role: "CASHIER",
+    viewHref: "/pos/orders",
+  });
 
   useEffect(() => {
     let active = true;
@@ -564,6 +574,9 @@ export function PosLayoutShell({ children }) {
             </button>
           </div>
 
+          {/* Web Push Toggle */}
+          <PushNotificationToggle lang={lang} />
+
           {/* Notifications */}
           <NotificationsDropdown
             lang={lang}
@@ -821,6 +834,9 @@ export function PosLayoutShell({ children }) {
               </button>
             </div>
 
+            {/* Web Push Toggle */}
+            <PushNotificationToggle lang={lang} />
+
             {/* Notifications */}
             <NotificationsDropdown
               lang={lang}
@@ -860,6 +876,13 @@ export function PosLayoutShell({ children }) {
           </div>
         </main>
       </div>
+
+      {/* Online Order Real-Time Alert Toast / Popup with Sound */}
+      <OnlineOrderAlertPopup
+        alerts={onlineOrderAlerts}
+        onDismiss={dismissOnlineAlert}
+        lang={lang}
+      />
     </div>
   );
 }

@@ -416,3 +416,60 @@ self.addEventListener("sync", (event) => {
     event.waitUntil(replayQueue());
   }
 });
+
+// ─── Web Push Notifications ─────────────────────────────────────────────────
+
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+
+  try {
+    const payload = event.data.json();
+    const title = payload.title || "Soeum Savet Store - New Order";
+    const options = {
+      body: payload.body || "A new online order has been placed.",
+      icon: payload.icon || "/icons/icon-192.svg",
+      badge: payload.badge || "/icons/icon-192.svg",
+      tag: payload.tag || `order-${Date.now()}`,
+      data: payload.data || { url: "/admin?tab=orders" },
+      vibrate: [200, 100, 200],
+      requireInteraction: true,
+      actions: [
+        { action: "view", title: "View Order" },
+        { action: "dismiss", title: "Dismiss" },
+      ],
+    };
+
+    event.waitUntil(self.registration.showNotification(title, options));
+  } catch (error) {
+    console.error("[SW] Push event handling error:", error);
+  }
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  if (event.action === "dismiss") {
+    return;
+  }
+
+  const targetUrl = event.notification.data?.url || "/admin?tab=orders";
+
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      // If a tab is already open, navigate and focus it
+      for (const client of clientList) {
+        if (client.url && client.url.includes(self.location.origin) && "focus" in client) {
+          if ("navigate" in client) {
+            client.navigate(targetUrl);
+          }
+          return client.focus();
+        }
+      }
+      // Otherwise open a new window
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
+    })
+  );
+});
+

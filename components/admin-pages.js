@@ -2889,7 +2889,7 @@ export function AdminOrderManagementPageView() {
           driverPhone: trackingModal.driverPhone.trim() || null,
           deliveryNote: trackingModal.deliveryNote.trim() || null,
           scheduledAt: trackingModal.scheduledAt || null,
-          deliveryStatus: trackingModal.deliveryStatus || undefined,
+          deliveryStatus: trackingModal.deliveryStatus ? String(trackingModal.deliveryStatus).toUpperCase() : undefined,
         }),
       });
 
@@ -3168,7 +3168,7 @@ export function AdminOrderManagementPageView() {
                             driverPhone: selectedOrder.delivery?.driver?.phone || "",
                             deliveryNote: selectedOrder.note || selectedOrder.delivery?.note || "",
                             scheduledAt: selectedOrder.delivery?.scheduledAt ? new Date(selectedOrder.delivery.scheduledAt).toISOString().slice(0, 10) : "",
-                            deliveryStatus: selectedOrder.delivery?.status || "PENDING",
+                            deliveryStatus: String(selectedOrder.delivery?.status || "PENDING").toUpperCase(),
                             loading: false,
                             error: "",
                             success: "",

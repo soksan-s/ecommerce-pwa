@@ -55,6 +55,8 @@ function StepIndicator({ currentStep }) {
 }
 
 export function RegisterForm({ onSwitchToLogin }) {
+  const isDemoOtpEnabled = process.env.NEXT_PUBLIC_DEMO_OTP_ENABLED === "true";
+
   const countries = useMemo(
     () => [
       { code: "KH", name: "Cambodia", flag: "🇰🇭", dialCode: "+855" },
@@ -136,12 +138,12 @@ export function RegisterForm({ onSwitchToLogin }) {
     }
 
     setAccountExistsModalOpen(false);
-    setAccountExistsPhone(trimmed);
+    setAccountExistsPhone(phoneNumber);
     setLoading(true);
 
     try {
       const checkRes = await fetch(
-        `/api/auth/check-phone-exists?phoneNumber=${encodeURIComponent(trimmed)}`,
+        `/api/auth/check-phone-exists?phoneNumber=${encodeURIComponent(phoneNumber)}`,
         { method: "GET", cache: "no-store" },
       );
       const checkPayload = await checkRes.json();
@@ -151,23 +153,40 @@ export function RegisterForm({ onSwitchToLogin }) {
         return;
       }
 
-      const { RecaptchaVerifier, signInWithPhoneNumber } = await import("firebase/auth");
-      const { firebaseAuth } = await import("@/lib/firebase");
+      if (isDemoOtpEnabled) {
+        // Demo OTP mode: use server-side OTP instead of Firebase SMS
+        const otpRes = await fetch("/api/auth/otp/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phoneNumber, purpose: "VERIFY_PHONE" }),
+        });
 
-      if (recaptchaVerifierRef.current) {
-        recaptchaVerifierRef.current.clear();
-        recaptchaVerifierRef.current = null;
+        const otpData = await otpRes.json();
+        if (!otpRes.ok) {
+          throw new Error(otpData?.error?.message || otpData?.error || "Failed to send verification code.");
+        }
+
+        setStep(2);
+      } else {
+        // Firebase OTP mode (original)
+        const { RecaptchaVerifier, signInWithPhoneNumber } = await import("firebase/auth");
+        const { firebaseAuth } = await import("@/lib/firebase");
+
+        if (recaptchaVerifierRef.current) {
+          recaptchaVerifierRef.current.clear();
+          recaptchaVerifierRef.current = null;
+        }
+
+        const verifier = new RecaptchaVerifier(firebaseAuth, "recaptcha-register", {
+          size: "invisible",
+          callback: () => {},
+        });
+        recaptchaVerifierRef.current = verifier;
+
+        const result = await signInWithPhoneNumber(firebaseAuth, phoneNumber, verifier);
+        confirmationResultRef.current = result;
+        setStep(2);
       }
-
-      const verifier = new RecaptchaVerifier(firebaseAuth, "recaptcha-register", {
-        size: "invisible",
-        callback: () => {},
-      });
-      recaptchaVerifierRef.current = verifier;
-
-      const result = await signInWithPhoneNumber(firebaseAuth, trimmed, verifier);
-      confirmationResultRef.current = result;
-      setStep(2);
     } catch (err) {
       setErrorObj(normalizeAuthError(err));
     } finally {
@@ -185,19 +204,38 @@ export function RegisterForm({ onSwitchToLogin }) {
       return;
     }
 
-    if (!confirmationResultRef.current) {
-      setErrorObj(normalizeAuthError({ message: "Session expired. Please go back and try again." }));
-      return;
-    }
-
     setLoading(true);
 
     try {
-      const userCredential = await confirmationResultRef.current.confirm(otp);
-      const { getFirebaseIdToken } = await import("@/lib/firebase");
-      const idToken = await getFirebaseIdToken(userCredential);
-      firebaseIdTokenRef.current = idToken;
-      setStep(3);
+      if (isDemoOtpEnabled) {
+        // Demo OTP mode: verify via server-side API
+        const verifyRes = await fetch("/api/auth/otp/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phoneNumber, code: otp, purpose: "VERIFY_PHONE" }),
+        });
+
+        const verifyData = await verifyRes.json();
+        if (!verifyRes.ok) {
+          throw new Error(verifyData?.error?.message || verifyData?.error || "Invalid verification code.");
+        }
+
+        // No Firebase token needed in demo mode
+        firebaseIdTokenRef.current = null;
+        setStep(3);
+      } else {
+        // Firebase OTP mode (original)
+        if (!confirmationResultRef.current) {
+          setErrorObj(normalizeAuthError({ message: "Session expired. Please go back and try again." }));
+          return;
+        }
+
+        const userCredential = await confirmationResultRef.current.confirm(otp);
+        const { getFirebaseIdToken } = await import("@/lib/firebase");
+        const idToken = await getFirebaseIdToken(userCredential);
+        firebaseIdTokenRef.current = idToken;
+        setStep(3);
+      }
     } catch (err) {
       setErrorObj(normalizeAuthError(err));
     } finally {
@@ -229,7 +267,7 @@ export function RegisterForm({ onSwitchToLogin }) {
       return;
     }
 
-    if (!firebaseIdTokenRef.current) {
+    if (!isDemoOtpEnabled && !firebaseIdTokenRef.current) {
       setErrorObj(normalizeAuthError({ message: "Phone verification expired. Please start over." }));
       return;
     }
@@ -265,6 +303,7 @@ export function RegisterForm({ onSwitchToLogin }) {
       setLoading(false);
     }
   }
+
 
   return (
     <>
@@ -396,7 +435,7 @@ export function RegisterForm({ onSwitchToLogin }) {
             {loading ? (
               <span className="flex items-center justify-center gap-2">
                 <Loader2 className="size-4 animate-spin" />
-                <span>Sending SMS Code...</span>
+                <span>{isDemoOtpEnabled ? "Sending Verification Code..." : "Sending SMS Code..."}</span>
               </span>
             ) : (
               <span className="flex items-center justify-center gap-2">
@@ -426,7 +465,7 @@ export function RegisterForm({ onSwitchToLogin }) {
               Verify Phone
             </h2>
             <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-              Enter the 6-digit SMS code sent to <strong className="text-[var(--foreground)]">{phoneNumber}</strong>.
+              Enter the 6-digit {isDemoOtpEnabled ? "verification" : "SMS"} code sent to <strong className="text-[var(--foreground)]">{phoneNumber}</strong>.
             </p>
           </div>
 
@@ -440,7 +479,7 @@ export function RegisterForm({ onSwitchToLogin }) {
 
           <div>
             <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
-              6-Digit SMS Code
+              {isDemoOtpEnabled ? "6-Digit Verification Code" : "6-Digit SMS Code"}
             </label>
             <div
               className={`overflow-hidden rounded-2xl border bg-[var(--surface-quiet)]/80 focus-within:bg-[var(--surface-strong)] focus-within:ring-2 ${

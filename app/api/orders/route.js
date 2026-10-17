@@ -3,6 +3,8 @@ import { calculateDeposits, createAuditLog, createInventoryMovement, createNotif
 import { canAccessPOS, getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { serializeOrder } from "@/lib/serializers";
+import { sendTelegramOrderNotification } from "@/lib/server/services/telegram";
+import { sendOrderPushNotification } from "@/lib/server/services/web-push";
 
 function startOfDay(value) {
   const date = value instanceof Date ? new Date(value) : new Date(value);
@@ -485,12 +487,27 @@ export async function POST(request) {
       timeout: 30000,
     });
 
-    // ── Post-transaction: fire ORDER_PLACED notifications (best-effort) ──
+    // ── Post-transaction: fire notifications (best-effort, non-blocking) ──
     try {
       const orderRef = order.orderNumber || order.id;
-      const notifData = { orderId: order.id, orderNumber: orderRef, channel: "ONLINE" };
+      const notifData = {
+        orderId: order.id,
+        orderNumber: orderRef,
+        channel: "ONLINE",
+        total: Number(order.total),
+      };
 
-      // Notify the customer who placed the order
+      // 1. Send Telegram notification to staff group
+      sendTelegramOrderNotification(order).catch((err) => {
+        console.error("[orders] Telegram notification error:", err?.message || err);
+      });
+
+      // 2. Send Web Push notification to subscribed staff
+      sendOrderPushNotification(order).catch((err) => {
+        console.error("[orders] Web Push notification error:", err?.message || err);
+      });
+
+      // 3. Notify the customer who placed the order
       if (user?.id) {
         await createNotification(prisma, {
           userId: user.id,
@@ -501,13 +518,13 @@ export async function POST(request) {
         });
       }
 
-      // Notify the branch cashiers (branchId-scoped)
+      // 4. Notify the branch cashiers (branchId-scoped)
       if (branchId) {
         await createNotification(prisma, {
           branchId,
           type: "ORDER_PLACED",
           title: "New Online Order",
-          message: `New online order #${orderRef} received.`,
+          message: `New online order #${orderRef} received ($${Number(order.total).toFixed(2)}).`,
           data: notifData,
         });
       }

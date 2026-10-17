@@ -46,22 +46,50 @@ export async function POST(request) {
       return fail("Password must be at least 4 characters long.", 400);
     }
 
-    // Verify the Firebase ID token to confirm the phone number was genuinely verified by Firebase
-    if (!firebaseIdToken) {
-      return fail("Phone verification token is missing. Please verify your phone number first.", 400);
-    }
-
-    const firebaseUser = await verifyFirebaseIdToken(firebaseIdToken);
-
     const canonicalPhone = normalizePhoneNumber(phoneNumber);
 
     if (!canonicalPhone) {
       return fail("Please enter a valid phone number.", 400);
     }
 
-    if (!phonesMatch(firebaseUser.phoneNumber, canonicalPhone)) {
-      return fail("Phone number does not match the verified Firebase token.", 400);
+    // --- Demo OTP mode: verify via server-side OTP record instead of Firebase ---
+    const demoOtpEnabled = process.env.DEMO_OTP_ENABLED === "true";
+
+    if (demoOtpEnabled) {
+      // Restrict to the designated demo phone number
+      const demoPhone = normalizePhoneNumber(process.env.DEMO_OTP_PHONE || "");
+      if (!demoPhone || canonicalPhone !== demoPhone) {
+        return fail("Demo OTP registration is only available for the designated test phone number.", 403);
+      }
+
+      // Check that the phone was successfully verified via /api/auth/otp/verify
+      // within the last 10 minutes (OTP record must be marked as used)
+      const recentVerifiedOtp = await prisma.otp.findFirst({
+        where: {
+          phone: { in: [canonicalPhone, phoneNumber] },
+          purpose: "VERIFY_PHONE",
+          usedAt: { not: null },
+          createdAt: { gt: new Date(Date.now() - 10 * 60 * 1000) },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      if (!recentVerifiedOtp) {
+        return fail("Phone verification not completed. Please verify your phone number first.", 400);
+      }
+    } else {
+      // --- Original Firebase OTP mode ---
+      if (!firebaseIdToken) {
+        return fail("Phone verification token is missing. Please verify your phone number first.", 400);
+      }
+
+      const firebaseUser = await verifyFirebaseIdToken(firebaseIdToken);
+
+      if (!phonesMatch(firebaseUser.phoneNumber, canonicalPhone)) {
+        return fail("Phone number does not match the verified Firebase token.", 400);
+      }
     }
+
 
     const passwordHash = await hashPassword(password);
 
@@ -110,7 +138,7 @@ export async function POST(request) {
       },
     });
 
-    console.log("[register] verified firebase token; created Better Auth phone credential for", {
+    console.log(`[register] verified via ${demoOtpEnabled ? "demo OTP" : "firebase token"}; created Better Auth phone credential for`, {
       canonicalPhone,
       userId: user.id,
     });
