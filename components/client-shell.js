@@ -437,10 +437,10 @@ export function ClientShell({ user, initialTab = "home", orderDetailId = "" }) {
                   activeTab === "profile" && "text-[var(--action)]"
                 )}
                 aria-label="Open profile"
-                title={user.name || user.email || "Account"}
+                title={user.name || user.username || user.phoneNumber || "Account"}
               >
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--action-surface)] text-xs font-black text-[var(--action)] ring-1 ring-[color-mix(in_srgb,var(--action)_30%,transparent)]">
-                  {(user.name || user.email || "U")[0].toUpperCase()}
+                  {(user.name || user.username || user.phoneNumber || "U")[0].toUpperCase()}
                 </div>
               </button>
             )}
@@ -553,7 +553,7 @@ export function ClientShell({ user, initialTab = "home", orderDetailId = "" }) {
                     {user ? "Authenticated" : "Welcome"}
                   </p>
                   <p className="text-sm font-bold text-[var(--foreground)] truncate max-w-[180px]">
-                    {user ? user.email : "Browsing as guest"}
+                    {user ? (user.name || user.username || user.phoneNumber || "Account") : "Browsing as guest"}
                   </p>
                 </div>
                 <button

@@ -634,6 +634,7 @@ function getProductMaxDiscountPercent(product) {
 }
 
 export function ProductCard({ product, store, requireAuth = null }) {
+  const router = useRouter();
   const { t } = useTranslation(store.language);
   const isFavorite = store.isFavorite(product.id);
   const discountedPrice = getProductDiscountedPrice(product);
@@ -753,6 +754,7 @@ export function ProductCard({ product, store, requireAuth = null }) {
             onClick={() => {
               if (requireAuth && !requireAuth("Sign in to add items to your cart")) return;
               store.addToCart(product.id);
+              router.push("/client?tab=cart");
             }}
             disabled={totalStock <= 0}
           >
@@ -3126,7 +3128,9 @@ export function ClientProfilePageView({ user }) {
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-lg font-semibold text-[var(--foreground)]">{t("welcome_back")}</p>
-            <p className="mt-1 truncate text-sm text-[var(--muted-foreground)]">{user.phoneNumber}</p>
+            <p className="mt-1 truncate text-sm text-[var(--muted-foreground)]">
+              {user.phoneNumber || "Phone number unavailable"}
+            </p>
           </div>
           <LogoutButton iconOnly />
         </div>
@@ -3403,6 +3407,7 @@ export function ClientProfilePageView({ user }) {
 }
 
 export function ClientProductDetailPageView({ productId, user }) {
+  const router = useRouter();
   const store = useAppStore();
   const router = useRouter();
   const [comment, setComment] = useState("");

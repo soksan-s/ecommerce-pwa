@@ -886,3 +886,4 @@ export function PosLayoutShell({ children }) {
     </div>
   );
 }
+
