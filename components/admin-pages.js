@@ -710,7 +710,7 @@ export function AdminDashboardPageView() {
       >
         <div className="min-w-0 space-y-4 sm:space-y-5 lg:space-y-6">
           {/* Overview Header */}
-          <EntranceMotion delay={0.04}>
+          {/* <EntranceMotion delay={0.04}>
             <section className="flex min-w-0 items-center justify-between gap-3">
               <div className="min-w-0">
                 <h1 className="truncate text-xl font-bold tracking-tight text-[var(--foreground)] sm:text-2xl">
@@ -722,7 +722,7 @@ export function AdminDashboardPageView() {
                 </p>
               </div>
             </section>
-          </EntranceMotion>
+          </EntranceMotion> */}
 
           {/* KPI Metrics */}
           <section className="grid min-w-0 grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 xl:grid-cols-6">

@@ -22,18 +22,25 @@ function normalizeProduct(product, exchangeRate = 4100) {
     ? Number(product.price)
     : convertMoney(product.price_khr, "KHR", "USD", exchangeRate);
 
+  const rawVariants = Array.isArray(product.variants) ? product.variants : [];
+  const hasVariants = Boolean(product.isVariant || rawVariants.length > 0);
+
   return {
     id: product.id || `prd-${Date.now()}`,
     name: product.name || "Unnamed Product",
     sku: product.sku || product.id || "",
+    barcode: product.barcode || "",
     description: product.description || "",
     category: product.category || "General",
     price: Number(price || 0),
+    wholesalePrice: Number(product.wholesalePrice || 0),
     stock: Number(product.stock || 0),
     lowStockThreshold: Number(product.lowStockThreshold || 5),
     unit: product.unit || "pcs",
     image: product.image || product.imageUrl || "",
     isActive: product.isActive !== false,
+    isVariant: hasVariants,
+    variants: rawVariants,
     createdAt: product.createdAt || new Date().toISOString(),
     updatedAt: product.updatedAt || new Date().toISOString(),
   };
@@ -172,7 +179,15 @@ export default function PosProductsPage() {
       const matchesSearch =
         !lower ||
         product.name.toLowerCase().includes(lower) ||
-        product.sku.toLowerCase().includes(lower);
+        product.sku.toLowerCase().includes(lower) ||
+        (product.barcode && product.barcode.toLowerCase().includes(lower)) ||
+        (Array.isArray(product.variants) &&
+          product.variants.some(
+            (v) =>
+              (v.name && v.name.toLowerCase().includes(lower)) ||
+              (v.sku && v.sku.toLowerCase().includes(lower)) ||
+              (v.barcode && v.barcode.toLowerCase().includes(lower))
+          ));
       const matchesCategory = category === "All" || product.category === category;
       const matchesStatus =
         status === "all" ||
@@ -302,22 +317,42 @@ export default function PosProductsPage() {
   }
 
   async function saveProduct(product, mode) {
-    const method = mode === "edit" ? "PATCH" : "POST";
+    const isEdit = mode === "edit";
+    const endpoint = isEdit ? `/api/products/${product.id}` : "/api/products";
+    const method = isEdit ? "PATCH" : "POST";
 
-    try {
-      await fetch("/api/admin/products", {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(product),
-      });
-    } catch {
-      // Local IndexedDB update still happens so POS remains offline-capable.
+    const payload = {
+      ...product,
+      imageUrl: product.image || product.imageUrl || "",
+    };
+
+    const response = await fetch(endpoint, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const resData = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(resData.error || `Failed to save product (${response.status})`);
     }
 
-    const nextProducts =
-      mode === "edit"
-        ? products.map((entry) => (entry.id === product.id ? normalizeProduct(product, settings.currency.exchangeRate) : entry))
-        : [normalizeProduct(product, settings.currency.exchangeRate), ...products];
+    const saved = resData.data
+      ? normalizeProduct(resData.data, settings.currency.exchangeRate)
+      : normalizeProduct(payload, settings.currency.exchangeRate);
+
+    // If server returned updated variants, preserve them
+    if (resData.data?.variants) {
+      saved.variants = resData.data.variants;
+      saved.hasVariants = resData.data.variants.length > 0;
+      saved.isVariant = saved.hasVariants;
+    }
+
+    const nextProducts = isEdit
+      ? products.map((entry) => (entry.id === product.id ? saved : entry))
+      : [saved, ...products];
+
     await persistProducts(nextProducts);
     setModalOpen(false);
   }
@@ -325,11 +360,11 @@ export default function PosProductsPage() {
   async function deleteProducts(ids) {
     const idSet = new Set(ids);
     try {
-      await fetch("/api/admin/products", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids }),
-      });
+      await Promise.all(
+        ids.map((id) =>
+          fetch(`/api/products/${id}`, { method: "DELETE" }).catch(() => {})
+        )
+      );
     } catch {
       // Continue with local delete.
     }
@@ -337,17 +372,22 @@ export default function PosProductsPage() {
     await Promise.all(ids.map((id) => remove("products", id)));
     setProducts((current) => current.filter((product) => !idSet.has(product.id)));
     setSelectedIds([]);
+    incrementCatalogVersion();
   }
 
   async function bulkStatus(isActive) {
     const idSet = new Set(selectedIds);
     const nextProducts = products.map((product) => (idSet.has(product.id) ? { ...product, isActive } : product));
     try {
-      await fetch("/api/admin/products", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: selectedIds, isActive }),
-      });
+      await Promise.all(
+        selectedIds.map((id) =>
+          fetch(`/api/products/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ isActive }),
+          }).catch(() => {})
+        )
+      );
     } catch {}
     await persistProducts(nextProducts);
     setSelectedIds([]);
@@ -564,7 +604,20 @@ export default function PosProductsPage() {
                         {product.image ? "" : product.name.charAt(0)}
                       </div>
                     </td>
-                    <td className="px-4 py-3"><p className="font-extrabold text-[var(--foreground)]">{product.name}</p><p className="text-[11px] font-semibold text-[var(--muted-foreground)]">{product.sku}</p></td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="font-extrabold text-[var(--foreground)]">{product.name}</p>
+                        {product.isVariant || product.variants?.length ? (
+                          <span className="rounded-md bg-purple-500/10 px-1.5 py-0.5 text-[10px] font-bold text-purple-600 dark:text-purple-400">
+                            {product.variants?.length || 1} var
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="text-[11px] font-semibold text-[var(--muted-foreground)]">
+                        {product.sku || "No SKU"}
+                        {product.barcode ? ` · Barcode: ${product.barcode}` : ""}
+                      </p>
+                    </td>
                     <td className="px-4 py-3 font-semibold text-[var(--muted-foreground)]">{product.category}</td>
                     <td className="px-4 py-3 font-extrabold text-[var(--foreground)]">{formatPrimaryMoney(product.price, settings, false)}</td>
                     <td className="px-4 py-3 font-semibold text-[var(--muted-foreground)]">{formatSecondaryPrice(product.price)}</td>
@@ -611,8 +664,17 @@ export default function PosProductsPage() {
                 <button type="button" onClick={() => openEdit(product)} className="absolute inset-x-3 bottom-3 hidden rounded-lg bg-[var(--foreground)]/90 backdrop-blur-xs py-2 text-xs font-bold text-[var(--background)] group-hover:block transition-all">Edit Product</button>
               </div>
               <div className="p-3.5">
-                <p className="font-extrabold text-xs text-[var(--foreground)]">{product.name}</p>
-                <p className="mt-0.5 text-[11px] font-semibold text-[var(--muted-foreground)]">{product.sku} · {product.category}</p>
+                <div className="flex items-center justify-between gap-1">
+                  <p className="font-extrabold text-xs text-[var(--foreground)] truncate">{product.name}</p>
+                  {product.isVariant || product.variants?.length ? (
+                    <span className="shrink-0 rounded-md bg-purple-500/10 px-1.5 py-0.5 text-[10px] font-bold text-purple-600 dark:text-purple-400">
+                      {product.variants?.length || 1} var
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-0.5 text-[11px] font-semibold text-[var(--muted-foreground)] truncate">
+                  {product.sku || "No SKU"}{product.barcode ? ` · ${product.barcode}` : ""} · {product.category}
+                </p>
                 <div className="mt-2.5 flex items-center justify-between">
                   <div>
                     <p className="text-sm font-extrabold text-[var(--foreground)]">{formatPrimaryMoney(product.price, settings, false)}</p>

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { fallbackProducts } from "@/lib/fallback-data";
 import { readOfflineAppState, saveOfflineAppState } from "@/lib/offline-db";
@@ -134,47 +134,84 @@ export function AppStoreProvider({ children }) {
     };
   }, []);
 
-  useEffect(() => {
-    let active = true;
-    let debounceTimer;
-
-    async function syncStore() {
+  function broadcastStoreMutation() {
+    if (typeof window !== "undefined" && "BroadcastChannel" in window) {
       try {
-        const user = await readCurrentUser();
-        const [products, favorites, orders, coupons, supportTickets] = await Promise.all([
-          readJson("/api/products", fallbackProducts),
-          readJson("/api/favorites", []),
-          user ? readJson("/api/orders", []) : [],
-          readJson("/api/coupons", createInitialState().coupons),
-          user ? readJson("/api/support", []) : [],
-        ]);
+        const channel = new BroadcastChannel("app_store_sync_channel");
+        channel.postMessage({ type: "STORE_MUTATED", timestamp: Date.now() });
+        channel.close();
+      } catch {}
+    }
+  }
 
-        if (!active) {
-          return;
-        }
+  const syncStore = useCallback(async () => {
+    try {
+      const user = await readCurrentUser();
+      const [products, favorites, orders, coupons, supportTickets] = await Promise.all([
+        readJson("/api/products", fallbackProducts),
+        readJson("/api/favorites", []),
+        user ? readJson("/api/orders", []) : [],
+        readJson("/api/coupons", createInitialState().coupons),
+        user ? readJson("/api/support", []) : [],
+      ]);
 
-        setState((current) => ({
-          ...current,
-          products,
-          favorites,
-          orders,
-          coupons,
-          supportTickets,
-        }));
-      } catch {
-        // Keep local fallback state when the API is unavailable.
+      setState((current) => ({
+        ...current,
+        products,
+        favorites,
+        orders,
+        coupons,
+        supportTickets,
+      }));
+    } catch {
+      // Keep local fallback state when the API is unavailable.
+    }
+  }, []);
+
+  useEffect(() => {
+    // 1. Initial immediate sync
+    syncStore();
+
+    // 2. Sync whenever user switches back to this tab/window
+    function handleVisibility() {
+      if (typeof document !== "undefined" && !document.hidden) {
+        syncStore();
       }
     }
+    function handleFocus() {
+      syncStore();
+    }
 
-    // Debounce sync: cancel any pending sync and wait 300ms after the last trigger
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(syncStore, 300);
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("focus", handleFocus);
+
+    // 3. Multi-tab real-time sync via BroadcastChannel
+    let channel;
+    if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+      try {
+        channel = new BroadcastChannel("app_store_sync_channel");
+        channel.onmessage = (event) => {
+          if (event.data?.type === "STORE_MUTATED") {
+            syncStore();
+          }
+        };
+      } catch {}
+    }
+
+    // 4. Background periodic light poll every 30s when online & tab active
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && !document.hidden && navigator.onLine) {
+        syncStore();
+      }
+    }, 30000);
 
     return () => {
-      active = false;
-      clearTimeout(debounceTimer);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", handleFocus);
+      if (channel) channel.close();
+      clearInterval(interval);
     };
-  }, []);
+  }, [syncStore]);
 
   useEffect(() => {
     if (!isHydrated) {
@@ -277,6 +314,7 @@ export function AppStoreProvider({ children }) {
           ...current,
           products: current.products.map((product) => (product.id === productId ? data.data : product)),
         }));
+        broadcastStoreMutation();
         return { ok: true, product: data.data };
       } catch {
         return { ok: false, error: "Unable to update product." };
@@ -285,6 +323,7 @@ export function AppStoreProvider({ children }) {
 
     return {
       ...state,
+      isHydrated,
       language: state.language || "en",
       products,
       activeProducts,
@@ -293,6 +332,8 @@ export function AppStoreProvider({ children }) {
       cartItems,
       cartCount,
       cartTotal,
+      refresh: syncStore,
+      syncStore,
       setLanguage(language) {
         patch((current) => ({
           ...current,
@@ -348,13 +389,14 @@ export function AppStoreProvider({ children }) {
         if (variantId && product.variants) {
           const variant = product.variants.find((v) => v.id === variantId);
           if (variant) {
-            return Number((variant.price * (1 - (variant.discountPercent || 0) / 100)).toFixed(2));
+            const rawPrice = Number(variant.wholesalePrice ?? variant.price);
+            return Number((rawPrice * (1 - (variant.discountPercent || 0) / 100)).toFixed(2));
           }
         }
-        // Use displayPrice if available, else legacy product.price
-        const displayPrice = product.displayPrice || product.price;
+        // Use wholesalePrice if available, else displayPrice / legacy product.price
+        const displayPrice = product.wholesalePrice ?? product.displayPrice ?? product.price;
         const displayDiscount = product.displayDiscountPercent ?? product.discountPercent ?? 0;
-        return Number((displayPrice * (1 - displayDiscount / 100)).toFixed(2));
+        return Number((Number(displayPrice) * (1 - displayDiscount / 100)).toFixed(2));
       },
 
       // Helper: get variant details by productId + variantId
@@ -379,7 +421,7 @@ export function AppStoreProvider({ children }) {
           // Determine the cart key: if variantId, use productId+variantId combo
           const cartKey = resolvedVariantId ? `${productId}::${resolvedVariantId}` : productId;
 
-          // Get the price from the selected variant or from the product
+          // Get the price from the selected variant or from the product (wholesale pricing)
           let unitPrice;
           let variantName = "";
           let maxStock = product.stock;
@@ -387,17 +429,15 @@ export function AppStoreProvider({ children }) {
           if (resolvedVariantId && productVariants.length) {
             const variant = productVariants.find((v) => v.id === resolvedVariantId);
             if (!variant) return current;
-            unitPrice = Number((variant.price * (1 - (variant.discountPercent || 0) / 100)).toFixed(2));
+            const rawPrice = Number(variant.wholesalePrice ?? variant.price);
+            unitPrice = Number((rawPrice * (1 - (variant.discountPercent || 0) / 100)).toFixed(2));
             variantName = variant.name;
-            // A variant's own stock is authoritative when present (including a
-            // 0 → out-of-stock). Only fall back to the product-level stock when
-            // the variant truly has no stock value defined.
             const variantStock = Number(variant.stock);
             maxStock = Number.isFinite(variantStock) ? variantStock : Number(product.stock || 0);
           } else {
-            const displayPrice = product.displayPrice || product.price;
+            const displayPrice = product.wholesalePrice ?? product.displayPrice ?? product.price;
             const displayDiscount = product.displayDiscountPercent ?? product.discountPercent ?? 0;
-            unitPrice = Number((displayPrice * (1 - displayDiscount / 100)).toFixed(2));
+            unitPrice = Number((Number(displayPrice) * (1 - displayDiscount / 100)).toFixed(2));
           }
 
           if (maxStock <= 0) return current;
@@ -646,10 +686,13 @@ export function AppStoreProvider({ children }) {
             return {
               ...current,
               ...(clearCartOnSuccess ? { cart: [] } : {}),
-              orders: [data.data, ...current.orders.filter((o) => o.id !== data.data.id)],
+              orders: clearCartOnSuccess
+                ? [data.data, ...current.orders.filter((o) => o.id !== data.data.id)]
+                : current.orders,
               products: nextProducts,
             };
           });
+          broadcastStoreMutation();
           return { success: true, message: "", order: data.data };
         } catch {
           return { success: false, message: "Unable to place order right now.", order: null };
@@ -966,8 +1009,56 @@ export function AppStoreProvider({ children }) {
               ...current,
               orders: current.orders.map((order) => (order.id === orderId ? data.data : order)),
             }));
+            broadcastStoreMutation();
           })
           .catch(() => {});
+      },
+      addOrder(order) {
+        if (!order?.id) return;
+        patch((current) => ({
+          ...current,
+          orders: [order, ...current.orders.filter((o) => o.id !== order.id)],
+        }));
+        broadcastStoreMutation();
+      },
+      async cancelOrder(orderId, { discard = false } = {}) {
+        patch((current) => ({
+          ...current,
+          orders: discard
+            ? current.orders.filter((order) => order.id !== orderId)
+            : current.orders.map((order) =>
+                order.id === orderId
+                  ? { ...order, status: "CANCELLED", paymentStatus: "CANCELLED" }
+                  : order,
+              ),
+        }));
+        try {
+          const method = discard ? "DELETE" : "PATCH";
+          const body = discard ? undefined : JSON.stringify({ status: "CANCELLED" });
+          const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, {
+            method,
+            headers: { "Content-Type": "application/json" },
+            body,
+          });
+          const data = await res.json();
+          if (discard) {
+            patch((current) => ({
+              ...current,
+              orders: current.orders.filter((order) => order.id !== orderId),
+            }));
+          } else if (data?.data) {
+            patch((current) => ({
+              ...current,
+              orders: current.orders.map((order) =>
+                order.id === orderId ? data.data : order,
+              ),
+            }));
+          }
+          broadcastStoreMutation();
+          return { success: true };
+        } catch {
+          return { success: false };
+        }
       },
       async createCoupon(input) {
         try {
@@ -986,6 +1077,7 @@ export function AppStoreProvider({ children }) {
             ...current,
             coupons: [data.data, ...current.coupons],
           }));
+          broadcastStoreMutation();
           return { success: true, message: "Coupon created." };
         } catch {
           return { success: false, message: "Unable to create coupon." };
@@ -1008,6 +1100,7 @@ export function AppStoreProvider({ children }) {
             ...current,
             coupons: current.coupons.map((entry) => (entry.id === id ? data.data : entry)),
           }));
+          broadcastStoreMutation();
           return { success: true, message: "Coupon updated." };
         } catch {
           return { success: false, message: "Unable to update coupon." };
@@ -1023,6 +1116,7 @@ export function AppStoreProvider({ children }) {
             ...current,
             coupons: current.coupons.map((entry) => (entry.id === id ? { ...entry, isActive: !entry.isActive } : entry)),
           }));
+          broadcastStoreMutation();
           return;
         }
         fetch(`/api/coupons/${id}`, {
@@ -1041,11 +1135,12 @@ export function AppStoreProvider({ children }) {
               ...current,
               coupons: current.coupons.map((entry) => (entry.id === id ? data.data : entry)),
             }));
+            broadcastStoreMutation();
           })
           .catch(() => {});
       },
     };
-  }, [state, products, activeProducts, categories, favoriteProducts, cartItems, cartCount, cartTotal]);
+  }, [state, isHydrated, products, activeProducts, categories, favoriteProducts, cartItems, cartCount, cartTotal, syncStore]);
 
   return <AppStoreContext.Provider value={value}>{children}</AppStoreContext.Provider>;
 }

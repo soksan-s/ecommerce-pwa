@@ -8,14 +8,45 @@ export const usePosStore = create((set, get) => ({
   cashierName: "",
   pendingSyncCount: 0,
   catalogVersion: 0,
+  priceType: "RETAIL", // "RETAIL" | "WHOLESALE"
   // Local POS notifications (offline events, stock warnings, sync status)
   localNotifications: [],
+  setPriceType(priceType) {
+    const normalized = String(priceType || "RETAIL").toUpperCase();
+    const currentCart = get().cart;
+    const updatedCart = currentCart.map((item) => {
+      // If item was manually repriced via RepriceModal, preserve the override
+      if (item.isOverridden) {
+        return item;
+      }
+      const targetPrice =
+        normalized === "WHOLESALE"
+          ? Number(item.wholesalePrice ?? item.retailPrice ?? item.price)
+          : Number(item.retailPrice ?? item.price);
+      return {
+        ...item,
+        price: targetPrice,
+        originalPrice: targetPrice,
+      };
+    });
+    set({ priceType: normalized, cart: updatedCart });
+  },
   addToCart(product, variant = null) {
+    const priceType = get().priceType || "RETAIL";
     const currentCart = get().cart;
     const v = variant || (Array.isArray(product.variants) && product.variants.length === 1 ? product.variants[0] : null);
     const keyId = v?.id ? `${product.id}-${v.id}` : product.id;
     const stock = Number((v ? v.stock : product.stock) || 0);
-    const price = Number((v ? (v.discountedPrice ?? v.price) : product.price) || 0);
+
+    const retailPrice = Number((v ? (v.retailPrice ?? v.price) : (product.retailPrice ?? product.price)) || 0);
+    const rawWholesale = v ? (v.wholesalePrice ?? v.price) : (product.wholesalePrice ?? product.price);
+    const wholesalePrice = rawWholesale !== undefined && rawWholesale !== null && Number(rawWholesale) > 0
+      ? Number(rawWholesale)
+      : retailPrice;
+
+    const basePrice = priceType === "WHOLESALE" ? wholesalePrice : retailPrice;
+    const discountPercent = Number((v ? v.discountPercent : product.discountPercent) || 0);
+    const price = Number((basePrice * (1 - discountPercent / 100)).toFixed(2));
     const name = v && v.name && v.name !== "Default" ? `${product.name} (${v.name})` : product.name;
     const sku = v?.sku || product.sku || product.id;
 
@@ -60,6 +91,8 @@ export const usePosStore = create((set, get) => ({
           variantId: v?.id || null,
           variantName: v?.name || null,
           name,
+          retailPrice,
+          wholesalePrice,
           originalPrice: price,
           price,
           isOverridden: false,

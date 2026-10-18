@@ -106,19 +106,14 @@ export function ClientShell({ user, initialTab = "home", orderDetailId = "" }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Sync selectedTab whenever searchParams changes (covers Link navigations,
+  // router.push, and popstate).  The previous popstate-only listener missed
+  // programmatic Next.js navigations (e.g. the "Shop More" button).
   useEffect(() => {
-    if (orderDetailId) {
-      return undefined;
-    }
-
-    function syncTabFromUrl() {
-      const params = new URLSearchParams(window.location.search);
-      setSelectedTab(resolveClientTab(params.get("tab") || initialTab));
-    }
-
-    window.addEventListener("popstate", syncTabFromUrl);
-    return () => window.removeEventListener("popstate", syncTabFromUrl);
-  }, [initialTab, orderDetailId]);
+    if (orderDetailId) return;
+    const tabFromUrl = resolveClientTab(searchParams.get("tab") || initialTab);
+    setSelectedTab(tabFromUrl);
+  }, [searchParams, initialTab, orderDetailId]);
 
   /** Opens the auth modal for guests; returns false so callers can bail early. */
   const requireAuth = useCallback(

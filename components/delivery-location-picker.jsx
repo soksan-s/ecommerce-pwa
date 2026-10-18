@@ -24,7 +24,17 @@ async function reverseGeocode(lat, lng) {
   return data.display_name || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
 }
 
-export function DeliveryLocationPicker({ onAddressSelect, onLocationSelect, initialLat, initialLng, pickLabel, locateLabel, hint }) {
+export function DeliveryLocationPicker({
+  onAddressSelect,
+  onLocationSelect,
+  initialLat,
+  initialLng,
+  pickLabel,
+  locateLabel,
+  hint,
+  currentAddress,
+  compact = false,
+}) {
   const mapNodeRef = useRef(null);
   const mapRef = useRef(null);
   const markerRef = useRef(null);
@@ -142,6 +152,45 @@ export function DeliveryLocationPicker({ onAddressSelect, onLocationSelect, init
         setStatus("Unable to get current location. Click the map to pick a delivery point.");
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+    );
+  }
+
+  if (compact) {
+    return (
+      <div className="space-y-3">
+        <div className="overflow-hidden rounded-xl border border-[var(--border-soft)] bg-[var(--surface)]">
+          <div
+            ref={mapNodeRef}
+            className="h-44 w-full bg-[var(--surface-quiet)]"
+          />
+          <div className="flex items-center justify-between border-t border-[var(--border-soft)] bg-[var(--surface)] px-3.5 py-2.5 text-xs">
+            <div className="flex items-center gap-2 truncate pr-2">
+              <span className="size-2 rounded-full bg-emerald-500 shrink-0" />
+              <span className="truncate font-medium text-[var(--foreground)]">
+                {currentAddress || "Click map to select delivery location"}
+              </span>
+            </div>
+            {/* <span
+              onClick={useCurrentLocation}
+              className="shrink-0 font-semibold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+            >
+              Change &gt;
+            </span> */}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={useCurrentLocation}
+          disabled={locating}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-quiet)] hover:bg-[var(--surface)] px-4 py-2.5 text-xs font-bold text-[var(--foreground)] transition active:scale-[0.99] disabled:opacity-50 cursor-pointer shadow-sm"
+        >
+          <Navigation className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+          <span>{locating ? "Getting current location..." : (locateLabel || "Use Current Location")}</span>
+        </button>
+
+        {status ? <p className="text-[11px] leading-relaxed text-[var(--muted-foreground)] px-1">{status}</p> : null}
+      </div>
     );
   }
 
