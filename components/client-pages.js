@@ -6,10 +6,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  ArrowLeft,
   ArrowRight,
   BadgeCheck,
+  Banknote,
   CalendarRange,
+  Check,
   CheckCircle2,
+  ChevronLeft,
   ChevronRight,
   CircleArrowLeft,
   CircleUserRound,
@@ -24,6 +28,7 @@ import {
   Gift,
   Globe,
   Heart,
+  Lock,
   MessageCircle,
   MapPin,
   PackageCheck,
@@ -31,6 +36,7 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  ShoppingBag,
   SlidersHorizontal,
   Sparkles,
   Star,
@@ -1577,32 +1583,48 @@ export function ClientCartPageView() {
             </div>
 
             <div className="rounded-t-[1.5rem] border-t border-[var(--border-soft)] bg-[linear-gradient(135deg,var(--surface-quiet),var(--surface),color-mix(in_srgb,var(--action)_12%,var(--surface)))] px-4 pb-4 pt-3 shadow-[0_-4px_16px_rgba(15,24,35,0.06)] md:rounded-[1.5rem] md:border md:p-5">
-              <div className="flex items-center gap-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
-                  <p className="text-lg font-bold text-[var(--foreground)]">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)] sm:text-sm">
                     {t("total")}
                   </p>
 
-                  <p className="mt-1 text-2xl font-extrabold text-[var(--foreground)]">
+                  <p className="mt-0.5 text-2xl font-black text-[var(--foreground)] sm:text-3xl">
                     {formatCurrency(store.cartTotal)}
                   </p>
                 </div>
 
-                <div className="ml-auto shrink-0">
+                <div className="flex items-center gap-2.5 sm:gap-3">
+                  <Link
+                    href="/client?tab=shop"
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-2.5 text-sm font-bold text-[var(--foreground)] shadow-xs transition hover:border-[var(--action)] hover:bg-[var(--surface-quiet)] hover:text-[var(--action)] active:scale-[0.98]"
+                  >
+                    <ArrowLeft className="size-4 shrink-0" />
+                    <span>{t("shop_more") || t("continue_shopping") || "Shop more"}</span>
+                  </Link>
+
                   <Link
                     href="/client/checkout"
                     prefetch={false}
-                    className="inline-flex items-center justify-center rounded-xl bg-[var(--action)] px-[1.125rem] py-[0.875rem] text-sm font-semibold !text-white shadow-[var(--shadow-soft)]"
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--action)] px-5 py-2.5 text-sm font-bold !text-white shadow-[var(--shadow-soft)] transition hover:opacity-95 active:scale-[0.98]"
                   >
-                    {t("proceed_to_checkout")}
+                    <span>{t("proceed_to_checkout")}</span>
+                    <ArrowRight className="size-4 shrink-0" />
                   </Link>
                 </div>
               </div>
             </div>
           </>
         ) : (
-          <div className="flex min-h-[14rem] items-center justify-center px-4 text-center text-[var(--muted-foreground)]">
-            {t("cart_empty_hint")}
+          <div className="flex min-h-[16rem] flex-col items-center justify-center px-4 text-center text-[var(--muted-foreground)] space-y-3">
+            <p className="text-base">{t("cart_empty_hint")}</p>
+            <Link
+              href="/client?tab=shop"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--action)] px-5 py-2.5 text-sm font-semibold !text-white shadow-xs transition hover:opacity-95"
+            >
+              <ArrowLeft className="size-4 shrink-0" />
+              <span>{t("shop_more") || t("continue_shopping") || "Shop more"}</span>
+            </Link>
           </div>
         )}
       </div>
@@ -1616,6 +1638,8 @@ export function ClientCartPageView() {
 
 
 
+
+const ACTIVE_KHQR_KEY = "ecommerce_active_khqr_session";
 
 export function ClientCheckoutPageView() {
   const store = useAppStore();
@@ -1631,16 +1655,63 @@ export function ClientCheckoutPageView() {
   const [submitting, setSubmitting] = useState(false);
   const [khqrPayment, setKhqrPayment] = useState(null);
 
+  // Restore in-flight KHQR payment if user refreshed the page during payment
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    try {
+      const savedRaw = sessionStorage.getItem(ACTIVE_KHQR_KEY);
+      if (!savedRaw) return;
+      const saved = JSON.parse(savedRaw);
+      if (!saved?.payment?.id) {
+        sessionStorage.removeItem(ACTIVE_KHQR_KEY);
+        return;
+      }
+
+      // Verify payment status with the server
+      fetch(`/api/ecommerce/payments/${encodeURIComponent(saved.payment.id)}/status`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.payment) {
+            if (data.payment.status === "PAID") {
+              sessionStorage.removeItem(ACTIVE_KHQR_KEY);
+              store.clearCart();
+              if (saved.orderId) {
+                store.updateOrder?.(saved.orderId, { status: "CONFIRMED", paymentStatus: "PAID" });
+              }
+              setKhqrPayment(data.payment);
+            } else if (data.payment.status === "PENDING") {
+              setKhqrPayment({
+                ...saved.payment,
+                ...data.payment,
+                qrImage: data.payment.qrImage || saved.payment.qrImage,
+              });
+            } else {
+              // Payment expired, failed, or cancelled
+              sessionStorage.removeItem(ACTIVE_KHQR_KEY);
+              setKhqrPayment(null);
+            }
+          }
+        })
+        .catch(() => {
+          // If offline/interrupted, restore saved payment so user can retry or cancel
+          setKhqrPayment(saved.payment);
+        });
+    } catch {
+      sessionStorage.removeItem(ACTIVE_KHQR_KEY);
+    }
+  }, []);
+
   async function handleSubmit(event) {
     event.preventDefault();
 
     if (shippingAddress.trim().length < 8) {
-      setMessage(t("shipping_address_hint"));
+      setMessage(t("shipping_address_hint") || "Please enter a detailed delivery address (at least 8 characters).");
       return;
     }
 
     if (!store.cartItems.length) {
-      setMessage(t("cart_empty_hint"));
+      setMessage(t("cart_empty_hint") || "Your cart is empty.");
       return;
     }
 
@@ -1676,26 +1747,29 @@ export function ClientCheckoutPageView() {
         });
 
         const data = await response.json();
-
         setSubmitting(false);
 
         if (!response.ok || !data.payment) {
-          // Cancel the newly created pending order since KHQR could not be prepared
+          // Cancel and discard the newly created pending order if KHQR creation fails
           try {
-            await fetch(`/api/orders/${encodeURIComponent(result.order.id)}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ status: "CANCELLED" }),
-            });
+            await store.cancelOrder?.(result.order.id, { discard: true });
           } catch {
             // Ignore cancel failure
           }
 
           setMessage(
             data.error ||
-            `KHQR payment could not be prepared. Your cart items are preserved. Please retry or choose another payment method.`
+            "KHQR payment could not be prepared. Your cart items are preserved. Please retry or choose Cash on Delivery."
           );
           return;
+        }
+
+        // Save active KHQR session to survive browser reloads
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem(
+            ACTIVE_KHQR_KEY,
+            JSON.stringify({ payment: data.payment, orderId: result.order.id })
+          );
         }
 
         setKhqrPayment(data.payment);
@@ -1703,59 +1777,70 @@ export function ClientCheckoutPageView() {
       } catch {
         setSubmitting(false);
         try {
-          await fetch(`/api/orders/${encodeURIComponent(result.order.id)}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ status: "CANCELLED" }),
-          });
+          await store.cancelOrder?.(result.order.id, { discard: true });
         } catch {
           // Ignore cancel failure
         }
         setMessage(
-          `Payment setup is unavailable right now. Your cart items are preserved. Please retry or select Cash on Delivery.`
+          "Payment setup is unavailable right now. Your cart items are preserved. Please retry or select Cash on Delivery."
         );
         return;
       }
     }
 
     setSubmitting(false);
-    setMessage(
-      `Order ${result.order.orderNumber || result.order.id
-      } placed successfully.`
-    );
-
+    setMessage(`Order #${result.order.orderNumber || result.order.id} placed successfully.`);
     router.push("/client?tab=orders");
   }
 
   async function handleCancelKhqrPayment() {
     if (khqrPayment?.status === "PAID") {
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem(ACTIVE_KHQR_KEY);
+      }
       router.push("/client?tab=orders");
       return;
     }
 
     if (khqrPayment?.orderId) {
       try {
-        await fetch(`/api/orders/${encodeURIComponent(khqrPayment.orderId)}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "CANCELLED" }),
-        });
+        await store.cancelOrder?.(khqrPayment.orderId, { discard: true });
       } catch {
         // Ignore network error on cancellation
       }
+    }
+
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem(ACTIVE_KHQR_KEY);
     }
 
     setKhqrPayment(null);
     setMessage("");
   }
 
-  function handleKhqrPaid(paidPayment) {
+  async function handleKhqrPaid(paidPayment) {
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem(ACTIVE_KHQR_KEY);
+    }
     store.clearCart();
     if (paidPayment?.orderId) {
-      store.updateOrder?.(paidPayment.orderId, { status: "CONFIRMED", paymentStatus: "PAID" });
+      try {
+        const res = await fetch(`/api/orders/${encodeURIComponent(paidPayment.orderId)}`);
+        const data = await res.json();
+        if (data?.data) {
+          store.addOrder?.(data.data);
+        } else {
+          store.syncStore?.();
+        }
+      } catch {
+        store.syncStore?.();
+      }
+    } else {
+      store.syncStore?.();
     }
   }
 
+  // If KHQR payment is active, display the payment screen
   if (khqrPayment) {
     return (
       <KhqrPaymentPanel
@@ -1766,63 +1851,115 @@ export function ClientCheckoutPageView() {
     );
   }
 
+  // While local store is hydrating, show clean loading skeleton to prevent flash of empty cart
+  if (!store.isHydrated) {
+    return (
+      <div className="mx-auto max-w-6xl p-4 sm:p-6 space-y-6 animate-pulse">
+        <div className="h-10 w-48 bg-[var(--surface-quiet)] rounded-lg" />
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div className="lg:col-span-7 h-96 bg-[var(--surface-quiet)] rounded-2xl" />
+          <div className="lg:col-span-5 h-96 bg-[var(--surface-quiet)] rounded-2xl" />
+        </div>
+      </div>
+    );
+  }
+
+  // Empty cart fallback
+  if (!store.cartItems.length) {
+    return (
+      <div className="mx-auto max-w-lg text-center py-20 px-4">
+        <div className="mx-auto size-16 flex items-center justify-center rounded-2xl bg-[var(--surface-quiet)] text-[var(--muted-foreground)] mb-4">
+          <ShoppingBag className="size-8" />
+        </div>
+        <h2 className="text-xl font-bold text-[var(--foreground)]">Your cart is empty</h2>
+        <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+          Looks like you have no items in your cart to checkout.
+        </p>
+        <button
+          type="button"
+          onClick={() => router.push("/client?tab=shop")}
+          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#007a4d] px-5 py-2.5 text-sm font-bold text-white hover:opacity-90 transition active:scale-95 cursor-pointer shadow-sm"
+        >
+          Return to Shop
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-full space-y-5 bg-[var(--background)] text-[var(--foreground)]">
-      {/* Top navigation */}
-      <div className="border-b border-[var(--border-soft)]">
-        <div className="flex items-end justify-between gap-2">
+    <div className="min-h-full bg-[var(--background)] text-[var(--foreground)] pb-28 lg:pb-12">
+      {/* Top Header Bar */}
+      <header className="border-b border-[var(--border-soft)] bg-[var(--surface)] py-3 px-4 sm:px-6">
+        <div className="mx-auto flex max-w-6xl items-center justify-between">
           <button
             type="button"
             onClick={() => router.push("/client?tab=cart")}
-            className="inline-flex items-center gap-2 border-l border-r border-t border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold capitalize tracking-tight text-[var(--foreground)] transition hover:bg-[var(--surface-quiet)] active:scale-[0.98]"
+            className="flex items-center gap-1.5 text-xs font-semibold text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition cursor-pointer"
           >
-            <CircleArrowLeft className="size-4 text-[var(--action)]" />
-            <span>{t("back_to_cart")}</span>
+            <ChevronLeft className="size-4" />
+            <span>Back to Cart</span>
           </button>
+
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-1.5 font-extrabold text-xs sm:text-sm tracking-wider uppercase text-[var(--foreground)]">
+              <span className="size-2.5 rounded-sm bg-[#007a4d]" />
+              <span>CHECKOUT</span>
+            </div>
+            <span className="text-neutral-300 dark:text-neutral-700">|</span>
+            <div className="flex items-center gap-1 rounded-full border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-2.5 py-0.5 text-[10px] font-semibold text-[var(--muted-foreground)]">
+              <Lock className="size-3 text-emerald-600 dark:text-emerald-400" />
+              <span>256-BIT SSL</span>
+            </div>
+          </div>
 
           <button
             type="button"
-            onClick={() => router.push("/client?tab=shop")}
-            className="border-l border-r border-t border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold capitalize text-[var(--action)] transition hover:bg-[var(--surface-quiet)] active:scale-[0.98]"
+            onClick={() => router.push("/client?tab=support")}
+            className="flex items-center gap-1 text-xs font-semibold text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition cursor-pointer"
           >
-            {t("back_to_shop")}
+            <span>Help</span>
+            <CircleHelp className="size-4" />
           </button>
         </div>
-      </div>
+      </header>
 
-      <form
-        onSubmit={handleSubmit}
-        className="grid items-start gap-6 pb-24 lg:grid-cols-12 lg:gap-8 lg:pb-0"
-      >
-        {/* LEFT: DELIVERY + PAYMENT */}
-        <div className="space-y-6 lg:col-span-7 xl:col-span-8">
-          {/* Delivery */}
-          <Card>
-            <div className="flex items-center justify-between gap-4 border-b border-[var(--border-soft)] pb-4">
-              <div className="flex items-center gap-3">
-                <div className="flex size-9 shrink-0 items-center justify-center border border-[var(--border-soft)] bg-[var(--surface-quiet)] text-[var(--action)]">
-                  <CircleArrowLeft className="size-4 rotate-180" />
+      {/* Main Checkout Form */}
+      <main className="mx-auto max-w-6xl px-4 sm:px-6 pt-6">
+        <form
+          onSubmit={handleSubmit}
+          className="grid items-start gap-6 lg:grid-cols-12 lg:gap-8"
+        >
+          {/* LEFT COLUMN: DELIVERY ADDRESS & PAYMENT METHOD */}
+          <div className="space-y-6 lg:col-span-7 xl:col-span-8">
+            {/* DELIVERY ADDRESS CARD */}
+            <div className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface)] p-5 sm:p-6 shadow-sm">
+              <div className="flex items-center justify-between pb-4 border-b border-[var(--border-soft)]">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-900/50">
+                    <MapPin className="size-4" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--foreground)]">
+                      Delivery Address
+                    </h2>
+                    <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">
+                      Fast 20-30 min door delivery
+                    </p>
+                  </div>
                 </div>
 
-                <div>
-                  <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--foreground)]">
-                    {t("delivery_details")}
-                  </h2>
-                  <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">
-                    {t("map_location_hint")}
-                  </p>
-                </div>
+                <span className="rounded-full bg-emerald-100 dark:bg-emerald-950/60 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+                  Express
+                </span>
               </div>
 
-              <span className="hidden border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--action)] sm:inline-flex">
-                Express
-              </span>
-            </div>
-
-            <div className="mt-5 space-y-4">
-              {/* Existing map/location component */}
-              <div className="overflow-hidden border border-[var(--border-soft)] bg-[var(--surface-quiet)]">
+              {/* Map & Location Controls */}
+              <div className="mt-5 space-y-4">
                 <DeliveryLocationPicker
+                  compact={true}
+                  currentAddress={shippingAddress}
+                  initialLat={deliveryCoords?.lat}
+                  initialLng={deliveryCoords?.lng}
                   onAddressSelect={setShippingAddress}
                   onLocationSelect={(loc) => {
                     setShippingAddress(loc.address);
@@ -1831,244 +1968,353 @@ export function ClientCheckoutPageView() {
                       lng: loc.lng,
                     });
                   }}
-                  locateLabel={t("use_current_location")}
-                  pickLabel={t("pick_on_map")}
-                  hint={t("map_location_hint")}
+                  locateLabel="Use Current Location"
+                  pickLabel="Pick on map"
+                  hint="Click on the map or use your current location to set delivery destination."
                 />
-              </div>
 
-              {/* Address */}
-              <div>
-                <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
-                  {t("shipping_address")}
-                </label>
+                {/* DETAILED DELIVERY ADDRESS */}
+                <div>
+                  <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+                    Detailed Delivery Address
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={shippingAddress}
+                      onChange={(e) => setShippingAddress(e.target.value)}
+                      placeholder="#104 St 77, Wat Bo Village, Siem Reap"
+                      className="app-input w-full rounded-xl border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3.5 py-2.5 pr-10 text-xs font-medium text-[var(--foreground)] outline-none transition focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+                    />
+                    <Edit3 className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 size-4 text-[var(--muted-foreground)]" />
+                  </div>
+                </div>
 
-                <textarea
-                  value={shippingAddress}
-                  onChange={(event) =>
-                    setShippingAddress(event.target.value)
-                  }
-                  placeholder={t("shipping_address")}
-                  className="app-input min-h-24 w-full rounded-none border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3 py-2.5 text-xs font-medium text-[var(--foreground)] outline-none transition focus:border-[var(--action)] focus:ring-1 focus:ring-[var(--action)]"
-                />
-              </div>
-
-              {/* Delivery note */}
-              <div>
-                <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
-                  Rider Note / Instructions
-                </label>
-
-                <input
-                  value={deliveryNote}
-                  onChange={(event) =>
-                    setDeliveryNote(event.target.value)
-                  }
-                  placeholder="Delivery instructions / notes (e.g. Near Wat Bo, call when arrived)"
-                  className="app-input w-full rounded-none border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3 py-2.5 text-xs text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--action)] focus:ring-1 focus:ring-[var(--action)]"
-                />
+                {/* RIDER NOTE / INSTRUCTIONS */}
+                <div>
+                  <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+                    Rider Note / Instructions
+                  </label>
+                  <input
+                    type="text"
+                    value={deliveryNote}
+                    onChange={(e) => setDeliveryNote(e.target.value)}
+                    placeholder="Near Wat Bo, call upon arrival"
+                    className="app-input w-full rounded-xl border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3.5 py-2.5 text-xs text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+                  />
+                </div>
               </div>
             </div>
 
-            {/* Payment inside same left-side flow */}
-            <div className="mt-6 border-t border-[var(--border-soft)] pt-5">
-              <div className="flex items-center justify-between gap-4 border-b border-[var(--border-soft)] pb-4">
+            {/* PAYMENT METHOD CARD */}
+            <div className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface)] p-5 sm:p-6 shadow-sm">
+              <div className="flex items-center justify-between pb-4 border-b border-[var(--border-soft)]">
                 <div>
                   <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--foreground)]">
-                    {t("payment_method_header")}
+                    Payment Method
                   </h2>
-
                   <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">
-                    {t("payment_method_hint")}
+                    Select how you would like to pay
                   </p>
                 </div>
 
-                <span className="text-[10px] font-medium uppercase tracking-wide text-[var(--muted-foreground)]">
-                  Encrypted
-                </span>
+                <div className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]">
+                  <Lock className="size-3.5" />
+                  <span className="text-[11px] font-medium">Encrypted</span>
+                </div>
               </div>
 
-              <div className="mt-4">
-                <select
-                  value={paymentMethod}
-                  onChange={(event) =>
-                    setPaymentMethod(event.target.value)
-                  }
-                  className="app-select w-full rounded-none border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3 py-3 text-xs font-semibold text-[var(--foreground)] outline-none transition focus:border-[var(--action)] focus:ring-1 focus:ring-[var(--action)]"
-                >
-                  <option value="CASH_ON_DELIVERY">
-                    {getPaymentMethodLabel("CASH_ON_DELIVERY", t)}
-                  </option>
-
-                  <option value="KHQR">KHQR / Bakong</option>
-
-                  {/* <option value="CREDIT_CARD">
-                    {getPaymentMethodLabel("CREDIT_CARD", t)}
-                  </option>
-
-                  <option value="BANK_TRANSFER">
-                    {getPaymentMethodLabel("BANK_TRANSFER", t)}
-                  </option> */}
-                </select>
-              </div>
-            </div>
-          </Card>
-        </div>
-
-        {/* RIGHT: SUMMARY + COUPON + ACTION */}
-        <div className="space-y-6 lg:sticky lg:top-24 lg:col-span-5 xl:col-span-4">
-          {/* Order Summary */}
-          <Card>
-            <div className="flex items-center justify-between gap-3 border-b border-[var(--border-soft)] pb-4">
-              <div className="flex min-w-0 items-center gap-2">
-                <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--foreground)]">
-                  {t("order_summary")}
-                </h2>
-
-                <span className="shrink-0 border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-2 py-0.5 text-[10px] font-bold text-[var(--foreground)]">
-                  {store.cartItems.length} {t("items")}
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-1">
-              {store.cartItems.map((item, index) => (
+              <div className="mt-4 space-y-3">
+                {/* Cash on Delivery option */}
                 <div
-                  key={item.cartKey || item.productId}
-                  className={`flex items-center justify-between gap-4 py-3.5 ${index !== store.cartItems.length - 1
-                    ? "border-b border-[var(--border-soft)]"
-                    : ""
-                    }`}
+                  onClick={() => setPaymentMethod("CASH_ON_DELIVERY")}
+                  className={cn(
+                    "flex cursor-pointer items-center justify-between rounded-xl border p-4 transition-all duration-150",
+                    paymentMethod === "CASH_ON_DELIVERY"
+                      ? "border-emerald-600 bg-emerald-50/20 dark:bg-emerald-950/20 ring-1 ring-emerald-600"
+                      : "border-[var(--border-soft)] bg-[var(--surface)] hover:bg-[var(--surface-quiet)]"
+                  )}
                 >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-semibold text-[var(--foreground)]">
-                      {item.product.name}
-                    </p>
-
-                    <p className="mt-0.5 truncate text-[11px] text-[var(--muted-foreground)]">
-                      {item.variantName || "Default Variant"} · Qty:{" "}
-                      {item.quantity}
-                    </p>
+                  <div className="flex items-center gap-3.5">
+                    <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">
+                      <Banknote className="size-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-[var(--foreground)]">
+                        Cash on Delivery
+                      </h3>
+                      <p className="text-xs text-[var(--muted-foreground)]">
+                        Pay cash or local QR when you receive
+                      </p>
+                    </div>
                   </div>
+                  <div className="shrink-0">
+                    <div
+                      className={cn(
+                        "flex size-5 items-center justify-center rounded border transition",
+                        paymentMethod === "CASH_ON_DELIVERY"
+                          ? "border-emerald-600 bg-emerald-600 text-white"
+                          : "border-neutral-300 dark:border-neutral-600 bg-transparent"
+                      )}
+                    >
+                      {paymentMethod === "CASH_ON_DELIVERY" && <Check className="size-3.5 stroke-[3]" />}
+                    </div>
+                  </div>
+                </div>
 
-                  <span className="ml-2 shrink-0 text-xs font-bold text-[var(--foreground)]">
-                    {formatCurrency(item.subtotal)}
+                {/* KHQR option */}
+                <div
+                  onClick={() => setPaymentMethod("KHQR")}
+                  className={cn(
+                    "flex cursor-pointer items-center justify-between rounded-xl border p-4 transition-all duration-150",
+                    paymentMethod === "KHQR"
+                      ? "border-emerald-600 bg-emerald-50/20 dark:bg-emerald-950/20 ring-1 ring-emerald-600"
+                      : "border-[var(--border-soft)] bg-[var(--surface)] hover:bg-[var(--surface-quiet)]"
+                  )}
+                >
+                  <div className="flex items-center gap-3.5">
+                    <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-[#E1251B] text-white shadow-sm font-black text-xs tracking-tight">
+                      KHQR
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-[var(--foreground)]">
+                        KHQR
+                      </h3>
+                      <p className="text-xs text-[var(--muted-foreground)]">
+                        Scan & pay instantly with bank app
+                      </p>
+                    </div>
+                  </div>
+                  <div className="shrink-0">
+                    <div
+                      className={cn(
+                        "flex size-5 items-center justify-center rounded border transition",
+                        paymentMethod === "KHQR"
+                          ? "border-emerald-600 bg-emerald-600 text-white"
+                          : "border-neutral-300 dark:border-neutral-600 bg-transparent"
+                      )}
+                    >
+                      {paymentMethod === "KHQR" && <Check className="size-3.5 stroke-[3]" />}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT COLUMN: ORDER SUMMARY + COUPON + CTA */}
+          <div className="space-y-6 lg:col-span-5 xl:col-span-4">
+            {/* ORDER SUMMARY CARD */}
+            <div className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface)] p-5 sm:p-6 shadow-sm">
+              <div className="flex items-center justify-between pb-4 border-b border-[var(--border-soft)]">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--foreground)]">
+                    Order Summary
+                  </h2>
+                  <span className="rounded-full bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 text-[11px] font-semibold text-[var(--muted-foreground)]">
+                    {store.cartItems.length} items
                   </span>
                 </div>
-              ))}
+
+              </div>
+
+              {/* Items List */}
+              <div className="divide-y divide-[var(--border-soft)] max-h-72 overflow-y-auto pr-1">
+                {store.cartItems.map((item) => (
+                  <div
+                    key={item.cartKey || item.productId}
+                    className="flex items-center justify-between gap-3 py-3"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="relative size-11 shrink-0 overflow-hidden rounded-lg border border-[var(--border-soft)] bg-[var(--surface-quiet)]">
+                        {item.product?.image ? (
+                          <Image
+                            src={item.product.image}
+                            alt={item.product.name}
+                            fill
+                            className="object-contain p-1"
+                            unoptimized
+                          />
+                        ) : (
+                          <div className="flex size-full items-center justify-center text-xs text-neutral-400">
+                            📦
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="truncate text-xs font-bold text-[var(--foreground)]">
+                          {item.product?.name}
+                        </h4>
+                        <p className="mt-0.5 truncate text-[11px] text-[var(--muted-foreground)]">
+                          {item.variantName || "Default Variant"} · Qty: {item.quantity}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="shrink-0 text-xs font-bold text-[var(--foreground)]">
+                      {formatCurrency(item.subtotal)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Price Calculation breakdown */}
+              <div className="border-t border-[var(--border-soft)] pt-4 space-y-2.5 text-xs">
+                <div className="flex items-center justify-between text-[var(--muted-foreground)]">
+                  <span>Subtotal</span>
+                  <span className="font-semibold text-[var(--foreground)]">
+                    {formatCurrency(store.cartTotal)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[var(--muted-foreground)]">
+                  <div className="flex items-center gap-1.5">
+                    <span>Delivery Fee</span>
+                    <span className="rounded bg-emerald-100 dark:bg-emerald-950/60 px-1.5 py-0.2 text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
+                      Promo
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="line-through text-neutral-400">$0.50</span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400">Free</span>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-[var(--muted-foreground)]">
+                  <span>Estimated Tax & Surcharge</span>
+                  <span className="font-semibold text-[var(--foreground)]">$0.00</span>
+                </div>
+                <div className="flex items-center justify-between border-t border-[var(--border-soft)] pt-3 text-sm">
+                  <span className="font-bold text-[var(--foreground)]">Order Total</span>
+                  <span className="text-base font-extrabold text-[var(--foreground)]">
+                    {formatCurrency(store.cartTotal)}
+                  </span>
+                </div>
+              </div>
             </div>
 
-            <div className="mt-1 border-t border-dashed border-[var(--border-soft)] pt-4">
-              <div className="flex items-center justify-between text-xs text-[var(--muted-foreground)]">
-                <span>{t("total")}</span>
+            {/* COUPON & CAMPAIGN VOUCHER CARD */}
+            <div className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface)] p-5 sm:p-6 shadow-sm">
+              <div className="flex items-start gap-3">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-900/50">
+                  <Ticket className="size-4" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--foreground)]">
+                    Coupon & Campaign Voucher
+                  </h3>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-[var(--muted-foreground)]">
+                    Discount automatically validated upon checkout placement.
+                  </p>
+                </div>
+              </div>
 
-                <span className="text-sm font-extrabold text-[var(--action)]">
-                  {formatCurrency(store.cartTotal)}
+              <div className="mt-4 flex gap-2">
+                <input
+                  type="text"
+                  value={couponCode}
+                  onChange={(e) => setCouponCode(e.target.value)}
+                  placeholder="Enter coupon code"
+                  className="app-input flex-1 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3 py-2 text-xs font-medium uppercase placeholder:normal-case placeholder:tracking-normal focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (couponCode.trim()) {
+                      setMessage(`Coupon "${couponCode.trim().toUpperCase()}" applied.`);
+                    }
+                  }}
+                  className="rounded-xl bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 px-4 py-2 text-xs font-bold hover:opacity-90 transition active:scale-95 cursor-pointer shadow-sm"
+                >
+                  Apply
+                </button>
+              </div>
+
+              <div className="mt-3 flex items-center gap-1.5 text-[11px] text-[var(--muted-foreground)]">
+                <CircleHelp className="size-3.5 shrink-0" />
+                <span>Redeem from coupon wallet. Single coupon per customer.</span>
+              </div>
+            </div>
+
+            {/* DESKTOP TOTAL TO PAY / CTA CARD */}
+            <div className="hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface)] p-5 sm:p-6 shadow-sm space-y-4 lg:block">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+                    Total to Pay
+                  </p>
+                  <div className="mt-1 flex items-baseline gap-2">
+                    <span className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[var(--foreground)]">
+                      {formatCurrency(store.cartTotal)}
+                    </span>
+                    {/* <span className="rounded-full bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900">
+                      All taxes incl
+                    </span> */}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs font-medium text-[var(--muted-foreground)]">
+                    Estimated: 20-30 min
+                  </span>
+                </div>
+              </div>
+
+              <Button
+                type="submit"
+                disabled={submitting || !store.cartItems.length}
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#007a4d] hover:bg-[#006640] text-white font-bold text-sm shadow-md transition-all active:scale-[0.99] disabled:opacity-50 cursor-pointer"
+              >
+                <ShieldCheck className="size-5 shrink-0" />
+                <span>
+                  {submitting
+                    ? t("placing_order")
+                    : paymentMethod === "KHQR"
+                      ? "Create KHQR payment"
+                      : "Place order securely"}
                 </span>
-              </div>
+              </Button>
+
+              {message ? (
+                <div className="rounded-lg border border-[var(--border-soft)] bg-[var(--surface-quiet)] p-3 text-xs text-[var(--foreground)]">
+                  {message}
+                </div>
+              ) : null}
             </div>
-          </Card>
+          </div>
 
-          {/* Coupon */}
-          <Card>
-            <div className="flex items-start gap-3 border-b border-[var(--border-soft)] pb-4">
-              <div className="flex size-8 shrink-0 items-center justify-center border border-[var(--border-soft)] bg-[var(--surface-quiet)] text-[var(--action)]">
-                <Ticket className="size-4" />
-              </div>
-
-              <div className="min-w-0 flex-1">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--foreground)]">
-                  Coupon & Campaign Voucher
-                </h3>
-
-                <p className="mt-1 text-[11px] leading-5 text-[var(--muted-foreground)]">
-                  {t("coupon_hint")}
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-4">
-              <input
-                value={couponCode}
-                onChange={(event) => setCouponCode(event.target.value)}
-                placeholder={t("enter_coupon")}
-                className="app-input w-full rounded-none border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3 py-2.5 text-xs font-medium uppercase tracking-wider text-[var(--foreground)] outline-none transition placeholder:normal-case placeholder:tracking-normal focus:border-[var(--action)] focus:ring-1 focus:ring-[var(--action)]"
-              />
-            </div>
-
-            <p className="mt-2 text-[10px] leading-5 text-[var(--muted-foreground)]">
-              {t("coupon_wallet_note")}
-            </p>
-          </Card>
-
-          {/* Desktop CTA */}
-          {/* Desktop CTA */}
-          <div className="hidden border border-[var(--border-soft)] bg-[var(--surface)] p-4 shadow-[var(--shadow-soft)] lg:block">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex min-w-0 items-baseline gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)] whitespace-nowrap">
+          {/* MOBILE STICKY BOTTOM BAR */}
+          <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 shadow-lg lg:hidden">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)] block">
                   Total to Pay
                 </span>
-
-                <span className="text-2xl font-extrabold tracking-tight text-[var(--foreground)] whitespace-nowrap">
+                <span className="text-xl font-extrabold tracking-tight text-[var(--foreground)]">
                   {formatCurrency(store.cartTotal)}
                 </span>
               </div>
 
               <Button
                 type="submit"
-                className="h-11 shrink-0 rounded-none border border-[var(--action)] bg-[var(--action)] px-5 text-sm font-bold text-white shadow-none transition hover:opacity-90"
                 disabled={submitting || !store.cartItems.length}
+                className="h-11 rounded-xl bg-[#007a4d] hover:bg-[#006640] px-5 text-xs font-bold text-white shadow-sm transition active:scale-[0.98]"
               >
-                {submitting
-                  ? t("placing_order")
-                  : paymentMethod === "KHQR"
-                    ? "Create KHQR payment"
-                    : t("place_order")}
+                <ShieldCheck className="size-4 shrink-0 mr-1.5" />
+                <span>
+                  {submitting
+                    ? t("placing_order")
+                    : paymentMethod === "KHQR"
+                      ? "Create KHQR payment"
+                      : "Place order securely"}
+                </span>
               </Button>
             </div>
 
             {message ? (
-              <div className="mt-3 border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3 py-2.5 text-xs text-[var(--foreground)]">
+              <div className="mt-2 rounded-lg border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3 py-2 text-xs text-[var(--foreground)]">
                 {message}
               </div>
             ) : null}
           </div>
-        </div>
-
-        {/* Mobile + Tablet CTA */}
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--border-soft)] bg-[var(--surface)] px-3 py-3 shadow-[var(--shadow-soft)] lg:hidden">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-baseline gap-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)] whitespace-nowrap">
-                Total to Pay
-              </span>
-
-              <span className="text-xl font-extrabold tracking-tight text-[var(--foreground)] whitespace-nowrap">
-                {formatCurrency(store.cartTotal)}
-              </span>
-            </div>
-
-            <Button
-              type="submit"
-              className="h-11 shrink-0 rounded-none border border-[var(--action)] bg-[var(--action)] px-4 text-sm font-bold text-white shadow-none transition hover:opacity-90"
-              disabled={submitting || !store.cartItems.length}
-            >
-              {submitting
-                ? t("placing_order")
-                : paymentMethod === "KHQR"
-                  ? "Create KHQR payment"
-                  : t("place_order")}
-            </Button>
-          </div>
-
-          {message ? (
-            <div className="mt-2 border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3 py-2.5 text-xs text-[var(--foreground)]">
-              {message}
-            </div>
-          ) : null}
-        </div>
-      </form>
+        </form>
+      </main>
     </div>
   );
 }
@@ -2082,9 +2328,21 @@ export function ClientOrderHistoryPageView() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
+  const customerOrders = useMemo(() => {
+    return (store.orders || []).filter((order) => {
+      const isKhqr = String(order.paymentMethod || "").toUpperCase() === "KHQR";
+      const isPaid = String(order.paymentStatus || "").toUpperCase() === "PAID";
+      // Exclude KHQR orders that were never successfully paid (such as cancelled, expired, or abandoned drafts)
+      if (isKhqr && !isPaid) {
+        return false;
+      }
+      return true;
+    });
+  }, [store.orders]);
+
   const orders = useMemo(() => {
     const lower = query.trim().toLowerCase();
-    const filtered = store.orders.filter((order) => {
+    const filtered = customerOrders.filter((order) => {
       if (status !== "all" && order.status !== status) {
         return false;
       }
@@ -2131,23 +2389,23 @@ export function ClientOrderHistoryPageView() {
           return new Date(b.createdAt) - new Date(a.createdAt);
       }
     });
-  }, [store.orders, query, status, sort, startDate, endDate]);
+  }, [customerOrders, query, status, sort, startDate, endDate]);
 
   const orderMetrics = useMemo(() => {
     return {
-      total: store.orders.length,
-      active: store.orders.filter(
-        (order) => !["delivered", "cancelled"].includes(order.status)
+      total: customerOrders.length,
+      active: customerOrders.filter(
+        (order) => !["delivered", "cancelled"].includes(String(order.status || "").toLowerCase())
       ).length,
-      delivered: store.orders.filter(
-        (order) => order.status === "delivered"
+      delivered: customerOrders.filter(
+        (order) => String(order.status || "").toLowerCase() === "delivered"
       ).length,
-      spent: store.orders.reduce(
+      spent: customerOrders.reduce(
         (sum, order) => sum + Number(order.total || 0),
         0
       ),
     };
-  }, [store.orders]);
+  }, [customerOrders]);
 
   const dateRangeLabel =
     startDate && endDate
@@ -3151,6 +3409,7 @@ export function ClientProfilePageView({ user }) {
 export function ClientProductDetailPageView({ productId, user }) {
   const router = useRouter();
   const store = useAppStore();
+  const router = useRouter();
   const [comment, setComment] = useState("");
   const [editingId, setEditingId] = useState("");
   const [editingMessage, setEditingMessage] = useState("");
@@ -3266,9 +3525,12 @@ export function ClientProductDetailPageView({ productId, user }) {
 
   function handleAddToCart() {
     // Never silently pick a variant. If the customer has not explicitly
-    // chosen an option, require the selection first. This prevents ordering
-    // the wrong (e.g. cheapest) variant by mistake.
+    // chosen an option, require the selection first.
     if (isVariantProduct && !selectedVariantId) {
+      const el = document.getElementById("product-options-section");
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
       return;
     }
 
@@ -3367,14 +3629,14 @@ export function ClientProductDetailPageView({ productId, user }) {
             </p>
           ) : null}
 
-          {isVariantProduct && product.variants.length > 0 ? (
-            <div className="mt-6 min-w-0">
+          {isVariantProduct && (productVariants.length > 0 || product.variants.length > 0) ? (
+            <div id="product-options-section" className="mt-6 min-w-0">
               <h3 className="mb-3 text-sm font-semibold text-[var(--foreground)]">
                 Choose option:
               </h3>
 
               <div className="flex min-w-0 flex-wrap gap-2">
-                {product.variants.map((variant) => {
+                {(productVariants.length > 0 ? productVariants : product.variants).map((variant) => {
                   const isSelected = selectedVariantId === variant.id;
                   const variantPrice =
                     variant.price *
@@ -3388,7 +3650,7 @@ export function ClientProductDetailPageView({ productId, user }) {
                       className={cn(
                         "max-w-full rounded-xl border px-4 py-3 text-left text-sm font-semibold transition",
                         isSelected
-                          ? "border-[var(--action)] bg-[color-mix(in_srgb,var(--action)_14%,var(--surface))] text-[var(--foreground)]"
+                          ? "border-[var(--action)] bg-[color-mix(in_srgb,var(--action)_14%,var(--surface))] text-[var(--foreground)] ring-2 ring-[var(--action)]/30"
                           : "border-[var(--border-soft)] bg-[var(--surface)] text-[var(--muted-foreground)] hover:border-[var(--action)]"
                       )}
                     >

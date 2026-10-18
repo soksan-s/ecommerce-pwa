@@ -15,13 +15,14 @@ function stockBadgeClass(stock) {
   return "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300";
 }
 
-export function VariantSelectorModal({ open, product, settings, onClose, onSelectVariant }) {
+export function VariantSelectorModal({ open, product, priceType = "RETAIL", settings, onClose, onSelectVariant }) {
   if (!open || !product) {
     return null;
   }
 
   const variants = Array.isArray(product.variants) ? product.variants : [];
   const initial = product.name?.charAt(0)?.toUpperCase() || "?";
+  const isWholesale = String(priceType).toUpperCase() === "WHOLESALE";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/65 backdrop-blur-xs p-4">
@@ -42,6 +43,11 @@ export function VariantSelectorModal({ open, product, settings, onClose, onSelec
                   <Layers className="size-3" />
                   Select Variant
                 </span>
+                {isWholesale && (
+                  <span className="inline-flex items-center rounded-md bg-amber-500/20 px-2 py-0.5 text-[10px] font-extrabold uppercase text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                    Wholesale
+                  </span>
+                )}
                 <span className="text-xs font-semibold text-[var(--muted-foreground)]">{product.category}</span>
               </div>
               <h2 className="mt-1 text-lg font-black tracking-tight text-[var(--foreground)]">{product.name}</h2>
@@ -63,6 +69,9 @@ export function VariantSelectorModal({ open, product, settings, onClose, onSelec
           {variants.map((variant) => {
             const disabled = variant.stock <= 0 || variant.isActive === false;
             const attributes = Array.isArray(variant.attributeValues) ? variant.attributeValues : [];
+            const effectivePrice = isWholesale
+              ? Number(variant.wholesalePrice ?? variant.retailPrice ?? variant.price)
+              : Number(variant.retailPrice ?? variant.price);
 
             return (
               <button
@@ -110,11 +119,11 @@ export function VariantSelectorModal({ open, product, settings, onClose, onSelec
 
                 <div className="text-right shrink-0">
                   <p className="text-base font-black text-[var(--foreground)]">
-                    {formatPrimaryMoney(variant.price, settings)}
+                    {formatPrimaryMoney(effectivePrice, settings)}
                   </p>
-                  {variant.originalPrice && variant.originalPrice > variant.price ? (
+                  {isWholesale && variant.retailPrice && variant.retailPrice > effectivePrice ? (
                     <p className="text-[11px] font-bold text-[var(--muted-foreground)] line-through">
-                      {formatPrimaryMoney(variant.originalPrice, settings)}
+                      Retail: {formatPrimaryMoney(variant.retailPrice, settings)}
                     </p>
                   ) : null}
                 </div>

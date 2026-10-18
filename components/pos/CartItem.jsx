@@ -36,7 +36,14 @@ export function CartItem({ item, settings, displayCurrency, onUpdateQty, onRemov
                   </span>
                 </>
               ) : (
-                <span>{formatDisplayMoney(item.price, displayCurrency, settings)}</span>
+                <>
+                  <span>{formatDisplayMoney(item.price, displayCurrency, settings)}</span>
+                  {item.wholesalePrice && item.retailPrice && item.price === item.wholesalePrice && item.wholesalePrice !== item.retailPrice ? (
+                    <span className="rounded-md bg-amber-500/15 border border-amber-500/30 px-1 py-0.2 text-[9px] font-black uppercase text-amber-700 dark:text-amber-300">
+                      Wholesale
+                    </span>
+                  ) : null}
+                </>
               )}
             </div>
             {isOverridden && item.overrideReason ? (

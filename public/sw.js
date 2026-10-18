@@ -1,4 +1,4 @@
-const CACHE_NAME = "myshop-cache-v5";
+const CACHE_NAME = "myshop-cache-v6";
 const STATIC_CACHE_EXTENSIONS = [
   ".js",
   ".css",
@@ -190,25 +190,38 @@ async function staticAssetHandler(request) {
   }
 }
 
-async function staleWhileRevalidate(request) {
-  const cache = await caches.open(CACHE_NAME);
-  const cached = await cache.match(request);
-
-  const fetchPromise = fetch(request)
-    .then((response) => {
-      if (response && response.ok) {
-        cache.put(request, response.clone());
-      }
-      return response;
-    })
-    .catch(() => {
-      return cached || new Response(JSON.stringify({ error: "Offline", offline: true }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+async function networkFirstApiHandler(request) {
+  try {
+    const networkResponse = await fetch(request);
+    if (networkResponse && networkResponse.ok) {
+      const cache = await caches.open(CACHE_NAME);
+      cache.put(request, networkResponse.clone());
+    }
+    return networkResponse;
+  } catch (error) {
+    const cache = await caches.open(CACHE_NAME);
+    const cached = await cache.match(request, { ignoreSearch: false });
+    if (cached) {
+      return cached;
+    }
+    return new Response(JSON.stringify({ data: [], error: "Offline", offline: true }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
     });
+  }
+}
 
-  return cached || fetchPromise;
+async function invalidateApiCache() {
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    const keys = await cache.keys();
+    for (const req of keys) {
+      const u = new URL(req.url);
+      if (u.pathname.startsWith("/api/")) {
+        await cache.delete(req);
+      }
+    }
+  } catch {}
 }
 
 async function queueFailedApiPost(request) {
@@ -387,13 +400,45 @@ self.addEventListener("fetch", (event) => {
 
   // Handle API Requests
   if (url.pathname.startsWith("/api/")) {
+    // Only catalog reads can use network-first with cache fallback
+    const isCatalogGet =
+      (url.pathname === "/api/products" || url.pathname === "/api/categories") &&
+      request.method === "GET";
+
     if (request.method === "GET") {
-      event.respondWith(staleWhileRevalidate(request));
+      if (isCatalogGet) {
+        event.respondWith(networkFirstApiHandler(request));
+      } else {
+        // Direct network fetch for dynamic/real-time endpoints (orders, auth, notifications, reports, etc.)
+        event.respondWith(
+          fetch(request).catch(() => {
+            return new Response(JSON.stringify({ error: "Network unavailable", offline: true }), {
+              status: 503,
+              headers: { "Content-Type": "application/json" },
+            });
+          })
+        );
+      }
       return;
     }
 
-    if (request.method === "POST") {
-      event.respondWith(fetch(request.clone()).catch(() => queueFailedApiPost(request)));
+    // Mutations: invalidate cached API data so updates appear instantly
+    if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method)) {
+      event.respondWith(
+        fetch(request.clone())
+          .then((response) => {
+            if (response && response.ok) {
+              invalidateApiCache().catch(() => {});
+            }
+            return response;
+          })
+          .catch((err) => {
+            if (request.method === "POST") {
+              return queueFailedApiPost(request);
+            }
+            throw err;
+          })
+      );
       return;
     }
   }

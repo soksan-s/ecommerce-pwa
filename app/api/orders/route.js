@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { serializeOrder } from "@/lib/serializers";
 import { sendTelegramOrderNotification } from "@/lib/server/services/telegram";
 import { sendOrderPushNotification } from "@/lib/server/services/web-push";
+import { getVariantConversionFactor, resolveBaseVariant } from "@/lib/server/services/inventory-units";
 
 function startOfDay(value) {
   const date = value instanceof Date ? new Date(value) : new Date(value);
@@ -44,6 +45,9 @@ async function generateOrderNumber() {
   return `ORD-${Date.now()}`;
 }
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET(request) {
   try {
     const user = await getCurrentUser();
@@ -66,6 +70,15 @@ export async function GET(request) {
     } else {
       where.userId = user.id;
     }
+
+    // Do not return discarded/cancelled unpaid KHQR checkout orders
+    where.NOT = [
+      {
+        paymentMethod: { in: ["KHQR", "khqr"] },
+        paymentStatus: { in: ["PENDING", "CANCELLED", "EXPIRED", "FAILED"] },
+        status: "CANCELLED",
+      },
+    ];
 
     if (status) {
       where.status = status;
@@ -145,7 +158,7 @@ export async function POST(request) {
     const directVariants = variantIds.length
       ? await prisma.productVariant.findMany({
           where: { id: { in: variantIds }, isActive: true },
-          include: { product: true },
+          include: { product: true, unit: true },
         })
       : [];
 
@@ -153,7 +166,7 @@ export async function POST(request) {
     const productVariants = productOnlyIds.length
       ? await prisma.productVariant.findMany({
           where: { productId: { in: productOnlyIds }, isActive: true },
-          include: { product: true },
+          include: { product: true, unit: true },
           orderBy: { sortOrder: "asc" },
         })
       : [];
@@ -256,8 +269,14 @@ export async function POST(request) {
         throw new Error(`Variant not found for line: ${lookupKey}`);
       }
       const quantity = Number(line.quantity || 0);
-      // Price is always calculated from the selected variant (never from legacy product.price)
-      const unitPrice = Number(variant.price) * (1 - variant.discountPercent / 100);
+      // Online Storefront: Wholesale pricing only! Server determines and strictly enforces wholesale price.
+      const rawWholesale = variant.wholesalePrice != null ? Number(variant.wholesalePrice) : null;
+      const wholesalePrice =
+        rawWholesale !== null && !Number.isNaN(rawWholesale) && rawWholesale > 0
+          ? rawWholesale
+          : Number(variant.price);
+      const discountPercent = Number(variant.discountPercent || 0);
+      const unitPrice = wholesalePrice * (1 - discountPercent / 100);
 
       return {
         variant,
@@ -291,27 +310,31 @@ export async function POST(request) {
 
     // Check stock levels for variants & auto-initialize inventory if missing
     for (const line of normalizedLines) {
+      const baseVariant = await resolveBaseVariant(prisma, line.variant);
+      const factor = getVariantConversionFactor(line.variant);
+      const requiredUnits = line.quantity * factor;
+
       let inv = await prisma.inventory.findUnique({
         where: {
           variantId_branchId: {
-            variantId: line.variant.id,
+            variantId: baseVariant.id,
             branchId,
           },
         },
       });
 
       if (!inv) {
-        const initialStock = Number(line.variant.product?.stock || 100);
+        const initialStock = Number(baseVariant.product?.stock || 100);
         inv = await prisma.inventory.upsert({
           where: {
             variantId_branchId: {
-              variantId: line.variant.id,
+              variantId: baseVariant.id,
               branchId,
             },
           },
           update: {},
           create: {
-            variantId: line.variant.id,
+            variantId: baseVariant.id,
             branchId,
             quantity: initialStock,
             reservedQuantity: 0,
@@ -321,7 +344,7 @@ export async function POST(request) {
       }
 
       const availQty = inv ? (inv.availableQuantity > 0 ? inv.availableQuantity : inv.quantity) : 0;
-      if (line.quantity > availQty) {
+      if (requiredUnits > availQty) {
         return fail(`Insufficient stock for ${line.variant.product?.name || line.variant.name}.`, 422);
       }
     }
@@ -429,24 +452,28 @@ export async function POST(request) {
       });
 
       for (const line of normalizedLines) {
-        const initialStock = Number(line.variant.product?.stock || 100);
-        // Ensure branch inventory record exists
+        const baseVariant = await resolveBaseVariant(tx, line.variant);
+        const factor = getVariantConversionFactor(line.variant);
+        const requiredUnits = line.quantity * factor;
+        const initialStock = Number(baseVariant.product?.stock || 100);
+
+        // Ensure branch inventory record exists for baseVariant
         await tx.inventory.upsert({
-          where: { variantId_branchId: { variantId: line.variant.id, branchId } },
+          where: { variantId_branchId: { variantId: baseVariant.id, branchId } },
           update: {},
-          create: { variantId: line.variant.id, branchId, quantity: initialStock, reservedQuantity: 0, availableQuantity: initialStock },
+          create: { variantId: baseVariant.id, branchId, quantity: initialStock, reservedQuantity: 0, availableQuantity: initialStock },
         });
 
-        // Atomically check availableQuantity >= line.quantity AND reserve stock
+        // Atomically check availableQuantity >= requiredUnits AND reserve stock on baseVariant
         const reserveResult = await tx.inventory.updateMany({
           where: {
-            variantId: line.variant.id,
+            variantId: baseVariant.id,
             branchId,
-            availableQuantity: { gte: line.quantity },
+            availableQuantity: { gte: requiredUnits },
           },
           data: {
-            reservedQuantity: { increment: line.quantity },
-            availableQuantity: { decrement: line.quantity },
+            reservedQuantity: { increment: requiredUnits },
+            availableQuantity: { decrement: requiredUnits },
           },
         });
 
@@ -455,15 +482,15 @@ export async function POST(request) {
         }
 
         await createInventoryMovement(tx, {
-          variantId: line.variant.id,
+          variantId: baseVariant.id,
           branchId,
           orderId: created.id,
           type: "RESERVATION",
           channel: "ONLINE",
-          quantity: line.quantity,
+          quantity: requiredUnits,
           previousStock: 0,
           nextStock: 0,
-          note: "Online order inventory reservation",
+          note: `Online order inventory reservation (${line.quantity} ${line.variant.name}${factor > 1 ? ` = ${requiredUnits} base units` : ""})`,
           userId: user?.id || null,
         });
       }
@@ -497,36 +524,39 @@ export async function POST(request) {
         total: Number(order.total),
       };
 
-      // 1. Send Telegram notification to staff group
-      sendTelegramOrderNotification(order).catch((err) => {
-        console.error("[orders] Telegram notification error:", err?.message || err);
-      });
-
-      // 2. Send Web Push notification to subscribed staff
-      sendOrderPushNotification(order).catch((err) => {
-        console.error("[orders] Web Push notification error:", err?.message || err);
-      });
-
-      // 3. Notify the customer who placed the order
-      if (user?.id) {
-        await createNotification(prisma, {
-          userId: user.id,
-          type: "ORDER_PLACED",
-          title: "Order Received",
-          message: `Your order #${orderRef} has been received and is pending confirmation.`,
-          data: notifData,
+      // For KHQR orders, notifications are sent when payment is verified and paid
+      if (order.paymentMethod !== "KHQR") {
+        // 1. Send Telegram notification to staff group
+        sendTelegramOrderNotification(order).catch((err) => {
+          console.error("[orders] Telegram notification error:", err?.message || err);
         });
-      }
 
-      // 4. Notify the branch cashiers (branchId-scoped)
-      if (branchId) {
-        await createNotification(prisma, {
-          branchId,
-          type: "ORDER_PLACED",
-          title: "New Online Order",
-          message: `New online order #${orderRef} received ($${Number(order.total).toFixed(2)}).`,
-          data: notifData,
+        // 2. Send Web Push notification to subscribed staff
+        sendOrderPushNotification(order).catch((err) => {
+          console.error("[orders] Web Push notification error:", err?.message || err);
         });
+
+        // 3. Notify the customer who placed the order
+        if (user?.id) {
+          await createNotification(prisma, {
+            userId: user.id,
+            type: "ORDER_PLACED",
+            title: "Order Received",
+            message: `Your order #${orderRef} has been received and is pending confirmation.`,
+            data: notifData,
+          });
+        }
+
+        // 4. Notify the branch cashiers (branchId-scoped)
+        if (branchId) {
+          await createNotification(prisma, {
+            branchId,
+            type: "ORDER_PLACED",
+            title: "New Online Order",
+            message: `New online order #${orderRef} received ($${Number(order.total).toFixed(2)}).`,
+            data: notifData,
+          });
+        }
       }
     } catch (notifError) {
       console.error("[orders] ORDER_PLACED notification error:", notifError?.message);

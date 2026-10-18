@@ -3,6 +3,7 @@ import { createAuditLog, createInventoryMovement, createNotification } from "@/l
 import { canAccessPOS, getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { serializeOrder } from "@/lib/serializers";
+import { getVariantConversionFactor, resolveBaseVariant } from "@/lib/server/services/inventory-units";
 
 function mapStatus(status) {
   const normalized = String(status || "").toUpperCase();
@@ -158,20 +159,30 @@ export async function PATCH(request, { params }) {
   // The order owner can cancel their own pending order.
   // Inventory is restored and a cancellation audit entry is created.
   // ════════════════════════════════════════════════════════════════
-  if (user && nextStatus === "CANCELLED" && !canAccessPOS(user.role)) {
+  if (nextStatus === "CANCELLED" && (!user || !canAccessPOS(user.role))) {
     try {
       const updated = await prisma.$transaction(async (tx) => {
         const existing = await tx.order.findUnique({
           where: { id },
-          include: { items: true },
+          include: {
+            items: {
+              include: {
+                variant: {
+                  include: {
+                    unit: true,
+                  },
+                },
+              },
+            },
+          },
         });
 
         if (!existing) {
           throw Object.assign(new Error("ORDER_NOT_FOUND"), { code: "P2025" });
         }
 
-        // Only allow cancellation when the order belongs to this user and is in PENDING status
-        if (existing.userId !== user.id) {
+        // Only allow cancellation when the order belongs to this user (or guest order) and is in PENDING status
+        if (existing.userId && user && existing.userId !== user.id) {
           throw Object.assign(new Error("FORBIDDEN"), { code: "P2025" });
         }
 
@@ -184,29 +195,33 @@ export async function PATCH(request, { params }) {
           for (const line of existing.items || []) {
             if (!line.variantId) continue;
 
-            // Atomically release reservation — decrement reservedQuantity, increment availableQuantity
+            const baseVariant = await resolveBaseVariant(tx, line.variant || { id: line.variantId });
+            const factor = getVariantConversionFactor(line.variant);
+            const unitsToRelease = line.quantity * factor;
+
+            // Atomically release reservation — decrement reservedQuantity, increment availableQuantity on baseVariant
             await tx.inventory.updateMany({
               where: {
-                variantId: line.variantId,
+                variantId: baseVariant.id,
                 branchId: existing.branchId,
-                reservedQuantity: { gte: line.quantity },
+                reservedQuantity: { gte: unitsToRelease },
               },
               data: {
-                reservedQuantity: { decrement: line.quantity },
-                availableQuantity: { increment: line.quantity },
+                reservedQuantity: { decrement: unitsToRelease },
+                availableQuantity: { increment: unitsToRelease },
               },
             });
 
             // Record the inventory movement as a reservation release
             await createInventoryMovement(tx, {
-              variantId: line.variantId,
+              variantId: baseVariant.id,
               branchId: existing.branchId,
               orderId: existing.id,
               type: "RESERVATION_RELEASE",
               channel: "ONLINE",
-              quantity: line.quantity,
-              note: "Order cancelled by customer — reservation released.",
-              userId: user.id,
+              quantity: unitsToRelease,
+              note: `Order cancelled by customer — reservation released (${line.quantity} ${line.variantName || "item"}${factor > 1 ? ` = ${unitsToRelease} base units` : ""}).`,
+              userId: user?.id || existing.userId || null,
             });
           }
         }
@@ -240,7 +255,7 @@ export async function PATCH(request, { params }) {
         });
 
         await createAuditLog(tx, {
-          userId: user.id,
+          userId: user?.id || existing.userId || null,
           action: "STATUS_CHANGE",
           module: "orders",
           recordId: id,
@@ -465,5 +480,78 @@ export async function PATCH(request, { params }) {
     return handleRouteError(error, "Unable to update order.", {
       notFoundMessage: "Order not found.",
     });
+  }
+}
+
+export async function DELETE(request, { params }) {
+  try {
+    const user = await getCurrentUser();
+    const { id } = await params;
+
+    const existing = await prisma.order.findUnique({
+      where: { id },
+      include: {
+        items: {
+          include: {
+            variant: {
+              include: {
+                unit: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!existing) {
+      return ok({ success: true, message: "Order already removed." });
+    }
+
+    // Permission check: owner or staff with POS/Admin access can delete an uncompleted/pending order
+    if (existing.userId && user && existing.userId !== user.id && !canAccessPOS(user.role)) {
+      return fail("You do not have permission to delete this order.", 403);
+    }
+
+    // Never delete fully completed or paid orders
+    if (existing.status === "COMPLETED" || existing.paymentStatus === "PAID") {
+      return fail("Paid or completed orders cannot be deleted.", 409);
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Release reserved stock if order was still pending
+      if (existing.status === "PENDING" && existing.branchId) {
+        for (const line of existing.items || []) {
+          if (!line.variant) continue;
+          const baseVariant = await resolveBaseVariant(tx, line.variant);
+          const factor = getVariantConversionFactor(line.variant);
+          const unitsToRelease = line.quantity * factor;
+
+          await tx.inventory.updateMany({
+            where: {
+              variantId: baseVariant.id,
+              branchId: existing.branchId,
+              reservedQuantity: { gte: unitsToRelease },
+            },
+            data: {
+              reservedQuantity: { decrement: unitsToRelease },
+              availableQuantity: { increment: unitsToRelease },
+            },
+          });
+        }
+      }
+
+      // 2. Cascade delete all related records
+      await tx.payment.deleteMany({ where: { orderId: id } });
+      await tx.orderStatusHistory.deleteMany({ where: { orderId: id } });
+      await tx.inventoryMovement.deleteMany({ where: { orderId: id } });
+      await tx.delivery.deleteMany({ where: { orderId: id } });
+      await tx.orderItem.deleteMany({ where: { orderId: id } });
+      await tx.orderLine.deleteMany({ where: { orderId: id } });
+      await tx.order.delete({ where: { id } });
+    });
+
+    return ok({ success: true, message: "Order discarded successfully." });
+  } catch (error) {
+    return handleRouteError(error, "Unable to delete order.");
   }
 }

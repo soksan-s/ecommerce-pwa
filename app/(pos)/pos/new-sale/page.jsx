@@ -139,20 +139,39 @@ async function generateLocalReceiptNumber() {
 
 function normalizeProduct(product) {
   const rawVariants = Array.isArray(product.variants) ? product.variants : [];
-  const variants = rawVariants.map((v) => ({
-    id: v.id,
-    name: v.name || "Default",
-    sku: v.sku || product.sku || product.id,
-    price: Number(v.discountedPrice ?? v.price ?? product.price ?? 0),
-    originalPrice: Number(v.price ?? product.price ?? 0),
-    discountPercent: Number(v.discountPercent || 0),
-    stock: Number(v.stock ?? product.stock ?? 0),
-    attributeValues: Array.isArray(v.attributeValues) ? v.attributeValues : [],
-    isActive: v.isActive !== false,
-  }));
+  const variants = rawVariants.map((v) => {
+    const retailPrice = Number(v.retailPrice ?? v.price ?? product.retailPrice ?? product.price ?? 0);
+    const rawWholesale = v.wholesalePrice ?? product.wholesalePrice;
+    const wholesalePrice =
+      rawWholesale !== undefined && rawWholesale !== null && Number(rawWholesale) > 0
+        ? Number(rawWholesale)
+        : retailPrice;
+
+    return {
+      id: v.id,
+      name: v.name || "Default",
+      sku: v.sku || product.sku || product.id,
+      price: retailPrice,
+      retailPrice,
+      wholesalePrice,
+      originalPrice: retailPrice,
+      discountPercent: Number(v.discountPercent || 0),
+      discountedPrice: Number((retailPrice * (1 - (v.discountPercent || 0) / 100)).toFixed(2)),
+      stock: Number(v.stock ?? product.stock ?? 0),
+      attributeValues: Array.isArray(v.attributeValues) ? v.attributeValues : [],
+      isActive: v.isActive !== false,
+    };
+  });
+
+  const productRetail = Number(product.retailPrice ?? product.price ?? 0);
+  const rawProductWholesale = product.wholesalePrice;
+  const productWholesale =
+    rawProductWholesale !== undefined && rawProductWholesale !== null && Number(rawProductWholesale) > 0
+      ? Number(rawProductWholesale)
+      : productRetail;
 
   const prices = variants.map((v) => v.price);
-  const basePrice = (product.displayPrice ?? product.price) || 0;
+  const basePrice = productRetail || 0;
   const minPrice = prices.length ? Math.min(...prices) : Number(basePrice);
   const maxPrice = prices.length ? Math.max(...prices) : Number(basePrice);
 
@@ -162,6 +181,8 @@ function normalizeProduct(product) {
     sku: product.sku || product.id,
     category: product.category || "General",
     price: Number(basePrice),
+    retailPrice: productRetail,
+    wholesalePrice: productWholesale,
     minPrice,
     maxPrice,
     stock: Number(product.stock || 0),
@@ -176,6 +197,8 @@ export default function NewSalePage() {
   const { settings } = usePOSSettings();
   const cartState = usePosStore((state) => state.cart);
   const heldSalesState = usePosStore((state) => state.heldSales);
+  const priceType = usePosStore((state) => state.priceType) || "RETAIL";
+  const setPriceType = usePosStore((state) => state.setPriceType);
   const addToCart = usePosStore((state) => state.addToCart);
   const updateQty = usePosStore((state) => state.updateQty);
   const removeFromCart = usePosStore((state) => state.removeFromCart);
@@ -445,6 +468,7 @@ export default function NewSalePage() {
     const transaction = {
       id: txnId,
       receiptNumber,
+      priceType: priceType || "RETAIL",
       items: cart,
       subtotal,
       tax,
@@ -581,6 +605,38 @@ export default function NewSalePage() {
             Close
           </button>
         </div>
+      </div>
+
+      {/* Controlled Pricing Mode Toggle: Retail (Default) vs Wholesale */}
+      <div className="mt-2.5 grid grid-cols-2 rounded-xl bg-[var(--surface-soft)] p-1 border border-[var(--border-soft)]">
+        <button
+          type="button"
+          onClick={() => setPriceType("RETAIL")}
+          className={`flex items-center justify-center gap-1.5 py-1.5 text-xs font-black rounded-lg transition-all ${
+            priceType === "RETAIL"
+              ? "bg-[var(--surface-strong)] text-[var(--foreground)] shadow-xs"
+              : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+          }`}
+        >
+          <span>Retail</span>
+          {priceType === "RETAIL" && (
+            <span className="size-1.5 rounded-full bg-emerald-500" />
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={() => setPriceType("WHOLESALE")}
+          className={`flex items-center justify-center gap-1.5 py-1.5 text-xs font-black rounded-lg transition-all ${
+            priceType === "WHOLESALE"
+              ? "bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/40 shadow-xs"
+              : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+          }`}
+        >
+          <span>Wholesale</span>
+          {priceType === "WHOLESALE" && (
+            <span className="size-1.5 rounded-full bg-amber-500" />
+          )}
+        </button>
       </div>
 
       <div className="mt-3 min-h-[20rem] flex-1 space-y-2 overflow-y-auto pr-1">
@@ -874,6 +930,7 @@ export default function NewSalePage() {
       <VariantSelectorModal
         open={Boolean(variantModalProduct)}
         product={variantModalProduct}
+        priceType={priceType}
         settings={settings}
         onClose={() => setVariantModalProduct(null)}
         onSelectVariant={(product, variant) => {

@@ -3,6 +3,7 @@ import { canAccessPOS, getCurrentUser } from "@/lib/auth";
 import { calculateDeposits, createContainerIssues, createAuditLog, createInventoryMovement } from "@/lib/business-events";
 import { createNotification } from "@/lib/server/services/notifications";
 import { prisma } from "@/lib/prisma";
+import { getVariantConversionFactor, resolveBaseVariant } from "@/lib/server/services/inventory-units";
 
 function toMoney(value) {
   return Number(Number(value || 0).toFixed(2));
@@ -95,11 +96,14 @@ export async function POST(request) {
       },
       include: {
         product: true,
+        unit: true,
       },
     });
 
     const variantById = new Map(variants.map((v) => [v.id, v]));
     const variantByProductId = new Map(variants.map((v) => [v.productId, v]));
+
+    const transactionPriceType = String(body.priceType || "").toUpperCase() === "WHOLESALE" ? "WHOLESALE" : "RETAIL";
 
     // Resolve every item to a concrete ProductVariant (auto-create default variant if missing)
     const resolvedItems = [];
@@ -137,9 +141,10 @@ export async function POST(request) {
             name: item.variantName || "Default",
             sku: item.sku || product.sku || `SKU-${product.id.slice(-6)}`,
             price: Number(item.price || product.price || 0),
+            wholesalePrice: Number(item.wholesalePrice || product.wholesalePrice || item.price || product.price || 0),
             isActive: true,
           },
-          include: { product: true },
+          include: { product: true, unit: true },
         });
 
         variantById.set(variant.id, variant);
@@ -147,9 +152,19 @@ export async function POST(request) {
       }
 
       const quantity = Math.max(1, Number(item.qty || item.quantity || 1));
-      const unitPrice = item.price !== undefined && !isNaN(Number(item.price)) && Number(item.price) >= 0
+      
+      const isPriceOverridden = Boolean(item.isOverridden || item.isPriceOverridden);
+      let expectedPrice = Number(variant.price);
+      if (transactionPriceType === "WHOLESALE") {
+        expectedPrice = variant.wholesalePrice !== null && variant.wholesalePrice !== undefined
+          ? Number(variant.wholesalePrice)
+          : Number(variant.price);
+      }
+
+      // If price was explicitly overridden by cashier, honor it; otherwise enforce expected price
+      const unitPrice = isPriceOverridden && item.price !== undefined && !isNaN(Number(item.price)) && Number(item.price) >= 0
         ? Number(item.price)
-        : Number(variant.price);
+        : expectedPrice;
 
       resolvedItems.push({
         variant,
@@ -286,49 +301,56 @@ export async function POST(request) {
         });
       }
 
-      // 4. Update branch inventory and create logs
+      // 4. Update branch inventory and create logs with unit conversion factor
       for (const item of normalizedItems) {
+        const factor = getVariantConversionFactor(item.variant);
+        const baseVariant = await resolveBaseVariant(tx, item.variant, item.variant.productId);
+        const targetVariantId = baseVariant ? baseVariant.id : item.variant.id;
+        const totalDeductUnits = Math.max(1, Math.round(item.quantity * factor));
+
         const inv = await tx.inventory.upsert({
           where: {
             variantId_branchId: {
-              variantId: item.variant.id,
+              variantId: targetVariantId,
               branchId,
             },
           },
           update: {
-            quantity: { decrement: item.quantity },
-            availableQuantity: { decrement: item.quantity },
+            quantity: { decrement: totalDeductUnits },
+            availableQuantity: { decrement: totalDeductUnits },
           },
           create: {
-            variantId: item.variant.id,
+            variantId: targetVariantId,
             branchId,
-            quantity: Math.max(0, 100 - item.quantity),
+            quantity: Math.max(0, 100 - totalDeductUnits),
             reservedQuantity: 0,
-            availableQuantity: Math.max(0, 100 - item.quantity),
+            availableQuantity: Math.max(0, 100 - totalDeductUnits),
           },
         });
 
-        // Decrement Product stock if product ID exists
+        // Decrement Product stock if product ID exists (product stock is kept in base units)
         if (item.variant.productId) {
           await tx.product.updateMany({
             where: { id: item.variant.productId },
-            data: { stock: { decrement: item.quantity } },
+            data: { stock: { decrement: totalDeductUnits } },
           });
         }
 
-        const availBefore = (inv ? inv.availableQuantity : 100) + item.quantity;
-        const availAfter = inv ? inv.availableQuantity : Math.max(0, 100 - item.quantity);
+        const availBefore = (inv ? inv.availableQuantity : 100) + totalDeductUnits;
+        const availAfter = inv ? inv.availableQuantity : Math.max(0, 100 - totalDeductUnits);
 
         await createInventoryMovement(tx, {
-          variantId: item.variant.id,
+          variantId: targetVariantId,
           branchId,
           saleId: created.id,
           type: "SALE",
           channel: "POS",
-          quantity: item.quantity,
+          quantity: totalDeductUnits,
           previousStock: Number(availBefore),
           nextStock: Number(availAfter),
-          note: "POS sale",
+          note: factor > 1
+            ? `POS sale (${item.quantity} x factor ${factor} = ${totalDeductUnits} base units)`
+            : "POS sale",
           userId: user?.id || null,
         });
       }
