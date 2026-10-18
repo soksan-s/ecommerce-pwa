@@ -169,23 +169,6 @@ export default function PosOrdersPage() {
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--pos-action)]">POS Orders</p>
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-[var(--foreground)] font-display">Online Order Receiving &amp; POS Queue</h1>
         </div>
-
-        <div className="grid grid-cols-3 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] p-1 shadow-xs">
-          {["all", "synced", "pending"].map((entry) => (
-            <button
-              key={entry}
-              type="button"
-              onClick={() => setFilter(entry)}
-              className={
-                filter === entry
-                  ? "rounded-lg bg-[var(--pos-action)] px-3 py-1.5 text-xs font-extrabold capitalize text-[var(--pos-action-fg)] shadow-xs transition-all"
-                  : "rounded-lg px-3 py-1.5 text-xs font-bold capitalize text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
-              }
-            >
-              {entry}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* Online Order Queue Section */}
@@ -444,10 +427,28 @@ export default function PosOrdersPage() {
       </AnimatePresence>
 
       {/* POS Transactions Section */}
+      
       <div className="overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] text-[var(--foreground)] shadow-xs">
         <div className="border-b border-[var(--border-soft)] px-4 py-3.5">
           <h2 className="text-base font-extrabold text-[var(--foreground)]">Today&apos;s POS Transactions</h2>
+           <div className="grid grid-cols-3 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] p-1 shadow-xs">
+          {["all", "synced", "pending"].map((entry) => (
+            <button
+              key={entry}
+              type="button"
+              onClick={() => setFilter(entry)}
+              className={
+                filter === entry
+                  ? "rounded-lg bg-[var(--pos-action)] px-3 py-1.5 text-xs font-extrabold capitalize text-[var(--pos-action-fg)] shadow-xs transition-all"
+                  : "rounded-lg px-3 py-1.5 text-xs font-bold capitalize text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+              }
+            >
+              {entry}
+            </button>
+          ))}
         </div>
+        </div>
+        
         <div className="overflow-x-auto">
           <table className="w-full min-w-[40rem] text-left text-xs">
             <thead className="bg-[var(--surface-soft)] text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">

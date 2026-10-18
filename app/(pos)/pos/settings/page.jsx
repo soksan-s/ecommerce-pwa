@@ -14,7 +14,7 @@ const tabs = [
   { key: "storeInfo", label: "Store Info" },
   { key: "appearance", label: "Appearance" },
   { key: "printer", label: "Printer" },
-  { key: "cashiers", label: "Cashiers & PIN" },
+  // { key: "cashiers", label: "Cashiers & PIN" },
   { key: "syncLogs", label: "Sync Logs" },
 ];
 
@@ -88,8 +88,8 @@ export default function PosSettingsPage() {
   const [draft, setDraft] = useState(defaultPOSSettings);
   const [savedSection, setSavedSection] = useState("");
   const [newPreset, setNewPreset] = useState("");
-  const [newCashierName, setNewCashierName] = useState("");
-  const [newCashierPin, setNewCashierPin] = useState("");
+  // const [newCashierName, setNewCashierName] = useState("");
+  // const [newCashierPin, setNewCashierPin] = useState("");
   const [syncLogs, setSyncLogs] = useState([]);
 
   useEffect(() => {
@@ -190,25 +190,25 @@ export default function PosSettingsPage() {
     setNewPreset("");
   }
 
-  function addCashier() {
-    if (!newCashierName.trim() || !/^\d{4}$/.test(newCashierPin)) {
-      return;
-    }
+  // function addCashier() {
+  //   if (!newCashierName.trim() || !/^\d{4}$/.test(newCashierPin)) {
+  //     return;
+  //   }
 
-    patchSection("cashiers", {
-      list: [
-        ...draft.cashiers.list,
-        {
-          id: `cashier-${Date.now()}`,
-          name: newCashierName.trim(),
-          pinSet: true,
-          pin: newCashierPin,
-        },
-      ],
-    });
-    setNewCashierName("");
-    setNewCashierPin("");
-  }
+  //   patchSection("cashiers", {
+  //     list: [
+  //       ...draft.cashiers.list,
+  //       {
+  //         id: `cashier-${Date.now()}`,
+  //         name: newCashierName.trim(),
+  //         pinSet: true,
+  //         pin: newCashierPin,
+  //       },
+  //     ],
+  //   });
+  //   setNewCashierName("");
+  //   setNewCashierPin("");
+  // }
 
   function renderSaved(section) {
     return savedSection === section ? (
@@ -671,7 +671,7 @@ export default function PosSettingsPage() {
       ) : null}
 
       {/* ── Cashiers ── */}
-      {activeTab === "cashiers" ? (
+      {/* {activeTab === "cashiers" ? (
         <SectionCard>
           <div className="space-y-5">
             <div className="space-y-2.5">
@@ -766,7 +766,7 @@ export default function PosSettingsPage() {
             </div>
           </div>
         </SectionCard>
-      ) : null}
+      ) : null} */}
 
       {/* ── Sync Logs ── */}
       {activeTab === "syncLogs" ? (
