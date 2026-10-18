@@ -2868,7 +2868,7 @@ export function ClientProfilePageView({ user }) {
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-lg font-semibold text-[var(--foreground)]">{t("welcome_back")}</p>
-            <p className="mt-1 truncate text-sm text-[var(--muted-foreground)]">{user.email}</p>
+            <p className="mt-1 truncate text-sm text-[var(--muted-foreground)]">{user.phoneNumber}</p>
           </div>
           <LogoutButton iconOnly />
         </div>
