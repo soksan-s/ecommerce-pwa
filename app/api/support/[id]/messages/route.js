@@ -60,6 +60,8 @@ export async function POST(request, { params }) {
               select: {
                 email: true,
                 role: true,
+                name: true,
+                phoneNumber: true,
               },
             },
           },

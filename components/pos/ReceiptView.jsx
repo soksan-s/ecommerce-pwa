@@ -26,6 +26,13 @@ export function ReceiptView({ transaction, settings, onNewSale }) {
 
       <div id="receipt-print" className="space-y-4">
         <div className="text-center">
+          {settings?.storeInfo?.logoBase64 ? (
+            <img
+              src={settings.storeInfo.logoBase64}
+              alt={`${settings?.storeInfo?.storeName || t("store_name")} logo`}
+              className="mx-auto mb-2 max-h-16 max-w-32 object-contain"
+            />
+          ) : null}
           <h1 className="text-xl font-black text-[var(--foreground)]">{settings?.storeInfo?.storeName || t("store_name")}</h1>
           <p className="mt-0.5 text-xs font-medium text-[var(--muted-foreground)]">{settings?.storeInfo?.storeAddress || t("store_location")}</p>
           <p className="text-xs font-medium text-[var(--muted-foreground)]">{settings?.storeInfo?.receiptHeaderNote || t("store_tagline")}</p>

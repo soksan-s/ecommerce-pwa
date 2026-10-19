@@ -40,6 +40,8 @@ export async function PATCH(request, { params }) {
               select: {
                 email: true,
                 role: true,
+                name: true,
+                phoneNumber: true,
               },
             },
           },

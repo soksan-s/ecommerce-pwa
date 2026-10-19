@@ -1651,9 +1651,18 @@ export function ClientCheckoutPageView() {
   const [deliveryNote, setDeliveryNote] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("CASH_ON_DELIVERY");
   const [couponCode, setCouponCode] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponMessage, setCouponMessage] = useState("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [khqrPayment, setKhqrPayment] = useState(null);
+
+  const couponDiscount = !appliedCoupon
+    ? 0
+    : appliedCoupon.type === "percent"
+      ? Number(((store.cartTotal * Number(appliedCoupon.value)) / 100).toFixed(2))
+      : Math.min(Number(appliedCoupon.value), store.cartTotal);
+  const checkoutTotal = Math.max(0, store.cartTotal - couponDiscount);
 
   // Restore in-flight KHQR payment if user refreshed the page during payment
   useEffect(() => {
@@ -1723,7 +1732,7 @@ export function ClientCheckoutPageView() {
     const result = await store.placeOrder({
       shippingAddress: shippingAddress.trim(),
       paymentMethod,
-      couponCode: couponCode.trim(),
+      couponCode: appliedCoupon?.code || "",
       deliveryLatitude: deliveryCoords?.lat || null,
       deliveryLongitude: deliveryCoords?.lng || null,
       deliveryNote: deliveryNote.trim() || null,
@@ -2181,10 +2190,16 @@ export function ClientCheckoutPageView() {
                   <span>Estimated Tax & Surcharge</span>
                   <span className="font-semibold text-[var(--foreground)]">$0.00</span>
                 </div>
+                {appliedCoupon ? (
+                  <div className="flex items-center justify-between text-emerald-700 dark:text-emerald-400">
+                    <span>Coupon discount ({appliedCoupon.code})</span>
+                    <span className="font-semibold">-{formatCurrency(couponDiscount)}</span>
+                  </div>
+                ) : null}
                 <div className="flex items-center justify-between border-t border-[var(--border-soft)] pt-3 text-sm">
                   <span className="font-bold text-[var(--foreground)]">Order Total</span>
                   <span className="text-base font-extrabold text-[var(--foreground)]">
-                    {formatCurrency(store.cartTotal)}
+                    {formatCurrency(checkoutTotal)}
                   </span>
                 </div>
               </div>
@@ -2210,23 +2225,59 @@ export function ClientCheckoutPageView() {
                 <input
                   type="text"
                   value={couponCode}
-                  onChange={(e) => setCouponCode(e.target.value)}
+                  onChange={(e) => {
+                    setCouponCode(e.target.value);
+                    setAppliedCoupon(null);
+                    setCouponMessage("");
+                  }}
                   placeholder="Enter coupon code"
                   className="app-input flex-1 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-3 py-2 text-xs font-medium uppercase placeholder:normal-case placeholder:tracking-normal focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
                 />
                 <button
                   type="button"
                   onClick={() => {
-                    if (couponCode.trim()) {
-                      setMessage(`Coupon "${couponCode.trim().toUpperCase()}" applied.`);
+                    const code = couponCode.trim().toLowerCase();
+                    const coupon = store.coupons.find(
+                      (item) => item.code?.trim().toLowerCase() === code && item.isActive
+                    );
+
+                    if (!coupon) {
+                      setAppliedCoupon(null);
+                      setCouponMessage("Coupon not found or inactive.");
+                      return;
                     }
+
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const startsAt = coupon.startsAt ? new Date(coupon.startsAt) : null;
+                    const endsAt = coupon.endsAt ? new Date(coupon.endsAt) : null;
+                    if (startsAt) startsAt.setHours(0, 0, 0, 0);
+                    if (endsAt) endsAt.setHours(0, 0, 0, 0);
+
+                    if (startsAt && startsAt > today) {
+                      setAppliedCoupon(null);
+                      setCouponMessage("This coupon is not active yet.");
+                      return;
+                    }
+                    if (endsAt && endsAt < today) {
+                      setAppliedCoupon(null);
+                      setCouponMessage("This coupon has expired.");
+                      return;
+                    }
+
+                    setAppliedCoupon(coupon);
+                    setCouponMessage(`Coupon "${coupon.code}" applied.`);
                   }}
                   className="rounded-xl bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 px-4 py-2 text-xs font-bold hover:opacity-90 transition active:scale-95 cursor-pointer shadow-sm"
                 >
                   Apply
                 </button>
               </div>
-
+              {couponMessage ? (
+                <p className={`mt-2 text-xs ${appliedCoupon ? "text-emerald-700 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                  {couponMessage}
+                </p>
+              ) : null}
               <div className="mt-3 flex items-center gap-1.5 text-[11px] text-[var(--muted-foreground)]">
                 <CircleHelp className="size-3.5 shrink-0" />
                 <span>Redeem from coupon wallet. Single coupon per customer.</span>
@@ -2242,7 +2293,7 @@ export function ClientCheckoutPageView() {
                   </p>
                   <div className="mt-1 flex items-baseline gap-2">
                     <span className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[var(--foreground)]">
-                      {formatCurrency(store.cartTotal)}
+                      {formatCurrency(checkoutTotal)}
                     </span>
                     {/* <span className="rounded-full bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900">
                       All taxes incl
@@ -2287,7 +2338,7 @@ export function ClientCheckoutPageView() {
                   Total to Pay
                 </span>
                 <span className="text-xl font-extrabold tracking-tight text-[var(--foreground)]">
-                  {formatCurrency(store.cartTotal)}
+                  {formatCurrency(checkoutTotal)}
                 </span>
               </div>
 

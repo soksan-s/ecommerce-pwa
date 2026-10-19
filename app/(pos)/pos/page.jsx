@@ -938,6 +938,11 @@ export default function PosDashboardPage() {
     const storeName = settings?.storeInfo?.storeName || "Soeum Savet Store";
     const storeAddress = settings?.storeInfo?.storeAddress || "Siem Reap, Cambodia";
     const storePhone = settings?.storeInfo?.phone || "Tel: 012 345 678";
+    const storeLogo = settings?.storeInfo?.logoBase64;
+    const logoHtml = typeof storeLogo === "string" &&
+      /^data:image\/(?:png|jpe?g|webp|gif);base64,[a-z0-9+/=]+$/i.test(storeLogo)
+      ? `<img class="store-logo" src="${storeLogo}" alt="Store logo" />`
+      : "";
     const footerMsg = settings?.storeInfo?.receiptFooterMessage || "Thank you for your business!";
 
     const itemsHtml = items.length > 0
@@ -988,6 +993,7 @@ export default function PosDashboardPage() {
               margin-right: auto;
             }
             .header { text-align: center; margin-bottom: 12px; }
+            .store-logo { display: block; max-width: 120px; max-height: 64px; object-fit: contain; margin: 0 auto 8px; }
             .store-name { font-size: 16px; font-weight: 700; color: #0f172a; margin-bottom: 2px; }
             .store-meta { font-size: 11px; color: #64748b; margin-bottom: 2px; }
             .receipt-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #0284c7; margin: 8px 0; border-top: 1px dashed #cbd5e1; border-bottom: 1px dashed #cbd5e1; padding: 4px 0; }
@@ -1010,6 +1016,7 @@ export default function PosDashboardPage() {
         </head>
         <body>
           <div class="header">
+            ${logoHtml}
             <div class="store-name">${storeName}</div>
             <div class="store-meta">${storeAddress} &bull; ${storePhone}</div>
             <div class="receipt-title">Official POS Receipt</div>

@@ -28,6 +28,7 @@ import {
   ImagePlus,
   Layers,
   MapPin,
+  MessageCircle,
   MinusCircle,
   Navigation,
   PackageOpen,
@@ -3386,20 +3387,73 @@ export function AdminCouponsPageView() {
   const [description, setDescription] = useState("");
   const [audience, setAudience] = useState("all");
   const [userEmail, setUserEmail] = useState("");
+  const [userSearch, setUserSearch] = useState("");
+  const [matchingUsers, setMatchingUsers] = useState([]);
+  const [isSearchingUsers, setIsSearchingUsers] = useState(false);
   const [formMessage, setFormMessage] = useState("");
   const [formTone, setFormTone] = useState("neutral");
 
+  useEffect(() => {
+    const query = userSearch.trim();
+    if (audience !== "user" || userEmail || query.length < 2) {
+      setMatchingUsers([]);
+      setIsSearchingUsers(false);
+      return undefined;
+    }
+
+    setMatchingUsers([]);
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(async () => {
+      setIsSearchingUsers(true);
+      try {
+        const response = await fetch(`/api/admin/users?q=${encodeURIComponent(query)}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const payload = await response.json();
+        setMatchingUsers(response.ok && Array.isArray(payload.users) ? payload.users : []);
+      } catch (error) {
+        if (error.name !== "AbortError") setMatchingUsers([]);
+      } finally {
+        if (!controller.signal.aborted) setIsSearchingUsers(false);
+      }
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [audience, userEmail, userSearch]);
+
   return (
-    <div className="space-y-6">
-      <Card>
-        <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted-foreground)]">Coupons</p>
-        <h1 className="mt-2 text-4xl font-semibold tracking-tight text-[var(--foreground)]">Create and manage active promotions.</h1>
+    <div className="mx-auto max-w-6xl space-y-6">
+      <Card className="border-[var(--border-soft)] bg-[linear-gradient(135deg,var(--surface-strong),color-mix(in_srgb,var(--action)_8%,var(--surface)))]">
+        <div className="flex items-start gap-4">
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[var(--action)] text-white">
+            <Ticket className="size-5" />
+          </div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--muted-foreground)]">Promotions</p>
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-3xl">Coupons</h1>
+            <p className="mt-1 text-sm text-[var(--muted-foreground)]">Create discounts for everyone or assign one to a specific customer.</p>
+          </div>
+        </div>
       </Card>
+
       <Card>
+        <div className="mb-5 border-b border-[var(--border-soft)] pb-4">
+          <h2 className="text-lg font-semibold text-[var(--foreground)]">Create a coupon</h2>
+          <p className="mt-1 text-sm text-[var(--muted-foreground)]">Set the code, discount, and eligible customer.</p>
+        </div>
         <form
-          className="grid gap-4 md:grid-cols-2"
+          className="grid gap-4 sm:grid-cols-2"
           onSubmit={async (event) => {
             event.preventDefault();
+            if (audience === "user" && !userEmail) {
+              setFormMessage("Search by phone number and select a customer first.");
+              setFormTone("error");
+              return;
+            }
             const result = await store.createCoupon({
               code,
               type,
@@ -3416,43 +3470,146 @@ export function AdminCouponsPageView() {
             setCode("");
             setDescription("");
             setUserEmail("");
+            setUserSearch("");
             setValue("10");
             setAudience("all");
           }}
         >
-          <input value={code} onChange={(event) => setCode(event.target.value)} placeholder="Coupon code" className="rounded-[1.2rem] bg-[var(--surface)] px-4 py-3 text-sm outline-none" />
-          <select value={type} onChange={(event) => setType(event.target.value)} className="rounded-[1.2rem] bg-[var(--surface)] px-4 py-3 text-sm outline-none">
+          <label className="space-y-1.5 text-sm font-medium text-[var(--foreground)]">
+            Coupon code
+            <input required value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} placeholder="e.g. WELCOME10" className="app-input w-full px-4 py-3 text-sm" />
+          </label>
+          <label className="space-y-1.5 text-sm font-medium text-[var(--foreground)]">
+            Discount type
+            <select value={type} onChange={(event) => setType(event.target.value)} className="app-input w-full px-4 py-3 text-sm">
             <option value="percent">Percent</option>
             <option value="fixed">Fixed</option>
-          </select>
-          <input value={value} onChange={(event) => setValue(event.target.value)} type="number" placeholder="Value" className="rounded-[1.2rem] bg-[var(--surface)] px-4 py-3 text-sm outline-none" />
-          <select value={audience} onChange={(event) => setAudience(event.target.value)} className="rounded-[1.2rem] bg-[var(--surface)] px-4 py-3 text-sm outline-none">
-            <option value="all">All shoppers</option>
-            <option value="user">Specific user</option>
-          </select>
-          <input value={userEmail} onChange={(event) => setUserEmail(event.target.value)} placeholder={audience === "user" ? "Required user email" : "User email optional"} className="rounded-[1.2rem] bg-[var(--surface)] px-4 py-3 text-sm outline-none" />
-          <input value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Description" className="rounded-[1.2rem] bg-[var(--surface)] px-4 py-3 text-sm outline-none" />
-          <div className="md:col-span-2">
-            <Button type="submit">Create coupon</Button>
+            </select>
+          </label>
+          <label className="space-y-1.5 text-sm font-medium text-[var(--foreground)]">
+            Discount value
+            <div className="relative">
+              <input required min="0.01" step="0.01" value={value} onChange={(event) => setValue(event.target.value)} type="number" className="app-input w-full px-4 py-3 pr-12 text-sm" />
+              <span className="absolute inset-y-0 right-4 flex items-center text-sm text-[var(--muted-foreground)]">{type === "percent" ? "%" : "USD"}</span>
+            </div>
+          </label>
+          <label className="space-y-1.5 text-sm font-medium text-[var(--foreground)]">
+            Available to
+            <select
+              value={audience}
+              onChange={(event) => {
+                setAudience(event.target.value);
+                setUserEmail("");
+                setUserSearch("");
+                setMatchingUsers([]);
+              }}
+              className="app-input w-full px-4 py-3 text-sm"
+            >
+              <option value="all">All shoppers</option>
+              <option value="user">One specific customer</option>
+            </select>
+          </label>
+          {audience === "user" ? (
+            <div className="space-y-1.5 sm:col-span-2">
+              <label htmlFor="coupon-user-search" className="block text-sm font-medium text-[var(--foreground)]">Find customer by phone number</label>
+              {userEmail ? (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-300 bg-emerald-50 p-3 dark:border-emerald-900 dark:bg-emerald-950/30">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-[var(--foreground)]">{userSearch}</p>
+                    <p className="truncate text-xs text-[var(--muted-foreground)]">{userEmail}</p>
+                  </div>
+                  <button type="button" onClick={() => { setUserEmail(""); setUserSearch(""); }} className="rounded-lg px-3 py-2 text-xs font-semibold text-[var(--muted-foreground)] hover:bg-[var(--surface)]">Change customer</button>
+                </div>
+              ) : (
+                <>
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
+                    <input
+                      id="coupon-user-search"
+                      value={userSearch}
+                      onChange={(event) => setUserSearch(event.target.value)}
+                      placeholder="Type at least 2 digits of a phone number"
+                      className="app-input w-full py-3 pl-10 pr-4 text-sm"
+                      autoComplete="off"
+                    />
+                  </div>
+                  {userSearch.trim().length >= 2 ? (
+                    <div className="max-h-56 overflow-y-auto rounded-xl border border-[var(--border-soft)] bg-[var(--surface)]">
+                      {isSearchingUsers ? (
+                        <p className="p-3 text-sm text-[var(--muted-foreground)]">Searching customers...</p>
+                      ) : matchingUsers.length ? matchingUsers.map((matchingUser) => (
+                        <button
+                          key={matchingUser.id}
+                          type="button"
+                          onClick={() => {
+                            setUserEmail(matchingUser.email || "");
+                            setUserSearch(`${matchingUser.name || matchingUser.username || "Customer"} - ${matchingUser.phoneNumber || "No phone"}`);
+                            setMatchingUsers([]);
+                          }}
+                          disabled={!matchingUser.email}
+                          className="flex w-full items-center justify-between gap-3 border-b border-[var(--border-soft)] px-4 py-3 text-left last:border-b-0 hover:bg-[var(--surface-quiet)] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-semibold text-[var(--foreground)]">{matchingUser.name || matchingUser.username || "Customer"}</span>
+                            <span className="mt-0.5 block truncate font-mono text-xs text-[var(--muted-foreground)]">{matchingUser.phoneNumber || "No phone number"}</span>
+                          </span>
+                          <span className="shrink-0 text-xs text-[var(--muted-foreground)]">{matchingUser.email || "No account email"}</span>
+                        </button>
+                      )) : (
+                        <p className="p-3 text-sm text-[var(--muted-foreground)]">No customers found for that phone number.</p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-[var(--muted-foreground)]">Search by phone number; choose a matching customer to assign the coupon.</p>
+                  )}
+                </>
+              )}
+            </div>
+          ) : null}
+          <label className="space-y-1.5 text-sm font-medium text-[var(--foreground)] sm:col-span-2">
+            Description <span className="font-normal text-[var(--muted-foreground)]">(optional)</span>
+            <input value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Short note about this promotion" className="app-input w-full px-4 py-3 text-sm" />
+          </label>
+          <div className="flex flex-col gap-3 border-t border-[var(--border-soft)] pt-4 sm:col-span-2 sm:flex-row sm:items-center">
+            <Button type="submit" disabled={audience === "user" && !userEmail} className="w-full sm:w-auto">Create coupon</Button>
             {formMessage ? (
-              <p className={cn("mt-3 text-sm", formTone === "error" ? "text-rose-600" : "text-emerald-700")}>{formMessage}</p>
+              <p className={cn("text-sm", formTone === "error" ? "text-rose-600" : "text-emerald-700")}>{formMessage}</p>
             ) : null}
           </div>
         </form>
       </Card>
       <div className="space-y-4">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-semibold text-[var(--foreground)]">Existing coupons</h2>
+            <p className="mt-1 text-sm text-[var(--muted-foreground)]">{store.coupons.length} promotion{store.coupons.length === 1 ? "" : "s"}</p>
+          </div>
+        </div>
+        {store.coupons.length === 0 ? (
+          <Card><p className="text-sm text-[var(--muted-foreground)]">No coupons created yet.</p></Card>
+        ) : null}
         {store.coupons.map((coupon) => (
-          <div key={coupon.id} className="rounded-[1.6rem] border border-[var(--border-soft)] bg-[var(--surface-strong)] p-5">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <h2 className="text-xl font-semibold text-[var(--foreground)]">{coupon.code}</h2>
-                <p className="mt-2 text-sm text-[var(--muted-foreground)]">{coupon.description}</p>
+          <div key={coupon.id} className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-4 shadow-sm sm:p-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-mono text-lg font-bold tracking-wide text-[var(--foreground)]">{coupon.code}</h3>
+                  <span className={cn("rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide", coupon.isActive ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" : "bg-[var(--surface-quiet)] text-[var(--muted-foreground)]")}>
+                    {coupon.isActive ? "Active" : "Inactive"}
+                  </span>
+                </div>
+                <p className="mt-1 text-sm text-[var(--muted-foreground)]">{coupon.description || "No description"}</p>
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--muted-foreground)]">
+                  <span>{coupon.audience === "user" ? `Assigned to ${coupon.userEmail || "specific customer"}` : "Available to all shoppers"}</span>
+                  {coupon.endsAt ? <span>Expires {new Date(coupon.endsAt).toLocaleDateString()}</span> : null}
+                  {coupon.usageLimit ? <span>Uses: {coupon.usageCount || 0}/{coupon.usageLimit}</span> : null}
+                </div>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="rounded-full bg-[var(--surface)] px-3 py-1 text-sm font-semibold">
+              <div className="flex shrink-0 items-center justify-between gap-3 sm:justify-end">
+                <span className="rounded-xl bg-[var(--action)]/10 px-3 py-2 text-sm font-bold text-[var(--action)]">
                   {coupon.type === "percent" ? `${coupon.value}%` : formatCurrency(coupon.value)}
                 </span>
-                <button type="button" onClick={() => store.toggleCoupon(coupon.id)} className="rounded-full bg-[var(--surface)] px-4 py-2 text-sm font-semibold">
+                <button type="button" onClick={() => store.toggleCoupon(coupon.id)} className="min-h-10 rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--surface-quiet)]">
                   {coupon.isActive ? "Deactivate" : "Activate"}
                 </button>
               </div>
@@ -3468,6 +3625,7 @@ export function AdminSupportInboxPageView({ user }) {
   const store = useAppStore();
   const [drafts, setDrafts] = useState({});
   const [closingIds, setClosingIds] = useState(new Set());
+  const [searchQuery, setSearchQuery] = useState("");
 
   function handleClose(ticketId) {
     setClosingIds((prev) => new Set([...prev, ticketId]));
@@ -3482,18 +3640,32 @@ export function AdminSupportInboxPageView({ user }) {
     }, 1500);
   }
 
-  const openTickets = store.supportTickets.filter((t) => t.status !== "closed");
-  const closedTickets = store.supportTickets.filter((t) => t.status === "closed");
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const matchesSearch = (ticket) => !normalizedQuery ||
+    ticket.subject?.toLowerCase().includes(normalizedQuery) ||
+    ticket.id?.toLowerCase().includes(normalizedQuery) ||
+    ticket.messages?.some((entry) =>
+      `${entry.authorName || ""} ${entry.authorPhoneNumber || ""}`.toLowerCase().includes(normalizedQuery)
+    );
+  const openTickets = store.supportTickets.filter((ticket) => ticket.status !== "closed" && matchesSearch(ticket));
+  const closedTickets = store.supportTickets.filter((ticket) => ticket.status === "closed" && matchesSearch(ticket));
 
   function renderTicket(ticket) {
     const isClosed = ticket.status === "closed";
     const isClosing = closingIds.has(ticket.id);
+    const isStaffAuthor = (entry) => ["ADMIN", "SUPER_ADMIN"].includes(entry.authorRole);
+    const customerMessage = ticket.messages.find((entry) => !isStaffAuthor(entry)) || ticket.messages[0];
     return (
       <div key={ticket.id} className={cn("rounded-[1.6rem] border border-[var(--border-soft)] bg-[var(--surface-strong)] p-5 transition-opacity", isClosed && "opacity-60")}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
             <h2 className="text-xl font-semibold text-[var(--foreground)]">{ticket.subject}</h2>
             <p className="mt-1 text-sm text-[var(--muted-foreground)]">{ticket.id}</p>
+            <p className="mt-1 text-xs text-[var(--muted-foreground)]">{ticket.createdAt ? new Date(ticket.createdAt).toLocaleString() : ""}</p>
+            <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--muted-foreground)]">
+              <span className="font-semibold text-[var(--foreground)]">{customerMessage?.authorName || "Customer"}</span>
+              <span className="inline-flex items-center gap-1 font-mono"><Phone className="size-3.5" />{customerMessage?.authorPhoneNumber || "Phone number unavailable"}</span>
+            </p>
           </div>
           <div className="flex items-center gap-2">
             {isClosed ? (
@@ -3514,9 +3686,13 @@ export function AdminSupportInboxPageView({ user }) {
         </div>
         <div className="mt-4 space-y-3">
           {ticket.messages.map((entry) => (
-            <div key={entry.id} className="rounded-[1.2rem] bg-[var(--surface)] px-4 py-3 text-sm">
-              <p className="font-semibold text-[var(--foreground)]">{entry.authorRole === "ADMIN" ? "Admin" : entry.authorEmail}</p>
-              <p className="mt-1 text-[var(--muted-foreground)]">{entry.message}</p>
+            <div key={entry.id} className={cn("max-w-3xl rounded-[1.2rem] border px-4 py-3 text-sm", isStaffAuthor(entry) ? "ml-auto border-[var(--action)]/20 bg-[var(--action)]/5" : "border-[var(--border-soft)] bg-[var(--surface)]")}>
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                <p className="font-semibold text-[var(--foreground)]">{isStaffAuthor(entry) ? "Support team" : entry.authorName || "Customer"}</p>
+                <span className="text-xs text-[var(--muted-foreground)]">{isStaffAuthor(entry) ? "Admin" : entry.authorPhoneNumber || "Phone number unavailable"}</span>
+              </div>
+              <p className="mt-2 whitespace-pre-wrap leading-6 text-[var(--muted-foreground)]">{entry.message}</p>
+              {entry.createdAt ? <p className="mt-2 text-right text-[10px] text-[var(--muted-foreground)]">{new Date(entry.createdAt).toLocaleString()}</p> : null}
             </div>
           ))}
         </div>
@@ -3545,21 +3721,34 @@ export function AdminSupportInboxPageView({ user }) {
   }
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted-foreground)]">Support Inbox</p>
-        <h1 className="mt-2 text-4xl font-semibold tracking-tight text-[var(--foreground)]">Respond to customer tickets and close threads.</h1>
+    <div className="mx-auto max-w-6xl space-y-6">
+      <Card className="border-[var(--border-soft)] bg-[linear-gradient(135deg,var(--surface-strong),color-mix(in_srgb,var(--action)_8%,var(--surface)))]">
+        <div className="flex items-start gap-4">
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[var(--action)] text-white"><MessageCircle className="size-5" /></div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--muted-foreground)]">Customer care</p>
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-3xl">Support inbox</h1>
+            <p className="mt-1 text-sm text-[var(--muted-foreground)]">Respond to customer tickets. Customer contact details show phone numbers.</p>
+          </div>
+        </div>
       </Card>
+
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
+        <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search by subject, ticket ID, customer name, or phone" className="app-input w-full py-3 pl-11 pr-4 text-sm" />
+      </div>
 
       {store.supportTickets.length === 0 ? (
         <div className="rounded-[1.6rem] border border-[var(--border-soft)] bg-[var(--surface-strong)] p-10 text-center">
           <p className="text-sm text-[var(--muted-foreground)]">No support tickets yet.</p>
         </div>
+      ) : openTickets.length === 0 && closedTickets.length === 0 ? (
+        <Card><p className="py-6 text-center text-sm text-[var(--muted-foreground)]">No tickets match your search.</p></Card>
       ) : (
         <>
           {openTickets.length > 0 && (
             <div className="space-y-4">
-              <p className="text-xs font-bold uppercase tracking-widest text-[var(--muted-foreground)]">Open ({openTickets.length})</p>
+              <p className="text-lg font-semibold text-[var(--foreground)]">Active tickets <span className="ml-2 rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-bold text-amber-700 dark:text-amber-400">{openTickets.length}</span></p>
               {openTickets.map(renderTicket)}
             </div>
           )}

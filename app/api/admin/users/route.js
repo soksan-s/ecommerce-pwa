@@ -4,12 +4,25 @@ import { prisma } from "@/lib/prisma";
 import { phoneAuthEmail } from "@/lib/phone";
 import bcrypt from "bcryptjs";
 
-export async function GET() {
+export async function GET(request) {
   try {
     const adminUser = await requireAdminUser();
     if (!adminUser) return fail("Unauthorized", 401);
 
+    const query = new URL(request.url).searchParams.get("q")?.trim() || "";
+    const where = query
+      ? {
+          role: "CLIENT",
+          OR: [
+            { phoneNumber: { contains: query } },
+            { name: { contains: query, mode: "insensitive" } },
+            { username: { contains: query, mode: "insensitive" } },
+          ],
+        }
+      : {};
+
     const users = await prisma.user.findMany({
+      where,
       select: {
         id: true,
         name: true,
@@ -24,6 +37,7 @@ export async function GET() {
       orderBy: {
         createdAt: "desc",
       },
+      ...(query ? { take: 10 } : {}),
     });
 
     return ok({ users });
