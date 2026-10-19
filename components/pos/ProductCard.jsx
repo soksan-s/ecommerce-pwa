@@ -15,7 +15,7 @@ function stockBadgeClass(stock) {
   return "bg-emerald-500/10 text-emerald-400";
 }
 
-export function ProductCard({ product, settings, onAdd }) {
+export function ProductCard({ product, settings, priceType = "RETAIL", onAdd }) {
   const [pulse, setPulse] = useState(false);
   const variants = Array.isArray(product.variants) ? product.variants : [];
   const hasVariants = variants.length > 1;
@@ -26,14 +26,44 @@ export function ProductCard({ product, settings, onAdd }) {
 
   const disabled = totalStock <= 0 || product.isActive === false;
   const initial = product.name?.charAt(0)?.toUpperCase() || "?";
+  const isWholesale = String(priceType).toUpperCase() === "WHOLESALE";
 
-  const displayPrice = hasVariants
-    ? `${formatPrimaryMoney(product.minPrice || product.price, settings)}${
-        product.maxPrice && product.maxPrice !== product.minPrice
-          ? ` - ${formatPrimaryMoney(product.maxPrice, settings)}`
-          : ""
-      }`
-    : formatPrimaryMoney(product.price, settings);
+  let displayPrice = "";
+  if (hasVariants) {
+    if (isWholesale) {
+      const wsPrices = variants.map((v) => {
+        const val = Number(
+          (v.wholesalePrice !== undefined && v.wholesalePrice !== null && Number(v.wholesalePrice) > 0
+            ? v.wholesalePrice
+            : (product.wholesalePrice !== undefined && product.wholesalePrice !== null && Number(product.wholesalePrice) > 0
+                ? product.wholesalePrice
+                : (v.retailPrice ?? v.price ?? product.retailPrice ?? product.price))) || 0
+        );
+        return val;
+      });
+      const minWs = Math.min(...wsPrices);
+      const maxWs = Math.max(...wsPrices);
+      displayPrice = `${formatPrimaryMoney(minWs, settings)}${
+        maxWs !== minWs ? ` - ${formatPrimaryMoney(maxWs, settings)}` : ""
+      }`;
+    } else {
+      const retPrices = variants.map((v) =>
+        Number((v.retailPrice !== undefined && v.retailPrice !== null ? v.retailPrice : (v.price ?? product.retailPrice ?? product.price)) || 0)
+      );
+      const minRet = Math.min(...retPrices);
+      const maxRet = Math.max(...retPrices);
+      displayPrice = `${formatPrimaryMoney(minRet, settings)}${
+        maxRet !== minRet ? ` - ${formatPrimaryMoney(maxRet, settings)}` : ""
+      }`;
+    }
+  } else {
+    const unitPrice = isWholesale
+      ? (product.wholesalePrice !== undefined && product.wholesalePrice !== null && Number(product.wholesalePrice) > 0
+          ? Number(product.wholesalePrice)
+          : Number(product.retailPrice ?? product.price ?? 0))
+      : Number(product.retailPrice ?? product.price ?? 0);
+    displayPrice = formatPrimaryMoney(unitPrice, settings);
+  }
 
   function handleClick() {
     if (disabled) return;
@@ -91,9 +121,16 @@ export function ProductCard({ product, settings, onAdd }) {
           {product.name}
         </p>
         <div className="mt-2 flex items-center justify-between gap-1">
-          <p className="text-[13px] font-bold text-[var(--action)] tabular-nums truncate">
-            {displayPrice}
-          </p>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <p className={`text-[13px] font-bold tabular-nums truncate ${isWholesale ? "text-amber-600 dark:text-amber-400" : "text-[var(--action)]"}`}>
+              {displayPrice}
+            </p>
+            {isWholesale && (
+              <span className="shrink-0 rounded bg-amber-500/20 px-1 py-0.5 text-[9px] font-extrabold uppercase text-amber-700 dark:text-amber-300">
+                WS
+              </span>
+            )}
+          </div>
           <span
             className={[
               "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold shrink-0",

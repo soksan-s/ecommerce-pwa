@@ -19,10 +19,16 @@ export const usePosStore = create((set, get) => ({
       if (item.isOverridden) {
         return item;
       }
-      const targetPrice =
+      const basePrice =
         normalized === "WHOLESALE"
-          ? Number(item.wholesalePrice ?? item.retailPrice ?? item.price)
+          ? Number(
+              item.wholesalePrice !== undefined && item.wholesalePrice !== null && Number(item.wholesalePrice) > 0
+                ? item.wholesalePrice
+                : (item.retailPrice ?? item.price)
+            )
           : Number(item.retailPrice ?? item.price);
+      const discountPercent = Number(item.discountPercent || 0);
+      const targetPrice = Number((basePrice * (1 - discountPercent / 100)).toFixed(2));
       return {
         ...item,
         price: targetPrice,
@@ -39,10 +45,16 @@ export const usePosStore = create((set, get) => ({
     const stock = Number((v ? v.stock : product.stock) || 0);
 
     const retailPrice = Number((v ? (v.retailPrice ?? v.price) : (product.retailPrice ?? product.price)) || 0);
-    const rawWholesale = v ? (v.wholesalePrice ?? v.price) : (product.wholesalePrice ?? product.price);
-    const wholesalePrice = rawWholesale !== undefined && rawWholesale !== null && Number(rawWholesale) > 0
-      ? Number(rawWholesale)
-      : retailPrice;
+    const rawWholesale = v
+      ? (v.wholesalePrice !== undefined && v.wholesalePrice !== null && Number(v.wholesalePrice) > 0
+          ? v.wholesalePrice
+          : (product.wholesalePrice !== undefined && product.wholesalePrice !== null && Number(product.wholesalePrice) > 0
+              ? product.wholesalePrice
+              : null))
+      : (product.wholesalePrice !== undefined && product.wholesalePrice !== null && Number(product.wholesalePrice) > 0
+          ? product.wholesalePrice
+          : null);
+    const wholesalePrice = rawWholesale !== null ? Number(rawWholesale) : retailPrice;
 
     const basePrice = priceType === "WHOLESALE" ? wholesalePrice : retailPrice;
     const discountPercent = Number((v ? v.discountPercent : product.discountPercent) || 0);
@@ -76,7 +88,17 @@ export const usePosStore = create((set, get) => ({
 
       set({
         cart: currentCart.map((item, idx) =>
-          idx === existingIndex ? { ...item, qty: Math.min(item.qty + 1, item.stock) } : item
+          idx === existingIndex
+            ? {
+                ...item,
+                retailPrice: item.retailPrice || retailPrice,
+                wholesalePrice: item.wholesalePrice || wholesalePrice,
+                discountPercent: item.discountPercent ?? discountPercent,
+                price: item.isOverridden ? item.price : price,
+                originalPrice: item.isOverridden ? item.originalPrice : price,
+                qty: Math.min(item.qty + 1, item.stock),
+              }
+            : item
         ),
       });
       return;
@@ -93,6 +115,7 @@ export const usePosStore = create((set, get) => ({
           name,
           retailPrice,
           wholesalePrice,
+          discountPercent,
           originalPrice: price,
           price,
           isOverridden: false,

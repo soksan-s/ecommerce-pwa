@@ -23,7 +23,35 @@ function normalizeProduct(product, exchangeRate = 4100) {
     : convertMoney(product.price_khr, "KHR", "USD", exchangeRate);
 
   const rawVariants = Array.isArray(product.variants) ? product.variants : [];
-  const hasVariants = Boolean(product.isVariant || rawVariants.length > 0);
+  const isDefaultSingleVariant =
+    rawVariants.length === 1 &&
+    (rawVariants[0].name === "Default" || rawVariants[0].name === "Standard");
+  const hasVariants = Boolean(product.isVariant && rawVariants.length > 0 && !isDefaultSingleVariant);
+
+  const retailPrice = Number(
+    (product.retailPrice !== undefined && product.retailPrice !== null && product.retailPrice !== ""
+      ? product.retailPrice
+      : price) || 0
+  );
+
+  const wholesalePrice = Number(
+    (product.wholesalePrice !== undefined && product.wholesalePrice !== null && product.wholesalePrice !== ""
+      ? product.wholesalePrice
+      : (rawVariants[0]?.wholesalePrice !== undefined && rawVariants[0]?.wholesalePrice !== null && rawVariants[0]?.wholesalePrice !== ""
+        ? rawVariants[0].wholesalePrice
+        : 0)) || 0
+  );
+
+  const normalizedVariants = rawVariants.map((v) => ({
+    ...v,
+    price: Number(v.retailPrice ?? v.price ?? retailPrice),
+    retailPrice: Number(v.retailPrice ?? v.price ?? retailPrice),
+    wholesalePrice: Number(
+      v.wholesalePrice !== undefined && v.wholesalePrice !== null && v.wholesalePrice !== ""
+        ? v.wholesalePrice
+        : wholesalePrice
+    ),
+  }));
 
   return {
     id: product.id || `prd-${Date.now()}`,
@@ -32,15 +60,17 @@ function normalizeProduct(product, exchangeRate = 4100) {
     barcode: product.barcode || "",
     description: product.description || "",
     category: product.category || "General",
-    price: Number(price || 0),
-    wholesalePrice: Number(product.wholesalePrice || 0),
+    price: retailPrice,
+    retailPrice,
+    wholesalePrice,
     stock: Number(product.stock || 0),
     lowStockThreshold: Number(product.lowStockThreshold || 5),
     unit: product.unit || "pcs",
     image: product.image || product.imageUrl || "",
     isActive: product.isActive !== false,
     isVariant: hasVariants,
-    variants: rawVariants,
+    hasVariants,
+    variants: normalizedVariants,
     createdAt: product.createdAt || new Date().toISOString(),
     updatedAt: product.updatedAt || new Date().toISOString(),
   };
@@ -344,9 +374,15 @@ export default function PosProductsPage() {
 
     // If server returned updated variants, preserve them
     if (resData.data?.variants) {
-      saved.variants = resData.data.variants;
-      saved.hasVariants = resData.data.variants.length > 0;
-      saved.isVariant = saved.hasVariants;
+      const serverVariants = resData.data.variants;
+      const isMulti = Boolean(
+        payload.isVariant &&
+        serverVariants.length > 0 &&
+        !(serverVariants.length === 1 && (serverVariants[0].name === "Default" || serverVariants[0].name === "Standard"))
+      );
+      saved.variants = serverVariants;
+      saved.hasVariants = isMulti;
+      saved.isVariant = isMulti;
     }
 
     const nextProducts = isEdit
@@ -592,7 +628,7 @@ export default function PosProductsPage() {
               <thead className="bg-[var(--surface-soft)] text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
                 <tr>
                   <th className="px-4 py-3"><input type="checkbox" checked={selectedIds.length === visibleProducts.length && visibleProducts.length > 0} onChange={(event) => setSelectedIds(event.target.checked ? visibleProducts.map((product) => product.id) : [])} /></th>
-                  <th className="px-4 py-3">Image</th><th className="px-4 py-3">Name &amp; SKU</th><th className="px-4 py-3">Category</th><th className="px-4 py-3">Display ({primaryCurrency})</th><th className="px-4 py-3">Converted ({secondaryCurrency})</th><th className="px-4 py-3">Stock</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Actions</th>
+                  <th className="px-4 py-3">Image</th><th className="px-4 py-3">Name &amp; SKU</th><th className="px-4 py-3">Category</th><th className="px-4 py-3">Retail Price</th><th className="px-4 py-3">Wholesale Price</th><th className="px-4 py-3">Stock</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border-soft)]">
@@ -619,8 +655,28 @@ export default function PosProductsPage() {
                       </p>
                     </td>
                     <td className="px-4 py-3 font-semibold text-[var(--muted-foreground)]">{product.category}</td>
-                    <td className="px-4 py-3 font-extrabold text-[var(--foreground)]">{formatPrimaryMoney(product.price, settings, false)}</td>
-                    <td className="px-4 py-3 font-semibold text-[var(--muted-foreground)]">{formatSecondaryPrice(product.price)}</td>
+                    <td className="px-4 py-3">
+                      <div className="font-extrabold text-[var(--foreground)]">
+                        {formatPrimaryMoney(product.retailPrice ?? product.price, settings, false)}
+                      </div>
+                      <div className="text-[10px] text-[var(--muted-foreground)]">
+                        {formatSecondaryPrice(product.retailPrice ?? product.price)}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {product.wholesalePrice > 0 ? (
+                        <div>
+                          <div className="font-extrabold text-blue-600 dark:text-blue-400">
+                            {formatPrimaryMoney(product.wholesalePrice, settings, false)}
+                          </div>
+                          <div className="text-[10px] text-[var(--muted-foreground)]">
+                            {formatSecondaryPrice(product.wholesalePrice)}
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-[11px] text-[var(--muted-foreground)] italic">-</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">{stockLabel(product)}</td>
                     <td className="px-4 py-3">
                       <span className={product.isActive ? "rounded-full bg-[var(--pos-action-surface)] px-2.5 py-0.5 text-[11px] font-bold text-[var(--pos-action-on-muted)]" : "rounded-full bg-[var(--surface-soft)] px-2.5 py-0.5 text-[11px] font-bold text-[var(--muted-foreground)]"}>
@@ -677,8 +733,12 @@ export default function PosProductsPage() {
                 </p>
                 <div className="mt-2.5 flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-extrabold text-[var(--foreground)]">{formatPrimaryMoney(product.price, settings, false)}</p>
-                    <p className="text-[11px] font-medium text-[var(--muted-foreground)]">{formatSecondaryPrice(product.price)}</p>
+                    <p className="text-sm font-extrabold text-[var(--foreground)]">{formatPrimaryMoney(product.retailPrice ?? product.price, settings, false)}</p>
+                    {product.wholesalePrice > 0 ? (
+                      <p className="text-[11px] font-bold text-blue-600 dark:text-blue-400">WS: {formatPrimaryMoney(product.wholesalePrice, settings, false)}</p>
+                    ) : (
+                      <p className="text-[11px] font-medium text-[var(--muted-foreground)]">{formatSecondaryPrice(product.retailPrice ?? product.price)}</p>
+                    )}
                   </div>
                   <div>{stockLabel(product)}</div>
                 </div>

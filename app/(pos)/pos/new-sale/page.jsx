@@ -890,6 +890,7 @@ export default function NewSalePage() {
                     key={product.id}
                     product={product}
                     settings={settings}
+                    priceType={priceType}
                     onAdd={handleProductAdd}
                   />
                 ))}

@@ -240,8 +240,8 @@ export async function PATCH(request, { params }) {
           ...(body.description !== undefined ? { description: body.description } : {}),
           ...(body.imageUrl !== undefined ? { imageUrl: body.imageUrl } : (body.image !== undefined ? { imageUrl: body.image } : {})),
           ...(price !== undefined ? { price } : {}),
-          ...(costPrice !== undefined ? { costPrice: costPrice || null } : {}),
-          ...(wholesalePrice !== undefined ? { wholesalePrice: wholesalePrice || null } : {}),
+          ...(costPrice !== undefined ? { costPrice: costPrice !== null && !isNaN(costPrice) ? costPrice : null } : {}),
+          ...(wholesalePrice !== undefined ? { wholesalePrice: wholesalePrice !== null && !isNaN(wholesalePrice) ? wholesalePrice : null } : {}),
           ...(discountPercent !== undefined ? { discountPercent } : {}),
           ...(totalStock !== undefined ? { stock: totalStock } : {}),
           ...(minStockAlert !== undefined ? { minStockAlert } : {}),
@@ -251,6 +251,26 @@ export async function PATCH(request, { params }) {
           ...(ratingCount !== undefined ? { ratingCount } : {}),
         },
       });
+
+      // If single-variant product, sync pricing, wholesale, and barcode to the default variant
+      if (!hasVariantList) {
+        const defaultVar = await tx.productVariant.findFirst({
+          where: { productId: product.id },
+        });
+        if (defaultVar) {
+          await tx.productVariant.update({
+            where: { id: defaultVar.id },
+            data: {
+              ...(price !== undefined ? { price } : {}),
+              ...(costPrice !== undefined ? { costPrice: costPrice !== null && !isNaN(costPrice) ? costPrice : null } : {}),
+              ...(wholesalePrice !== undefined ? { wholesalePrice: wholesalePrice !== null && !isNaN(wholesalePrice) ? wholesalePrice : null } : {}),
+              ...(discountPercent !== undefined ? { discountPercent } : {}),
+              ...(body.sku !== undefined ? { sku: body.sku || defaultVar.sku } : {}),
+              ...(body.barcode !== undefined ? { barcode: body.barcode || null } : {}),
+            },
+          });
+        }
+      }
 
       // If single-variant product and stock changed, sync HQ inventory
       if (!hasVariantList && stock !== undefined && existing.stock !== product.stock) {

@@ -69,9 +69,14 @@ export function VariantSelectorModal({ open, product, priceType = "RETAIL", sett
           {variants.map((variant) => {
             const disabled = variant.stock <= 0 || variant.isActive === false;
             const attributes = Array.isArray(variant.attributeValues) ? variant.attributeValues : [];
-            const effectivePrice = isWholesale
-              ? Number(variant.wholesalePrice ?? variant.retailPrice ?? variant.price)
-              : Number(variant.retailPrice ?? variant.price);
+            const wholesaleVal =
+              variant.wholesalePrice !== undefined && variant.wholesalePrice !== null && Number(variant.wholesalePrice) > 0
+                ? Number(variant.wholesalePrice)
+                : (product.wholesalePrice !== undefined && product.wholesalePrice !== null && Number(product.wholesalePrice) > 0
+                    ? Number(product.wholesalePrice)
+                    : Number(variant.retailPrice ?? variant.price));
+            const retailVal = Number(variant.retailPrice ?? variant.price);
+            const effectivePrice = isWholesale ? wholesaleVal : retailVal;
 
             return (
               <button

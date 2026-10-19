@@ -115,9 +115,22 @@ export function ProductFormModal({
       return;
     }
 
-    const hasVars = Boolean(
-      product?.isVariant ||
-      (Array.isArray(product?.variants) && product.variants.length > 0)
+    const isMultiVariant = Boolean(
+      product?.isVariant &&
+      Array.isArray(product?.variants) &&
+      product.variants.length > 0 &&
+      !(product.variants.length === 1 && (product.variants[0].name === "Default" || product.variants[0].name === "Standard"))
+    );
+
+    const initialPrice = Number(
+      (product?.retailPrice !== undefined && product?.retailPrice !== null && product?.retailPrice !== ""
+        ? product.retailPrice
+        : product?.price) || 0
+    );
+    const initialWholesale = Number(
+      (product?.wholesalePrice !== undefined && product?.wholesalePrice !== null && product?.wholesalePrice !== ""
+        ? product.wholesalePrice
+        : 0)
     );
 
     const initialVariants =
@@ -127,8 +140,12 @@ export function ProductFormModal({
             name: v.name || "",
             sku: v.sku || "",
             barcode: v.barcode || "",
-            price: Number(v.price ?? v.retailPrice ?? product?.price ?? 0),
-            wholesalePrice: Number(v.wholesalePrice ?? 0),
+            price: Number(v.retailPrice ?? v.price ?? initialPrice),
+            wholesalePrice: Number(
+              v.wholesalePrice !== undefined && v.wholesalePrice !== null && Number(v.wholesalePrice) > 0
+                ? v.wholesalePrice
+                : initialWholesale
+            ),
             stock: Number(v.stock ?? 0),
             isActive: v.isActive !== false,
           }))
@@ -143,14 +160,14 @@ export function ProductFormModal({
       barcode: product?.barcode || "",
       category: product?.category || "Beverages",
       description: product?.description || "",
-      price: Number(product?.price || 0),
-      wholesalePrice: Number(product?.wholesalePrice || 0),
+      price: initialPrice,
+      wholesalePrice: initialWholesale,
       stock: Number(product?.stock || 0),
       lowStockThreshold: Number(product?.lowStockThreshold || product?.minStockAlert || 5),
       unit: product?.unit || "pcs",
       image: product?.image || product?.imageUrl || "",
       isActive: product?.isActive !== false,
-      isVariant: hasVars,
+      isVariant: isMultiVariant,
     };
 
     setForm(nextForm);
@@ -304,7 +321,10 @@ export function ProductFormModal({
         sku: form.sku?.trim() || generateSku(),
         barcode: form.barcode?.trim() || "",
         price: finalPrice,
-        wholesalePrice: Number(form.wholesalePrice || 0),
+        retailPrice: finalPrice,
+        wholesalePrice: form.isVariant
+          ? Number(variants[0]?.wholesalePrice ?? form.wholesalePrice ?? 0)
+          : Number(form.wholesalePrice || 0),
         stock: finalStock,
         lowStockThreshold: Number(form.lowStockThreshold || 0),
         isVariant: Boolean(form.isVariant),
@@ -734,20 +754,20 @@ export function ProductFormModal({
 
                   <div className="grid gap-4 md:grid-cols-2">
                     <div>
-                      <label className={labelCls}>Price in USD ($)*</label>
+                      <label className={labelCls}>Retail Price in USD ($)*</label>
                       <input
                         type="number"
                         step="0.01"
                         min="0"
-                        value={form.price}
-                        onChange={(event) => patch({ price: Number(event.target.value) })}
+                        value={form.price !== undefined && form.price !== null ? form.price : ""}
+                        onChange={(event) => patch({ price: event.target.value === "" ? "" : Number(event.target.value) })}
                         className={inputCls}
                       />
                     </div>
 
                     <div>
                       <div className="flex items-center justify-between">
-                        <label className={labelCls}>Price in {secondaryCurrency}</label>
+                        <label className={labelCls}>Retail Price in {secondaryCurrency}</label>
                         <label className="flex items-center gap-1.5 text-[11px] font-bold text-[var(--muted-foreground)] cursor-pointer">
                           <input
                             type="checkbox"
@@ -772,8 +792,8 @@ export function ProductFormModal({
                         type="number"
                         step="0.01"
                         min="0"
-                        value={form.wholesalePrice || ""}
-                        onChange={(event) => patch({ wholesalePrice: Number(event.target.value) })}
+                        value={form.wholesalePrice !== undefined && form.wholesalePrice !== null ? form.wholesalePrice : ""}
+                        onChange={(event) => patch({ wholesalePrice: event.target.value === "" ? "" : Number(event.target.value) })}
                         placeholder="Optional"
                         className={inputCls}
                       />
