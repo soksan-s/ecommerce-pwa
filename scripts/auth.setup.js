@@ -19,6 +19,7 @@ const accounts = {
   },
 };
 
+//testing
 async function askAccount() {
   const rl = readline.createInterface({
     input: process.stdin,
