@@ -3454,7 +3454,7 @@ export function ClientProductDetailPageView({ productId, user }) {
     if (!isVariantProduct || selectedVariantId || !product) {
       return;
     }
-
+    //function
     const defaultVariant = product.variants.find(
       (v) => v.isActive !== false && Number(v.stock) > 0
     );
