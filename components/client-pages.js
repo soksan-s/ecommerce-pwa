@@ -3409,7 +3409,6 @@ export function ClientProfilePageView({ user }) {
 export function ClientProductDetailPageView({ productId, user }) {
   const router = useRouter();
   const store = useAppStore();
-  const router = useRouter();
   const [comment, setComment] = useState("");
   const [editingId, setEditingId] = useState("");
   const [editingMessage, setEditingMessage] = useState("");
