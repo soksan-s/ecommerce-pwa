@@ -490,35 +490,35 @@ export function AppStoreProvider({ children }) {
           cart: [],
         }));
       },
-      addComment(productId, message) {
-        fetch("/api/comments", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            productId,
-            message,
-          }),
-        })
-          .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
-          .then(({ ok, data }) => {
-            if (!ok || !data.data) {
-              return;
-            }
-            patch((current) => ({
-              ...current,
-              products: current.products.map((product) =>
-                product.id === productId
-                  ? {
-                      ...product,
-                      comments: [...(product.comments || []), data.data],
-                    }
-                  : product,
-              ),
-            }));
-          })
-          .catch(() => {});
+      setProductComments(productId, comments) {
+        patch((current) => ({
+          ...current,
+          products: current.products.map((product) =>
+            product.id === productId ? { ...product, comments } : product,
+          ),
+        }));
+      },
+      async addComment(productId, message) {
+        try {
+          const response = await fetch("/api/comments", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ productId, message }),
+          });
+          const data = await response.json();
+          if (!response.ok || !data.data) return null;
+          patch((current) => ({
+            ...current,
+            products: current.products.map((product) =>
+              product.id === productId
+                ? { ...product, comments: [...(product.comments || []), data.data] }
+                : product,
+            ),
+          }));
+          return data.data;
+        } catch {
+          return null;
+        }
       },
       updateComment(productId, commentId, message) {
         fetch(`/api/comments/${commentId}`, {
@@ -547,36 +547,35 @@ export function AppStoreProvider({ children }) {
           })
           .catch(() => {});
       },
-      deleteComment(productId, commentId) {
-        fetch(`/api/comments/${commentId}`, {
-          method: "DELETE",
-        })
-          .then((response) => {
-            if (!response.ok) {
-              return;
-            }
-            patch((current) => ({
-              ...current,
-              products: current.products.map((product) =>
-                product.id === productId
-                  ? {
-                      ...product,
-                      comments: (product.comments || []).filter((entry) => entry.id !== commentId),
-                    }
-                  : product,
-              ),
-            }));
-          })
-          .catch(() => {});
+      async deleteComment(productId, commentId) {
+        try {
+          const response = await fetch(`/api/comments/${encodeURIComponent(commentId)}`, {
+            method: "DELETE",
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) return { ok: false, error: data.error || "Unable to delete comment." };
+          patch((current) => ({
+            ...current,
+            products: current.products.map((product) =>
+              product.id === productId
+                ? { ...product, comments: (product.comments || []).filter((entry) => entry.id !== commentId) }
+                : product,
+            ),
+          }));
+          return { ok: true };
+        } catch {
+          return { ok: false, error: "Unable to delete comment. Check your connection and try again." };
+        }
       },
       submitRating(productId, ratingValue) {
         const product = products.find((entry) => entry.id === productId);
-        if (!product) {
+        const rating = Number(ratingValue);
+        if (!product || !Number.isInteger(rating) || rating < 1 || rating > 5) {
           return;
         }
 
         const nextCount = (product.ratingCount || 0) + 1;
-        const nextRating = Number((((product.rating || 0) * (product.ratingCount || 0) + ratingValue) / nextCount).toFixed(1));
+        const nextRating = Number((((product.rating || 0) * (product.ratingCount || 0) + rating) / nextCount).toFixed(2));
 
         patch((current) => ({
           ...current,
@@ -591,10 +590,24 @@ export function AppStoreProvider({ children }) {
           ),
         }));
 
-        syncPatchedProduct(productId, {
-          ratingAvg: nextRating,
-          ratingCount: nextCount,
-        });
+        fetch(`/api/products/${encodeURIComponent(productId)}/rating`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rating }),
+        })
+          .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
+          .then(({ ok, data }) => {
+            if (!ok || !data.data) return;
+            patch((current) => ({
+              ...current,
+              products: current.products.map((entry) =>
+                entry.id === productId
+                  ? { ...entry, rating: data.data.ratingAvg, ratingCount: data.data.ratingCount }
+                  : entry,
+              ),
+            }));
+          })
+          .catch(() => {});
       },
       async placeOrder({
         shippingAddress,
@@ -939,7 +952,7 @@ export function AppStoreProvider({ children }) {
         }
       },
       async updateProduct(productId, changes) {
-        await syncPatchedProduct(productId, changes);
+        return syncPatchedProduct(productId, changes);
       },
       async toggleProductStatus(productId) {
         const product = products.find((entry) => entry.id === productId);

@@ -117,7 +117,7 @@ function getPaymentMethodLabel(method, t) {
 
 
 
-function KhqrPaymentPanel({ payment, onCancel, onPaid }) {
+function KhqrPaymentPanel({ payment, onCancel, onPaid, onViewOrder }) {
   const [currentPayment, setCurrentPayment] = useState(payment);
   const [message, setMessage] = useState("Checking payment...");
   const onPaidRef = useRef(onPaid);
@@ -289,7 +289,7 @@ function KhqrPaymentPanel({ payment, onCancel, onPaid }) {
               <Button
                 type="button"
                 className="mt-6 h-11 w-full rounded-none sm:w-auto sm:min-w-40"
-                onClick={onCancel}
+                onClick={() => onViewOrder?.(currentPayment)}
               >
                 View Order
               </Button>
@@ -1849,6 +1849,13 @@ export function ClientCheckoutPageView() {
     }
   }
 
+  async function handleViewKhqrOrder(paidPayment) {
+    // The payment panel has the freshly verified status; the parent payment
+    // state may still contain the original pending status.
+    await handleKhqrPaid(paidPayment);
+    router.push("/client?tab=orders");
+  }
+
   // If KHQR payment is active, display the payment screen
   if (khqrPayment) {
     return (
@@ -1856,6 +1863,7 @@ export function ClientCheckoutPageView() {
         payment={khqrPayment}
         onCancel={handleCancelKhqrPayment}
         onPaid={handleKhqrPaid}
+        onViewOrder={handleViewKhqrOrder}
       />
     );
   }
@@ -3461,11 +3469,40 @@ export function ClientProductDetailPageView({ productId, user }) {
   const router = useRouter();
   const store = useAppStore();
   const [comment, setComment] = useState("");
+  const [comments, setComments] = useState([]);
+  const [commentNotice, setCommentNotice] = useState("");
   const [editingId, setEditingId] = useState("");
   const [editingMessage, setEditingMessage] = useState("");
   const [selectedVariantId, setSelectedVariantId] = useState(null);
   const [authModal, setAuthModal] = useState({ isOpen: false, hint: "" });
   const product = store.getProduct(productId);
+
+  useEffect(() => {
+    if (Array.isArray(product?.comments)) setComments(product.comments);
+  }, [product?.comments]);
+
+  useEffect(() => {
+    if (!productId) return undefined;
+    let active = true;
+
+    fetch(`/api/comments?productId=${encodeURIComponent(productId)}`, { cache: "no-store" })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Unable to load comments.");
+        return Array.isArray(data.data) ? data.data : [];
+      })
+      .then((comments) => {
+        if (active) {
+          setComments(comments);
+          store.setProductComments?.(productId, comments);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      active = false;
+    };
+  }, [productId]);
 
   /** Opens the auth modal for guests; returns false so callers can bail early. */
   function requireAuth(hint) {
@@ -3592,7 +3629,7 @@ export function ClientProductDetailPageView({ productId, user }) {
 
   return (
     <>
-      <div className="min-w-0 overflow-x-hidden space-y-4 pb-32 sm:pb-24">
+      <div className="mx-auto min-w-0 max-w-6xl overflow-x-hidden space-y-5 pb-32 sm:pb-28">
         <div className="sticky top-0 z-30 -mx-4 bg-[var(--background-start)]/90 px-4 py-2 backdrop-blur-md sm:-mx-5 sm:px-5">
           <Link
             href="/client"
@@ -3605,14 +3642,16 @@ export function ClientProductDetailPageView({ productId, user }) {
 
         <div className="min-w-0 overflow-hidden rounded-[1.5rem] border border-[var(--border-soft)] bg-[var(--surface-strong)] shadow-[var(--shadow-card)] sm:rounded-[1.75rem]">
           <div
-            className="aspect-[4/3] min-h-64 w-full bg-cover bg-center sm:aspect-[16/9] sm:min-h-80 lg:aspect-[2.2/1] lg:min-h-96"
+            role="img"
+            aria-label={product.name}
+            className="aspect-[4/3] max-h-[min(72vh,34rem)] min-h-56 w-full bg-contain bg-center bg-no-repeat sm:aspect-[16/9] sm:min-h-72 lg:aspect-[2.2/1] lg:min-h-80"
             style={{
-              backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.06), rgba(0,0,0,0.48)), url(${product.image})`,
+              backgroundImage: `url(${product.image})`,
             }}
           />
         </div>
 
-        <Card className="min-w-0 p-4 sm:p-6 lg:p-7">
+        <Card className="min-w-0 p-4 sm:p-6 lg:p-8">
           <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex min-w-0 flex-wrap gap-2">
               <span className="app-chip px-3 py-1.5 text-sm" data-active="true">
@@ -3628,11 +3667,10 @@ export function ClientProductDetailPageView({ productId, user }) {
                   : "Out of stock"}
               </span>
 
-              <span
-                className="app-chip px-3 py-1.5 text-sm"
-                data-active="true"
-              >
-                {product.rating.toFixed(1)} * ({product.ratingCount})
+              <span className="app-chip inline-flex items-center gap-1.5 px-3 py-1.5 text-sm" data-active="true">
+                <Star className="size-4 fill-amber-400 text-amber-400" aria-hidden="true" />
+                <span>{product.rating.toFixed(1)}</span>
+                <span className="text-[var(--muted-foreground)]">({product.ratingCount} ratings)</span>
               </span>
             </div>
 
@@ -3665,25 +3703,27 @@ export function ClientProductDetailPageView({ productId, user }) {
             </button>
           </div>
 
-          <h1 className="mt-4 break-words text-2xl font-semibold leading-tight text-[var(--foreground)] sm:text-3xl lg:text-4xl">
+          <h1 className="mt-4 break-words text-2xl font-bold leading-tight text-[var(--foreground)] sm:text-3xl lg:text-4xl">
             {product.name}
           </h1>
 
-          <p className="mt-3 text-2xl font-bold text-[var(--foreground)] sm:text-3xl">
-            {formatCurrency(effectivePrice)}
-          </p>
-
-          {effectiveDiscountPercent > 0 ? (
-            <p className="mt-1 text-sm font-semibold text-green-700">
-              {effectiveDiscountPercent}% off
+          <div className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <p className="text-2xl font-bold text-[var(--foreground)] sm:text-3xl">
+              {formatCurrency(effectivePrice)}
             </p>
-          ) : null}
+            {effectiveDiscountPercent > 0 ? (
+              <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-bold text-green-800">
+                Save {effectiveDiscountPercent}%
+              </span>
+            ) : null}
+          </div>
 
           {isVariantProduct && (productVariants.length > 0 || product.variants.length > 0) ? (
             <div id="product-options-section" className="mt-6 min-w-0">
-              <h3 className="mb-3 text-sm font-semibold text-[var(--foreground)]">
-                Choose option:
+              <h3 className="mb-1 text-base font-semibold text-[var(--foreground)]">
+                Choose an option
               </h3>
+              <p className="mb-3 text-sm text-[var(--muted-foreground)]">Select an option to see its price and availability.</p>
 
               <div className="flex min-w-0 flex-wrap gap-2">
                 {(productVariants.length > 0 ? productVariants : product.variants).map((variant) => {
@@ -3698,7 +3738,7 @@ export function ClientProductDetailPageView({ productId, user }) {
                       type="button"
                       onClick={() => setSelectedVariantId(variant.id)}
                       className={cn(
-                        "max-w-full rounded-xl border px-4 py-3 text-left text-sm font-semibold transition",
+                        "min-w-28 max-w-full rounded-xl border px-4 py-3 text-left text-sm font-semibold transition",
                         isSelected
                           ? "border-[var(--action)] bg-[color-mix(in_srgb,var(--action)_14%,var(--surface))] text-[var(--foreground)] ring-2 ring-[var(--action)]/30"
                           : "border-[var(--border-soft)] bg-[var(--surface)] text-[var(--muted-foreground)] hover:border-[var(--action)]"
@@ -3724,7 +3764,7 @@ export function ClientProductDetailPageView({ productId, user }) {
             </div>
           ) : null}
 
-          <p className="mt-5 break-words text-base leading-8 text-[var(--muted-foreground)]">
+          <p className="mt-6 break-words text-base leading-7 text-[var(--muted-foreground)] sm:leading-8">
             {product.description}
           </p>
 
@@ -3746,10 +3786,11 @@ export function ClientProductDetailPageView({ productId, user }) {
             </div>
           </div>
 
-          <div className="mt-6">
+          <div className="mt-8 border-t border-[var(--border-soft)] pt-6">
             <h2 className="text-lg font-semibold text-[var(--foreground)]">
-              Rate this product
+              Ratings and reviews
             </h2>
+            <p className="mt-1 text-sm text-[var(--muted-foreground)]">How would you rate this product?</p>
 
             <div className="mt-2 flex">
               {Array.from({ length: 5 }, (_, index) => index + 1).map(
@@ -3781,7 +3822,7 @@ export function ClientProductDetailPageView({ productId, user }) {
             </div>
           </div>
 
-          <div className="mt-6 min-w-0">
+          <div className="mt-8 min-w-0 border-t border-[var(--border-soft)] pt-6">
             <div className="flex min-w-0 items-center gap-3">
               <MessageCircle className="size-5 shrink-0 text-[var(--action)]" />
 
@@ -3791,8 +3832,8 @@ export function ClientProductDetailPageView({ productId, user }) {
             </div>
 
             <div className="mt-4 min-w-0 space-y-3">
-              {(product.comments || []).length ? (
-                product.comments.map((entry) => {
+              {comments.length ? (
+                comments.map((entry) => {
                   const canEdit =
                     Boolean(user?.email) &&
                     (user.role === "ADMIN" ||
@@ -3836,12 +3877,15 @@ export function ClientProductDetailPageView({ productId, user }) {
 
                             <button
                               type="button"
-                              onClick={() =>
-                                store.deleteComment?.(
-                                  product.id,
-                                  entry.id
-                                )
-                              }
+                              onClick={async () => {
+                                setCommentNotice("");
+                                const result = await store.deleteComment?.(product.id, entry.id);
+                                if (!result?.ok) {
+                                  setCommentNotice(result?.error || "Unable to delete comment. Please try again.");
+                                  return;
+                                }
+                                setComments((current) => current.filter((item) => item.id !== entry.id));
+                              }}
                               className="app-icon-button p-2"
                               aria-label="Delete comment"
                             >
@@ -3901,11 +3945,17 @@ export function ClientProductDetailPageView({ productId, user }) {
                   );
                 })
               ) : (
-                <p className="text-sm text-[var(--muted-foreground)]">
+                <p className="rounded-xl bg-[var(--surface-quiet)] px-4 py-4 text-sm text-[var(--muted-foreground)]">
                   No comments yet. Be the first to comment.
                 </p>
               )}
             </div>
+
+            {commentNotice ? (
+              <p role="alert" className="mt-3 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+                {commentNotice}
+              </p>
+            ) : null}
 
             {!user?.email ? (
               <div className="mt-4">
@@ -3932,8 +3982,11 @@ export function ClientProductDetailPageView({ productId, user }) {
                         return;
                       }
 
-                      store.addComment(product.id, comment.trim());
-                      setComment("");
+                      store.addComment(product.id, comment.trim()).then((savedComment) => {
+                        if (!savedComment) return;
+                        setComments((current) => [...current, savedComment]);
+                        setComment("");
+                      });
                     }}
                   >
                     Post comment
@@ -3949,7 +4002,7 @@ export function ClientProductDetailPageView({ productId, user }) {
 
             {/* Total */}
             <div className="min-w-0 shrink">
-              <p className="text-sm text-[var(--muted-foreground)]">
+                <p className="text-sm text-[var(--muted-foreground)]">
                 Total
               </p>
 

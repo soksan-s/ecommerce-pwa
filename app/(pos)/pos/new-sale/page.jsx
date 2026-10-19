@@ -14,8 +14,7 @@ import { BarcodeScannerModal, useCameraBarcodeScanner } from "@/components/share
 import { useBarcodeScannerInput } from "@/hooks/useBarcodeScannerInput";
 import { useOffline } from "@/hooks/useOffline";
 import { usePOSSettings } from "@/hooks/usePOSSettings";
-import { addToQueue, getAll, getProductsFromCache, put, saveProductsToCache, updateLocalStock } from "@/lib/db";
-import { replayQueue } from "@/lib/sync";
+import { addToQueue, getAll, getById, getProductsFromCache, put, saveProductsToCache, updateLocalStock } from "@/lib/db";
 import { usePosStore } from "@/store/posStore";
 
 const mockProducts = [
@@ -154,6 +153,8 @@ function normalizeProduct(product) {
       price: retailPrice,
       retailPrice,
       wholesalePrice,
+      unitId: v.unitId || null,
+      conversionFactor: Number(v.conversionFactor || 1),
       originalPrice: retailPrice,
       discountPercent: Number(v.discountPercent || 0),
       discountedPrice: Number((retailPrice * (1 - (v.discountPercent || 0) / 100)).toFixed(2)),
@@ -183,6 +184,7 @@ function normalizeProduct(product) {
     price: Number(basePrice),
     retailPrice: productRetail,
     wholesalePrice: productWholesale,
+    discountPercent: Number(product.discountPercent || 0),
     minPrice,
     maxPrice,
     stock: Number(product.stock || 0),
@@ -206,6 +208,7 @@ export default function NewSalePage() {
   const repriceItem = usePosStore((state) => state.repriceItem);
   const resetItemPrice = usePosStore((state) => state.resetItemPrice);
   const clearCart = usePosStore((state) => state.clearCart);
+  const setCart = usePosStore((state) => state.setCart);
   const holdCurrentSale = usePosStore((state) => state.holdCurrentSale);
   const restoreHeldSale = usePosStore((state) => state.restoreHeldSale);
   const cashierName = usePosStore((state) => state.cashierName);
@@ -217,6 +220,7 @@ export default function NewSalePage() {
   const heldSales = Array.isArray(heldSalesState) ? heldSalesState : [];
 
   const [products, setProducts] = useState([]);
+  const [cartHydrated, setCartHydrated] = useState(false);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
   const [lastSynced, setLastSynced] = useState("Never");
@@ -234,6 +238,28 @@ export default function NewSalePage() {
 
   const catalogVersion = usePosStore((state) => state.catalogVersion);
   const incrementCatalogVersion = usePosStore((state) => state.incrementCatalogVersion);
+
+  useEffect(() => {
+    let active = true;
+    getById("cart", "active-cart")
+      .then((savedCart) => {
+        if (!active) return;
+        if (Array.isArray(savedCart?.items)) {
+          setPriceType(savedCart.priceType || "RETAIL");
+          setCart(savedCart.items);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (active) setCartHydrated(true);
+      });
+    return () => { active = false; };
+  }, [setCart, setPriceType]);
+
+  useEffect(() => {
+    if (!cartHydrated) return;
+    put("cart", { productId: "active-cart", items: cart, priceType }).catch(() => {});
+  }, [cart, cartHydrated, priceType]);
 
   useEffect(() => {
     let active = true;
@@ -265,12 +291,12 @@ export default function NewSalePage() {
         const payload = await response.json();
         const rawProducts = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [];
 
-        if (rawProducts.length) {
-          const saved = await saveProductsToCache(rawProducts);
+        if (Array.isArray(rawProducts)) {
+          const saved = await saveProductsToCache(rawProducts, { replace: true });
           const timestamp = new Date().toLocaleString();
           window.localStorage.setItem("pos-products-last-synced", timestamp);
 
-          if (active && saved) {
+          if (active) {
             setProducts(saved);
             setLastSynced(timestamp);
           }
@@ -288,7 +314,7 @@ export default function NewSalePage() {
   }, [isOnline, catalogVersion]);
 
   const categories = useMemo(() => {
-    const safeProducts = Array.isArray(products) ? products : [];
+    const safeProducts = (Array.isArray(products) ? products : []).filter((product) => product.isActive !== false);
     return ["All", ...new Set(safeProducts.map((product) => product.category))];
   }, [products]);
 
@@ -319,7 +345,7 @@ export default function NewSalePage() {
               v.sku.toLowerCase().includes(lower) ||
               String(v.barcode || "").toLowerCase().includes(lower)
           ));
-      return matchesCategory && matchesQuery;
+      return product.isActive !== false && matchesCategory && matchesQuery;
     });
   }, [category, products, query]);
 
@@ -562,6 +588,7 @@ export default function NewSalePage() {
     const queue = await getAll("offline_queue");
     setPendingSyncCount(Array.isArray(queue) ? queue.length : 0);
 
+    await put("cart", { productId: "active-cart", items: [], priceType }).catch(() => {});
     clearCart();
     setPaymentOpen(false);
     setDrawerOpen(false);

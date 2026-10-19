@@ -33,6 +33,7 @@ import {
 
 import { useAppStore } from "@/components/app-store-provider";
 import { BarcodeScannerModal, useCameraBarcodeScanner } from "@/components/shared/barcode-scanner";
+import { VariantForm } from "@/components/admin/variant-form";
 import { AppSelect } from "@/components/ui/app-select";
 import { cn, formatCurrency } from "@/lib/utils";
 
@@ -56,6 +57,12 @@ const PRODUCT_UNIT_OPTIONS = [
   "gallon",
   "liter",
 ];
+
+function generateAdminSku(prefix = "PRD") {
+  const stamp = Date.now().toString(36).slice(-5).toUpperCase();
+  const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `${prefix}-${stamp}${suffix}`;
+}
 
 function ProductSectionHeader({ icon: Icon, title, subtitle }) {
   return (
@@ -451,7 +458,7 @@ export function AdminAddProductPageView() {
         price: basePrice,
         discountPercent,
         stock,
-        sku: String(form.sku || "").trim(),
+        sku: String(form.sku || "").trim() || generateAdminSku(),
         barcode: String(form.barcode || "").trim(),
         minStockAlert,
         isActive: publishActive,
@@ -729,20 +736,17 @@ export function AdminAddProductPageView() {
                     SKU
                   </label>
 
-                  <input
-                    value={form.sku}
-                    onChange={(event) =>
-                      update(
-                        "sku",
-                        event.target.value,
-                      )
-                    }
-                    placeholder="ATR-VEG-001"
-                    className={cn(
-                      inputClass,
-                      "font-mono uppercase tracking-wider",
-                    )}
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      value={form.sku}
+                      onChange={(event) => update("sku", event.target.value)}
+                      placeholder="PRD-..."
+                      className={cn(inputClass, "mt-0 font-mono uppercase tracking-wider")}
+                    />
+                    <button type="button" onClick={() => update("sku", generateAdminSku())} className="mt-0 inline-flex shrink-0 items-center gap-1 rounded-xl border border-[var(--border-soft)] px-3 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-quiet)]" title="Generate SKU">
+                      <RefreshCw className="size-4" /> Generate
+                    </button>
+                  </div>
                 </div>
 
                 <div className="min-w-0">
@@ -1323,6 +1327,9 @@ export function AdminAddProductPageView() {
                                   placeholder="SKU"
                                   className="w-full min-w-0 border border-[var(--border-strong)] bg-[var(--input-fill)] px-3 py-2.5 text-xs text-[var(--foreground)] outline-none focus:border-[var(--action)] focus:ring-1 focus:ring-[var(--action)]"
                                 />
+                                <button type="button" onClick={() => setVariantRows((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, sku: generateAdminSku("VAR") } : item))} className="mt-2 inline-flex items-center gap-1 rounded-lg border border-[var(--border-soft)] px-2.5 py-1.5 text-xs font-semibold text-[var(--foreground)]">
+                                  <RefreshCw className="size-3.5" /> Generate SKU
+                                </button>
                               </div>
 
                               <div className="grid grid-cols-2 gap-3">
@@ -1490,6 +1497,9 @@ export function AdminAddProductPageView() {
                                     placeholder="SKU"
                                     className="w-full min-w-0 bg-transparent p-0 text-xs text-[var(--foreground)] outline-none"
                                   />
+                                  <button type="button" onClick={() => setVariantRows((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, sku: generateAdminSku("VAR") } : item))} className="mt-2 inline-flex items-center gap-1 rounded-lg border border-[var(--border-soft)] px-2 py-1 text-[10px] font-semibold text-[var(--foreground)]">
+                                    <RefreshCw className="size-3" /> Generate
+                                  </button>
                                 </td>
 
                                 <td className="min-w-0 px-4 py-3">
@@ -1913,7 +1923,7 @@ export function AdminAddProductPageView() {
 // Product Management  (matches Product_Page_Design.html)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function AdminProductCard({ product, store, onQuickEdit, onFullEdit, onDelete, onRestock }) {
+function AdminProductCard({ product, store, onQuickEdit, onFullEdit, onDelete, onRestock, onManageVariants }) {
 
   const priceDisplay = getProductDisplayPrice(product);
 
@@ -2145,19 +2155,17 @@ function AdminProductCard({ product, store, onQuickEdit, onFullEdit, onDelete, o
 
         {variantProduct ? (
 
-          <Link
-
-            href={`/admin/product-management/${product.id}/variants`}
-
-            className="mt-3 flex items-center justify-center gap-2 rounded-xl border border-[var(--action)]/20 py-2 text-xs font-semibold text-[var(--action)] transition hover:bg-[var(--action)]/5"
-
+          <button
+            type="button"
+            onClick={() => onManageVariants(product)}
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--action)]/20 py-2 text-xs font-semibold text-[var(--action)] transition hover:bg-[var(--action)]/5"
           >
 
             <Layers className="size-3.5" />
 
             Manage Variants
 
-          </Link>
+          </button>
 
         ) : null}
 
@@ -2215,6 +2223,12 @@ export function AdminProductManagementPageView() {
 
   const [quickPrice, setQuickPrice] = useState("0");
 
+  const [quickWholesalePrice, setQuickWholesalePrice] = useState("");
+
+  const [quickSaving, setQuickSaving] = useState(false);
+
+  const [quickEditError, setQuickEditError] = useState("");
+
   const [quickStock, setQuickStock] = useState("0");
 
   const [quickStatus, setQuickStatus] = useState("Active");
@@ -2228,6 +2242,16 @@ export function AdminProductManagementPageView() {
   const [fullSaving, setFullSaving] = useState(false);
 
   const [fullEditError, setFullEditError] = useState("");
+
+  const [variantManager, setVariantManager] = useState(null);
+
+  const [managedVariants, setManagedVariants] = useState([]);
+
+  const [variantsLoading, setVariantsLoading] = useState(false);
+
+  const [variantFormOpen, setVariantFormOpen] = useState(false);
+
+  const [editingVariant, setEditingVariant] = useState(null);
 
 
 
@@ -2534,7 +2558,9 @@ export function AdminProductManagementPageView() {
 
     setQuickEdit(product);
 
-    setQuickPrice(String(product.price ?? 0));
+    setQuickPrice(String(product.retailPrice ?? product.price ?? 0));
+
+    setQuickWholesalePrice(product.wholesalePrice == null ? "" : String(product.wholesalePrice));
 
     setQuickStock(String(product.stock ?? 0));
 
@@ -2542,36 +2568,38 @@ export function AdminProductManagementPageView() {
 
     setQuickImage(product.image || "");
 
+    setQuickEditError("");
+
   }
 
 
 
-  function saveQuickEdit() {
+  async function saveQuickEdit() {
+    if (!quickEdit) return;
 
-    if (!quickEdit) {
+    setQuickSaving(true);
+    setQuickEditError("");
+    try {
+      const result = await store.updateProduct(quickEdit.id, {
+        ...(!isVariantProduct(quickEdit) ? {
+          price: Math.max(Number(quickPrice) || 0, 0),
+          wholesalePrice: Math.max(Number(quickWholesalePrice) || 0, 0),
+          stock: Math.max(Number(quickStock) || 0, 0),
+        } : {}),
+        isActive: quickStatus === "Active",
+        image: quickImage,
+      });
 
-      return;
-
+      if (result?.ok === false || result?.success === false) {
+        setQuickEditError(result.error || result.message || "Unable to update product.");
+        return;
+      }
+      setQuickEdit(null);
+    } catch (error) {
+      setQuickEditError(error?.message || "Unable to update product.");
+    } finally {
+      setQuickSaving(false);
     }
-
-
-
-    store.updateProduct(quickEdit.id, {
-
-      price: Math.max(Number(quickPrice) || 0, 0),
-
-      stock: Math.max(Number(quickStock) || 0, 0),
-
-      isActive: quickStatus === "Active",
-
-      image: quickImage,
-
-    });
-
-
-
-    setQuickEdit(null);
-
   }
 
 
@@ -2594,7 +2622,11 @@ export function AdminProductManagementPageView() {
 
       image: product.image || "",
 
-      price: String(product.price ?? 0),
+      price: String(product.retailPrice ?? product.price ?? 0),
+
+      wholesalePrice: product.wholesalePrice == null ? "" : String(product.wholesalePrice),
+
+      costPrice: product.costPrice == null ? "" : String(product.costPrice),
 
       discountPercent: String(
 
@@ -2614,6 +2646,46 @@ export function AdminProductManagementPageView() {
 
     setFullEditError("");
 
+  }
+
+  async function loadManagedVariants(productId) {
+    setVariantsLoading(true);
+    try {
+      const response = await fetch(`/api/admin/products/${productId}/variants`);
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error?.message || result.error || "Unable to load variants.");
+      }
+      setManagedVariants(Array.isArray(result.data) ? result.data : []);
+    } catch (error) {
+      setManagedVariants([]);
+      window.alert(error.message || "Unable to load variants.");
+    } finally {
+      setVariantsLoading(false);
+    }
+  }
+
+  function openVariantManager(product) {
+    setVariantManager(product);
+    setEditingVariant(null);
+    setVariantFormOpen(false);
+    loadManagedVariants(product.id);
+  }
+
+  async function deleteManagedVariant(variantId) {
+    if (!variantManager || !window.confirm("Are you sure you want to delete this variant?")) return;
+    try {
+      const response = await fetch(`/api/admin/products/${variantManager.id}/variants/${variantId}`, { method: "DELETE" });
+      const result = await response.json();
+      if (!response.ok) {
+        window.alert(result.error?.message || result.error || "Failed to delete variant.");
+        return;
+      }
+      await loadManagedVariants(variantManager.id);
+      await store.syncStore?.();
+    } catch {
+      window.alert("Failed to delete variant.");
+    }
   }
 
 
@@ -2686,7 +2758,7 @@ export function AdminProductManagementPageView() {
 
           category: fullEdit.category,
 
-          sku: fullEdit.sku,
+          sku: fullEdit.sku.trim() || generateAdminSku(),
 
           barcode: fullEdit.barcode,
 
@@ -2695,6 +2767,10 @@ export function AdminProductManagementPageView() {
           image: fullEdit.image,
 
           price,
+
+          wholesalePrice: Math.max(Number(fullEdit.wholesalePrice) || 0, 0),
+
+          costPrice: Math.max(Number(fullEdit.costPrice) || 0, 0),
 
           discountPercent,
 
@@ -3683,6 +3759,8 @@ export function AdminProductManagementPageView() {
 
                   onRestock={setRestock}
 
+                  onManageVariants={openVariantManager}
+
                 />
 
               ))}
@@ -4211,7 +4289,7 @@ export function AdminProductManagementPageView() {
 
               className="absolute inset-0 bg-black/40 backdrop-blur-sm"
 
-              onClick={() => setQuickEdit(null)}
+              onClick={() => { if (!quickSaving) setQuickEdit(null); }}
 
             />
 
@@ -4228,6 +4306,25 @@ export function AdminProductManagementPageView() {
 
 
               <div className="space-y-4">
+
+                {quickEditError ? <div role="alert" className="mb-4 rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">{quickEditError}</div> : null}
+
+                {isVariantProduct(quickEdit) ? (
+                  <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+                    <p>This product has variants, so price and stock are edited per variant to keep each option accurate.</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const product = quickEdit;
+                        setQuickEdit(null);
+                        openVariantManager(product);
+                      }}
+                      className="mt-3 inline-flex min-h-10 items-center rounded-lg bg-sky-900 px-3 py-2 font-semibold text-white transition hover:bg-sky-800"
+                    >
+                      Manage Variants
+                    </button>
+                  </div>
+                ) : null}
 
                 <ProductImageEditor
 
@@ -4247,7 +4344,7 @@ export function AdminProductManagementPageView() {
 
                     {t(
 
-                      "Price (USD)",
+                      "Retail Price (USD)",
 
                       "តម្លៃ (USD)",
 
@@ -4260,6 +4357,8 @@ export function AdminProductManagementPageView() {
                   <input
 
                     value={quickPrice}
+
+                    disabled={isVariantProduct(quickEdit)}
 
                     onChange={(event) =>
 
@@ -4282,6 +4381,20 @@ export function AdminProductManagementPageView() {
 
 
                 <div>
+                  <label className="mb-2 block break-words text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Wholesale Price (USD)</label>
+                  <input
+                    value={quickWholesalePrice}
+                    disabled={isVariantProduct(quickEdit)}
+                    onChange={(event) => setQuickWholesalePrice(event.target.value)}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="Optional"
+                    className="w-full min-w-0 border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 text-sm text-[var(--foreground)] outline-none focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
+                  />
+                </div>
+
+                <div>
 
                   <label className="mb-2 block break-words text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
 
@@ -4300,6 +4413,8 @@ export function AdminProductManagementPageView() {
                   <input
 
                     value={quickStock}
+
+                    disabled={isVariantProduct(quickEdit)}
 
                     onChange={(event) =>
 
@@ -4363,6 +4478,8 @@ export function AdminProductManagementPageView() {
 
                   onClick={() => setQuickEdit(null)}
 
+                  disabled={quickSaving}
+
                   className="min-w-0 bg-[var(--surface-quiet)] px-4 py-3 text-sm font-bold text-[var(--foreground)] transition-colors hover:opacity-90"
 
                 >
@@ -4379,13 +4496,15 @@ export function AdminProductManagementPageView() {
 
                   onClick={saveQuickEdit}
 
+                  disabled={quickSaving}
+
                   className="min-w-0 bg-[var(--action)] px-4 py-3 text-sm font-bold text-[var(--action-foreground)] shadow-lg shadow-[var(--action)]/20 transition-colors hover:opacity-90"
 
                 >
 
                   {t(
 
-                    "Save Changes",
+                    quickSaving ? "Saving..." : "Save Changes",
 
                     "រក្សាទុកការកែប្រែ",
 
@@ -4590,37 +4709,18 @@ export function AdminProductManagementPageView() {
 
 
                 <div className="min-w-0">
-
-                  <label className="mb-2 block break-words text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
-
-                    SKU
-
-                  </label>
-
-
-
-                  <input
-
-                    value={fullEdit.sku}
-
-                    onChange={(event) =>
-
-                      setFullEdit((current) => ({
-
-                        ...current,
-
-                        sku: event.target.value,
-
-                      }))
-
-                    }
-
-                    placeholder="ATR-VEG-001"
-
-                    className="w-full min-w-0 border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 text-sm text-[var(--foreground)] outline-none focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
-
-                  />
-
+                  <label className="mb-2 block break-words text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">SKU</label>
+                  <div className="flex min-w-0 gap-2">
+                    <input
+                      value={fullEdit.sku}
+                      onChange={(event) => setFullEdit((current) => ({ ...current, sku: event.target.value }))}
+                      placeholder="PRD-..."
+                      className="w-full min-w-0 border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 text-sm text-[var(--foreground)] outline-none focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]"
+                    />
+                    <button type="button" onClick={() => setFullEdit((current) => ({ ...current, sku: generateAdminSku() }))} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[var(--border-soft)] px-3 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-quiet)]" title="Generate SKU">
+                      <RefreshCw className="size-4" /> Generate
+                    </button>
+                  </div>
                 </div>
 
 
@@ -4749,6 +4849,17 @@ export function AdminProductManagementPageView() {
 
 
 
+                <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Wholesale Price (USD)</label>
+                    <input value={fullEdit.wholesalePrice} onChange={(event) => setFullEdit((current) => ({ ...current, wholesalePrice: event.target.value }))} type="number" min="0" step="0.01" placeholder="Optional" className="w-full min-w-0 border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 text-sm text-[var(--foreground)] outline-none focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]" />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">Cost Price (USD)</label>
+                    <input value={fullEdit.costPrice} onChange={(event) => setFullEdit((current) => ({ ...current, costPrice: event.target.value }))} type="number" min="0" step="0.01" placeholder="Optional" className="w-full min-w-0 border border-[var(--border-strong)] bg-[var(--surface-soft)] px-4 py-3 text-sm text-[var(--foreground)] outline-none focus:border-[var(--action)] focus:ring-2 focus:ring-[var(--action)]" />
+                  </div>
+                </div>
+
                 <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-3">
 
                   <div className="min-w-0">
@@ -4757,7 +4868,7 @@ export function AdminProductManagementPageView() {
 
                       {t(
 
-                        "Price (USD)",
+                        "Retail Price (USD)",
 
                         "តម្លៃ (USD)",
 
@@ -5064,6 +5175,85 @@ export function AdminProductManagementPageView() {
         ) : null}
 
 
+
+        {variantManager ? (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center overflow-y-auto p-3 sm:p-5">
+            <button
+              type="button"
+              aria-label="Close variant manager"
+              onClick={() => setVariantManager(null)}
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            />
+            <section role="dialog" aria-modal="true" aria-labelledby="variant-manager-title" className="relative my-auto max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-4 shadow-[var(--shadow-strong)] sm:p-6">
+              <header className="mb-5 flex items-start justify-between gap-4">
+                <div>
+                  <h2 id="variant-manager-title" className="text-xl font-bold text-[var(--foreground)] sm:text-2xl">Manage Variants</h2>
+                  <p className="mt-1 text-sm text-[var(--muted-foreground)]">{variantManager.name}</p>
+                </div>
+                <button type="button" onClick={() => setVariantManager(null)} className="app-icon-button p-2" aria-label="Close">
+                  <X className="size-5" />
+                </button>
+              </header>
+
+              {variantFormOpen ? (
+                <div className="mb-5 rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] p-4 sm:p-5">
+                  <h3 className="mb-4 font-semibold text-[var(--foreground)]">{editingVariant ? "Edit Variant" : "New Variant"}</h3>
+                  <VariantForm
+                    productId={variantManager.id}
+                    initialData={editingVariant}
+                    onSuccess={async () => {
+                      setVariantFormOpen(false);
+                      setEditingVariant(null);
+                      await loadManagedVariants(variantManager.id);
+                      await store.syncStore?.();
+                    }}
+                    onCancel={() => {
+                      setVariantFormOpen(false);
+                      setEditingVariant(null);
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="mb-4 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => { setEditingVariant(null); setVariantFormOpen(true); }}
+                    className="inline-flex items-center gap-2 rounded-xl bg-[var(--action)] px-4 py-2.5 text-sm font-semibold text-[var(--action-foreground)]"
+                  >
+                    <Plus className="size-4" /> Add Variant
+                  </button>
+                </div>
+              )}
+
+              {variantsLoading ? (
+                <p className="py-8 text-center text-sm text-[var(--muted-foreground)]">Loading variants…</p>
+              ) : managedVariants.length ? (
+                <div className="space-y-3">
+                  {managedVariants.map((variant) => (
+                    <article key={variant.id} className="flex flex-col gap-3 rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] p-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <h3 className="break-words font-semibold text-[var(--foreground)]">{variant.name}</h3>
+                        <p className="mt-1 text-xs text-[var(--muted-foreground)]">SKU: {variant.sku}{variant.barcode ? ` · Barcode: ${variant.barcode}` : ""}</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-5 gap-y-1 text-xs sm:min-w-56">
+                        <span className="text-[var(--muted-foreground)]">Retail</span><span className="text-right font-semibold">{formatCurrency(Number(variant.price || 0))}</span>
+                        <span className="text-[var(--muted-foreground)]">Wholesale</span><span className="text-right font-semibold">{formatCurrency(Number(variant.wholesalePrice || 0))}</span>
+                        <span className="text-[var(--muted-foreground)]">Cost</span><span className="text-right font-semibold">{formatCurrency(Number(variant.costPrice || 0))}</span>
+                        <span className="text-[var(--muted-foreground)]">Stock</span><span className="text-right font-semibold">{Number(variant.stock || 0)}</span>
+                      </div>
+                      <div className="flex shrink-0 gap-2 self-end sm:self-auto">
+                        <button type="button" onClick={() => { setEditingVariant(variant); setVariantFormOpen(true); }} className="app-icon-button p-2" aria-label={`Edit ${variant.name}`}><Edit3 className="size-4" /></button>
+                        <button type="button" onClick={() => deleteManagedVariant(variant.id)} className="app-icon-button p-2 text-rose-500" aria-label={`Delete ${variant.name}`}><Trash2 className="size-4" /></button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-[var(--border-soft)] p-8 text-center text-sm text-[var(--muted-foreground)]">No variants yet. Add one to get started.</div>
+              )}
+            </section>
+          </div>
+        ) : null}
 
         {/* Restock Modal */}
 

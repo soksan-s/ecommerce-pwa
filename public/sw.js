@@ -224,24 +224,6 @@ async function invalidateApiCache() {
   } catch {}
 }
 
-async function queueFailedApiPost(request) {
-  const cloned = request.clone();
-  const body = await cloned.text();
-
-  await addQueuedRequest({
-    url: request.url,
-    method: request.method,
-    headers: Object.fromEntries(request.headers.entries()),
-    body,
-    createdAt: new Date().toISOString(),
-  });
-
-  return new Response(JSON.stringify({ queued: true, offline: true }), {
-    status: 202,
-    headers: { "Content-Type": "application/json" },
-  });
-}
-
 async function navigationFallback(request) {
   const cache = await caches.open(CACHE_NAME);
   const url = new URL(request.url);
@@ -432,11 +414,11 @@ self.addEventListener("fetch", (event) => {
             }
             return response;
           })
-          .catch((err) => {
-            if (request.method === "POST") {
-              return queueFailedApiPost(request);
-            }
-            throw err;
+          .catch(() => {
+            return new Response(JSON.stringify({ error: "Network unavailable", offline: true }), {
+              status: 503,
+              headers: { "Content-Type": "application/json" },
+            });
           })
       );
       return;

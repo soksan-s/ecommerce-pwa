@@ -1,6 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { RefreshCw } from "lucide-react";
+
+function generateVariantSku() {
+  return `VAR-${Date.now().toString(36).slice(-5).toUpperCase()}${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+}
 
 export function VariantForm({ productId, initialData, onSuccess, onCancel }) {
   const [loading, setLoading] = useState(false);
@@ -74,13 +79,18 @@ export function VariantForm({ productId, initialData, onSuccess, onCancel }) {
 
         <label className="space-y-1 block">
           <span className="text-xs uppercase tracking-wider text-[var(--muted-foreground)]">SKU *</span>
-          <input
-            required
-            value={form.sku}
-            onChange={(e) => update("sku", e.target.value)}
-            className="app-input w-full px-3 py-2 text-sm"
-            placeholder="Unique SKU"
-          />
+          <div className="flex gap-2">
+            <input
+              required
+              value={form.sku}
+              onChange={(e) => update("sku", e.target.value)}
+              className="app-input w-full px-3 py-2 text-sm"
+              placeholder="Unique SKU"
+            />
+            <button type="button" onClick={() => update("sku", generateVariantSku())} className="inline-flex shrink-0 items-center gap-1 rounded-xl border border-[var(--border-soft)] px-3 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-quiet)]" title="Generate SKU">
+              <RefreshCw className="size-4" /> Generate
+            </button>
+          </div>
         </label>
 
         <label className="space-y-1 block">

@@ -45,6 +45,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   SlidersHorizontal,
+  Star,
   Ticket,
   TrendingUp,
   Trash2,
@@ -3626,6 +3627,31 @@ export function AdminSupportInboxPageView({ user }) {
   const [drafts, setDrafts] = useState({});
   const [closingIds, setClosingIds] = useState(new Set());
   const [searchQuery, setSearchQuery] = useState("");
+  const [activeInboxTab, setActiveInboxTab] = useState("all");
+  const [feedbackProducts, setFeedbackProducts] = useState([]);
+  const [feedbackLoading, setFeedbackLoading] = useState(true);
+  const [feedbackError, setFeedbackError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/admin/feedback", { cache: "no-store" })
+      .then(async (response) => {
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Unable to load product feedback.");
+        return payload.data;
+      })
+      .then((data) => {
+        if (active) setFeedbackProducts(Array.isArray(data) ? data : []);
+      })
+      .catch((error) => {
+        if (active) setFeedbackError(error.message || "Unable to load product feedback.");
+      })
+      .finally(() => {
+        if (active) setFeedbackLoading(false);
+      });
+
+    return () => { active = false; };
+  }, []);
 
   function handleClose(ticketId) {
     setClosingIds((prev) => new Set([...prev, ticketId]));
@@ -3649,6 +3675,14 @@ export function AdminSupportInboxPageView({ user }) {
     );
   const openTickets = store.supportTickets.filter((ticket) => ticket.status !== "closed" && matchesSearch(ticket));
   const closedTickets = store.supportTickets.filter((ticket) => ticket.status === "closed" && matchesSearch(ticket));
+  const matchesFeedbackSearch = (product) => !normalizedQuery ||
+    product.name?.toLowerCase().includes(normalizedQuery) ||
+    product.comments?.some((comment) =>
+      `${comment.customerName || ""} ${comment.customerPhone || ""} ${comment.message || ""}`.toLowerCase().includes(normalizedQuery)
+    );
+  const visibleFeedbackProducts = feedbackProducts.filter(matchesFeedbackSearch);
+  const showSupportItems = activeInboxTab !== "feedback";
+  const showFeedbackItems = activeInboxTab !== "support";
 
   function renderTicket(ticket) {
     const isClosed = ticket.status === "closed";
@@ -3735,16 +3769,35 @@ export function AdminSupportInboxPageView({ user }) {
 
       <div className="relative">
         <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
-        <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search by subject, ticket ID, customer name, or phone" className="app-input w-full py-3 pl-11 pr-4 text-sm" />
+        <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search tickets or feedback by subject, product, customer, or phone" className="app-input w-full py-3 pl-11 pr-4 text-sm" />
       </div>
 
-      {store.supportTickets.length === 0 ? (
+      <div className="flex flex-wrap gap-2 rounded-2xl border border-[var(--border-soft)] bg-[var(--surface)] p-2">
+        {[
+          { id: "all", label: "All inbox", count: store.supportTickets.length + feedbackProducts.length },
+          { id: "support", label: "Support tickets", count: store.supportTickets.length },
+          { id: "feedback", label: "Product feedback", count: feedbackProducts.length },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveInboxTab(tab.id)}
+            className={cn("min-h-10 rounded-xl px-4 py-2 text-sm font-semibold transition", activeInboxTab === tab.id ? "bg-[var(--action)] text-white" : "text-[var(--muted-foreground)] hover:bg-[var(--surface-quiet)] hover:text-[var(--foreground)]")}
+          >
+            {tab.label} <span className="ml-1 opacity-75">{tab.count}</span>
+          </button>
+        ))}
+      </div>
+
+      {showSupportItems && store.supportTickets.length === 0 ? (
         <div className="rounded-[1.6rem] border border-[var(--border-soft)] bg-[var(--surface-strong)] p-10 text-center">
           <p className="text-sm text-[var(--muted-foreground)]">No support tickets yet.</p>
         </div>
-      ) : openTickets.length === 0 && closedTickets.length === 0 ? (
+      ) : null}
+      {showSupportItems && store.supportTickets.length > 0 && openTickets.length === 0 && closedTickets.length === 0 ? (
         <Card><p className="py-6 text-center text-sm text-[var(--muted-foreground)]">No tickets match your search.</p></Card>
-      ) : (
+      ) : null}
+      {showSupportItems && (openTickets.length > 0 || closedTickets.length > 0) ? (
         <>
           {openTickets.length > 0 && (
             <div className="space-y-4">
@@ -3763,7 +3816,64 @@ export function AdminSupportInboxPageView({ user }) {
             </details>
           )}
         </>
-      )}
+      ) : null}
+
+      {showFeedbackItems ? (
+        <section className="space-y-4">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-[var(--foreground)]">Product feedback</h2>
+              <p className="mt-1 text-sm text-[var(--muted-foreground)]">Average star ratings and customer comments, grouped by product.</p>
+            </div>
+            {!feedbackLoading ? <span className="rounded-full bg-[var(--surface-quiet)] px-3 py-1 text-xs font-semibold text-[var(--muted-foreground)]">{visibleFeedbackProducts.length} products</span> : null}
+          </div>
+          {feedbackLoading ? (
+            <Card><p className="text-sm text-[var(--muted-foreground)]">Loading product feedback...</p></Card>
+          ) : feedbackError ? (
+            <Card><p className="text-sm text-rose-600">{feedbackError}</p></Card>
+          ) : visibleFeedbackProducts.length === 0 ? (
+            <Card><p className="text-sm text-[var(--muted-foreground)]">{normalizedQuery ? "No product feedback matches your search." : "No product ratings or comments yet."}</p></Card>
+          ) : (
+            visibleFeedbackProducts.map((product) => (
+              <article key={product.id} className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-4 shadow-sm sm:p-5">
+                <div className="flex flex-col gap-3 border-b border-[var(--border-soft)] pb-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Product feedback</p>
+                    <h3 className="mt-1 truncate text-lg font-semibold text-[var(--foreground)]">{product.name}</h3>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2 rounded-xl bg-amber-500/10 px-3 py-2">
+                    <div className="flex items-center" aria-label={`${product.rating.toFixed(1)} out of 5 stars`}>
+                      {Array.from({ length: 5 }, (_, index) => (
+                        <Star key={index} className={cn("size-4", index < Math.round(product.rating) ? "fill-amber-400 text-amber-400" : "text-[var(--border-strong)]")} />
+                      ))}
+                    </div>
+                    <span className="text-sm font-bold text-[var(--foreground)]">{product.rating.toFixed(1)}</span>
+                    <span className="text-xs text-[var(--muted-foreground)]">({product.ratingCount} ratings)</span>
+                  </div>
+                </div>
+                {product.comments.length ? (
+                  <div className="mt-4 space-y-3">
+                    {product.comments.map((comment) => (
+                      <div key={comment.id} className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] p-3 sm:p-4">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <p className="font-semibold text-[var(--foreground)]">{comment.customerName}</p>
+                            <p className="mt-0.5 inline-flex items-center gap-1.5 font-mono text-xs text-[var(--muted-foreground)]"><Phone className="size-3.5" />{comment.customerPhone || "Phone number unavailable"}</p>
+                          </div>
+                          <span className="shrink-0 text-xs text-[var(--muted-foreground)]">{new Date(comment.createdAt).toLocaleString()}</span>
+                        </div>
+                        <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[var(--muted-foreground)]">{comment.message}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-4 text-sm text-[var(--muted-foreground)]">No comments for this product.</p>
+                )}
+              </article>
+            ))
+          )}
+        </section>
+      ) : null}
     </div>
   );
 }
