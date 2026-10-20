@@ -1394,6 +1394,30 @@ export function ClientFavoritesPageView() {
 export function ClientCartPageView() {
   const store = useAppStore();
   const { t } = useTranslation(store.language);
+  const [quantityDrafts, setQuantityDrafts] = useState({});
+
+  function getCartQuantity(item) {
+    const key = item.cartKey || item.productId;
+    return quantityDrafts[key] ?? String(item.quantity);
+  }
+
+  function commitCartQuantity(item) {
+    const key = item.cartKey || item.productId;
+    const parsed = Number.parseInt(quantityDrafts[key], 10);
+    const product = store.products.find((entry) => entry.id === item.productId);
+    const variant = item.variantId
+      ? product?.variants?.find((entry) => entry.id === item.variantId)
+      : null;
+    const stock = Number(variant ? variant.stock : product?.stock);
+    const safeStock = Number.isFinite(stock) ? Math.max(0, stock) : item.quantity;
+    const nextQuantity = Math.min(safeStock, Math.max(1, Number.isFinite(parsed) ? parsed : item.quantity));
+    store.setCartQuantity(item.productId, nextQuantity, item.variantId);
+    setQuantityDrafts((current) => {
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  }
 
   return (
     <>
@@ -1469,9 +1493,20 @@ export function ClientCartPageView() {
                             -
                           </button>
 
-                          <span className="min-w-9 text-center text-sm font-extrabold tabular-nums text-[var(--foreground)]">
-                            {item.quantity}
-                          </span>
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min="1"
+                            max={item.variantId
+                              ? store.products.find((entry) => entry.id === item.productId)?.variants?.find((entry) => entry.id === item.variantId)?.stock
+                              : store.products.find((entry) => entry.id === item.productId)?.stock}
+                            value={getCartQuantity(item)}
+                            onChange={(event) => setQuantityDrafts((current) => ({ ...current, [item.cartKey || item.productId]: event.target.value }))}
+                            onBlur={() => commitCartQuantity(item)}
+                            onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); } }}
+                            aria-label={`${item.product.name} quantity`}
+                            className="h-8 w-12 border-x border-[var(--border-soft)] bg-[var(--surface)] text-center text-sm font-extrabold tabular-nums text-[var(--foreground)] outline-none focus:bg-[var(--action-surface)]"
+                          />
 
                           <button
                             type="button"
@@ -1557,9 +1592,20 @@ export function ClientCartPageView() {
                           -
                         </button>
 
-                        <span className="grid h-10 flex-1 place-items-center text-sm font-extrabold tabular-nums text-[var(--foreground)]">
-                          {item.quantity}
-                        </span>
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          min="1"
+                          max={item.variantId
+                            ? store.products.find((entry) => entry.id === item.productId)?.variants?.find((entry) => entry.id === item.variantId)?.stock
+                            : store.products.find((entry) => entry.id === item.productId)?.stock}
+                          value={getCartQuantity(item)}
+                          onChange={(event) => setQuantityDrafts((current) => ({ ...current, [item.cartKey || item.productId]: event.target.value }))}
+                          onBlur={() => commitCartQuantity(item)}
+                          onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); } }}
+                          aria-label={`${item.product.name} quantity`}
+                          className="h-10 min-w-0 flex-1 border-x border-[var(--border-soft)] bg-[var(--surface)] text-center text-sm font-extrabold tabular-nums text-[var(--foreground)] outline-none focus:bg-[var(--action-surface)]"
+                        />
 
                         <button
                           type="button"

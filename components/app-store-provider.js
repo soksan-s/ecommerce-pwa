@@ -468,6 +468,24 @@ export function AppStoreProvider({ children }) {
           };
         });
       },
+      setCartQuantity(productId, quantity, variantId = null) {
+        const cartKey = variantId ? `${productId}::${variantId}` : productId;
+        patch((current) => {
+          const item = current.cart.find((entry) => entry.cartKey === cartKey);
+          const product = current.products.find((entry) => entry.id === productId);
+          if (!item || !product) return current;
+
+          const variants = (product.variants || []).filter((entry) => entry.isActive !== false);
+          const variant = variantId ? variants.find((entry) => entry.id === variantId) : null;
+          const stockValue = variant ? variant.stock : product.stock;
+          const maxStock = Number.isFinite(Number(stockValue)) ? Math.max(0, Number(stockValue)) : item.quantity;
+          const nextQuantity = Math.min(maxStock, Math.max(1, Math.floor(Number(quantity) || 1)));
+          return {
+            ...current,
+            cart: current.cart.map((entry) => entry.cartKey === cartKey ? { ...entry, quantity: nextQuantity } : entry),
+          };
+        });
+      },
       decreaseCart(productId, variantId = null) {
         const cartKey = variantId ? `${productId}::${variantId}` : productId;
         patch((current) => ({
