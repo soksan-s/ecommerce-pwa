@@ -3,6 +3,12 @@ import { canAccessPOS, getCurrentUser } from "@/lib/auth";
 import { calculateDeposits, createContainerIssues, createAuditLog, createInventoryMovement } from "@/lib/business-events";
 import { createNotification } from "@/lib/server/services/notifications";
 import { prisma } from "@/lib/prisma";
+
+function startOfPhnomPenhDay(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Phnom_Penh", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  return new Date(`${values.year}-${values.month}-${values.day}T00:00:00+07:00`);
+}
 import { getVariantConversionFactor, resolveBaseVariant } from "@/lib/server/services/inventory-units";
 
 function toMoney(value) {
@@ -308,6 +314,42 @@ export async function POST(request) {
         const targetVariantId = baseVariant ? baseVariant.id : item.variant.id;
         const totalDeductUnits = Math.max(1, Math.round(item.quantity * factor));
 
+        const trackedBatches = await tx.inventoryBatch.findMany({
+          where: { variantId: targetVariantId, branchId, isActive: true },
+          orderBy: [{ expiryDate: "asc" }, { receivedDate: "asc" }],
+        });
+        if (trackedBatches.length) {
+          const todayStart = startOfPhnomPenhDay();
+          const eligibleBatches = trackedBatches.filter((batch) => !batch.expiryDate || batch.expiryDate >= todayStart);
+          const eligibleQty = eligibleBatches.reduce((sum, batch) => sum + Math.max(0, batch.remainingQty), 0);
+          if (eligibleQty < totalDeductUnits) throw new Error("INSUFFICIENT_EXPIRY_BATCH_STOCK");
+
+          let batchRemaining = totalDeductUnits;
+          for (const batch of eligibleBatches) {
+            if (!batchRemaining) break;
+            if (batch.remainingQty <= 0) continue;
+            const deductQty = Math.min(batch.remainingQty, batchRemaining);
+            const changed = await tx.inventoryBatch.updateMany({
+              where: { id: batch.id, remainingQty: { gte: deductQty } },
+              data: { remainingQty: { decrement: deductQty } },
+            });
+            if (changed.count !== 1) throw new Error("INSUFFICIENT_EXPIRY_BATCH_STOCK");
+            await createInventoryMovement(tx, {
+              variantId: targetVariantId,
+              branchId,
+              batchId: batch.id,
+              type: "STOCK_OUT",
+              channel: "POS",
+              quantity: deductQty,
+              previousStock: batch.remainingQty,
+              nextStock: batch.remainingQty - deductQty,
+              note: "POS FEFO batch sale",
+              userId: user?.id || null,
+            });
+            batchRemaining -= deductQty;
+          }
+        }
+
         const inv = await tx.inventory.upsert({
           where: {
             variantId_branchId: {
@@ -402,6 +444,9 @@ export async function POST(request) {
   } catch (error) {
     if (error?.message === "INSUFFICIENT_STOCK") {
       return fail("One or more products no longer have enough stock.", 409);
+    }
+    if (error?.message === "INSUFFICIENT_EXPIRY_BATCH_STOCK") {
+      return fail("Available unexpired batch stock is not enough. Expired stock cannot be sold.", 409);
     }
     if (error?.message === "CUSTOMER_REQUIRED_FOR_CREDIT") {
       return fail("A customer profile is required for credit transactions.", 422);

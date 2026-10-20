@@ -17,6 +17,7 @@ export async function POST(request) {
     const action = String(body.action || "").toUpperCase(); // "STOCK_IN", "ADJUSTMENT_INCREASE", "ADJUSTMENT_DECREASE"
     const quantity = Number(body.quantity || 0);
     const reason = String(body.reason || "").trim();
+    const expiryDateValue = typeof body.expiryDate === "string" ? body.expiryDate : "";
 
     if (!productId && !variantId) {
       return fail("Product ID is required.", 422);
@@ -32,6 +33,22 @@ export async function POST(request) {
 
     if ((action === "ADJUSTMENT_INCREASE" || action === "ADJUSTMENT_DECREASE") && !reason) {
       return fail("A reason is required for stock adjustments.", 422);
+    }
+
+    if (action === "STOCK_IN" || action === "ADJUSTMENT_INCREASE") {
+      if (!body.noExpiry && !/^\d{4}-\d{2}-\d{2}$/.test(expiryDateValue)) {
+        return fail("Enter the batch expiry date or mark that the product has no printed expiry date.", 422);
+      }
+    }
+
+    let expiryDate = null;
+    if (expiryDateValue) {
+      const [year, month, day] = expiryDateValue.split("-").map(Number);
+      const calendarCheck = new Date(Date.UTC(year, month - 1, day));
+      if (calendarCheck.getUTCFullYear() !== year || calendarCheck.getUTCMonth() !== month - 1 || calendarCheck.getUTCDate() !== day) {
+        return fail("Enter a valid batch expiry date.", 422);
+      }
+      expiryDate = new Date(`${expiryDateValue}T00:00:00+07:00`);
     }
 
     const updatedProduct = await prisma.$transaction(async (tx) => {
@@ -113,6 +130,21 @@ export async function POST(request) {
             availableQuantity: Math.max(stockDiff, 0),
           },
         });
+
+        if ((action === "STOCK_IN" || action === "ADJUSTMENT_INCREASE") && targetVariant) {
+          await tx.inventoryBatch.create({
+            data: {
+              batchNumber: String(body.batchNumber || `RESTOCK-${Date.now()}`).trim().slice(0, 80),
+              variantId: targetVariant.id,
+              branchId: branch.id,
+              initialQty: quantity,
+              remainingQty: quantity,
+              costPrice: Number(targetVariant.costPrice || 0),
+              currency: "USD",
+              expiryDate,
+            },
+          });
+        }
       }
 
       // Record Inventory Movement

@@ -40,6 +40,15 @@ async function allocateFefoBatches(tx, { order, userId }) {
     return;
   }
 
+  const dayParts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Phnom_Penh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const dayValues = Object.fromEntries(dayParts.map(({ type, value }) => [type, value]));
+  const todayStart = new Date(`${dayValues.year}-${dayValues.month}-${dayValues.day}T00:00:00+07:00`);
+
   for (const line of order.items || order.lines || []) {
     let remaining = line.quantity;
     const variantId = line.variantId;
@@ -50,6 +59,8 @@ async function allocateFefoBatches(tx, { order, userId }) {
         remainingQty: {
           gt: 0,
         },
+        isActive: true,
+        OR: [{ expiryDate: null }, { expiryDate: { gte: todayStart } }],
       },
       orderBy: [
         {

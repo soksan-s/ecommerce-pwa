@@ -343,7 +343,18 @@ export async function POST(request) {
         });
       }
 
-      const availQty = inv ? (inv.availableQuantity > 0 ? inv.availableQuantity : inv.quantity) : 0;
+      let availQty = inv ? (inv.availableQuantity > 0 ? inv.availableQuantity : inv.quantity) : 0;
+      const trackedBatches = await prisma.inventoryBatch.findMany({
+        where: { variantId: baseVariant.id, branchId, isActive: true },
+        select: { remainingQty: true, expiryDate: true },
+      });
+      if (trackedBatches.length) {
+        const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Phnom_Penh", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+        const date = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+        const todayStart = new Date(`${date.year}-${date.month}-${date.day}T00:00:00+07:00`);
+        const unexpiredQty = trackedBatches.reduce((sum, batch) => sum + (!batch.expiryDate || batch.expiryDate >= todayStart ? Math.max(0, batch.remainingQty) : 0), 0);
+        availQty = Math.min(availQty, unexpiredQty);
+      }
       if (requiredUnits > availQty) {
         return fail(`Insufficient stock for ${line.variant.product?.name || line.variant.name}.`, 422);
       }

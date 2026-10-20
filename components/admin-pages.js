@@ -2100,6 +2100,9 @@ export function AdminInventoryPageView() {
     variantId: "",
     quantity: "10",
     note: "",
+    batchNumber: "",
+    expiryDate: "",
+    noExpiry: false,
     loading: false,
     error: "",
     success: "",
@@ -2113,6 +2116,9 @@ export function AdminInventoryPageView() {
     type: "ADJUSTMENT_INCREASE",
     quantity: "1",
     reason: "",
+    batchNumber: "",
+    expiryDate: "",
+    noExpiry: false,
     loading: false,
     error: "",
     success: "",
@@ -2215,6 +2221,11 @@ export function AdminInventoryPageView() {
       return;
     }
 
+    if (!stockInModal.noExpiry && !stockInModal.expiryDate) {
+      setStockInModal((m) => ({ ...m, error: "Enter the expiry date printed on this batch, or mark that there is no printed expiry date." }));
+      return;
+    }
+
     setStockInModal((m) => ({ ...m, loading: true, error: "" }));
 
     try {
@@ -2227,6 +2238,9 @@ export function AdminInventoryPageView() {
           variantId: stockInModal.variantId || undefined,
           quantity: qty,
           reason: stockInModal.note.trim() || "Stock In / Restock",
+          batchNumber: stockInModal.batchNumber.trim(),
+          expiryDate: stockInModal.expiryDate || null,
+          noExpiry: stockInModal.noExpiry,
         }),
       });
 
@@ -2241,7 +2255,7 @@ export function AdminInventoryPageView() {
 
       setStockInModal((m) => ({ ...m, loading: false, success: "Stock added successfully!" }));
       setTimeout(() => {
-        setStockInModal({ open: false, product: null, variantId: "", quantity: "10", note: "", loading: false, error: "", success: "" });
+        setStockInModal({ open: false, product: null, variantId: "", quantity: "10", note: "", batchNumber: "", expiryDate: "", noExpiry: false, loading: false, error: "", success: "" });
       }, 1000);
     } catch (err) {
       setStockInModal((m) => ({ ...m, loading: false, error: err.message }));
@@ -2268,6 +2282,11 @@ export function AdminInventoryPageView() {
       return;
     }
 
+    if (adjustModal.type === "ADJUSTMENT_INCREASE" && !adjustModal.noExpiry && !adjustModal.expiryDate) {
+      setAdjustModal((m) => ({ ...m, error: "Enter the expiry date printed on this batch, or mark that there is no printed expiry date." }));
+      return;
+    }
+
     setAdjustModal((m) => ({ ...m, loading: true, error: "" }));
 
     try {
@@ -2280,6 +2299,9 @@ export function AdminInventoryPageView() {
           variantId: adjustModal.variantId || undefined,
           quantity: qty,
           reason: adjustModal.reason.trim(),
+          batchNumber: adjustModal.batchNumber.trim(),
+          expiryDate: adjustModal.expiryDate || null,
+          noExpiry: adjustModal.noExpiry,
         }),
       });
 
@@ -2295,7 +2317,7 @@ export function AdminInventoryPageView() {
 
       setAdjustModal((m) => ({ ...m, loading: false, success: "Inventory adjusted successfully!" }));
       setTimeout(() => {
-        setAdjustModal({ open: false, product: null, variantId: "", type: "ADJUSTMENT_INCREASE", quantity: "1", reason: "", loading: false, error: "", success: "" });
+        setAdjustModal({ open: false, product: null, variantId: "", type: "ADJUSTMENT_INCREASE", quantity: "1", reason: "", batchNumber: "", expiryDate: "", noExpiry: false, loading: false, error: "", success: "" });
       }, 1000);
     } catch (err) {
       setAdjustModal((m) => ({ ...m, loading: false, error: err.message }));
@@ -2451,6 +2473,9 @@ export function AdminInventoryPageView() {
                                 variantId: firstVariant,
                                 quantity: "10",
                                 note: "Restock replenishment",
+                                batchNumber: "",
+                                expiryDate: "",
+                                noExpiry: false,
                                 loading: false,
                                 error: "",
                                 success: "",
@@ -2472,6 +2497,9 @@ export function AdminInventoryPageView() {
                                 type: "ADJUSTMENT_INCREASE",
                                 quantity: "1",
                                 reason: "",
+                                batchNumber: "",
+                                expiryDate: "",
+                                noExpiry: false,
                                 loading: false,
                                 error: "",
                                 success: "",
@@ -2589,7 +2617,7 @@ export function AdminInventoryPageView() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-xl font-bold text-[var(--foreground)]">Bulk CSV Inventory Import</h2>
-            <p className="text-xs text-[var(--muted-foreground)]">Restock multiple items quickly using `productId,quantity` or `name,quantity` lines.</p>
+            <p className="text-xs text-[var(--muted-foreground)]">Include a batch expiry date, or mark noExpiry as true for products with no printed expiry date.</p>
           </div>
           <label className="inline-flex cursor-pointer items-center justify-center rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-2 text-xs font-semibold text-[var(--foreground)] shadow-sm hover:bg-[var(--surface-quiet)]">
             Load CSV File
@@ -2599,7 +2627,7 @@ export function AdminInventoryPageView() {
         <textarea
           value={csvText}
           onChange={(e) => setCsvText(e.target.value)}
-          placeholder="e.g.&#10;Angkor Beer Can,48&#10;Coca Cola 330ml,24"
+          placeholder="sku,quantity,expiryDate,batchNumber,noExpiry&#10;BEER-001,48,2027-05-31,LOT-A,false&#10;BAG-001,24,,LOT-B,true"
           className="app-input min-h-24 w-full px-4 py-2.5 text-xs font-mono"
         />
         <div className="flex flex-wrap items-center gap-3">
@@ -2661,6 +2689,17 @@ export function AdminInventoryPageView() {
                     placeholder="e.g. 24"
                     required
                   />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Batch number</label>
+                  <input type="text" value={stockInModal.batchNumber} onChange={(e) => setStockInModal((m) => ({ ...m, batchNumber: e.target.value }))} className="app-input mt-1 w-full px-3 py-2 text-sm" placeholder="Optional; generated if blank" />
+                </div>
+
+                <div className="space-y-2 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-quiet)] p-3">
+                  <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Expiry date on package *</label>
+                  <input type="date" value={stockInModal.expiryDate} disabled={stockInModal.noExpiry} onChange={(e) => setStockInModal((m) => ({ ...m, expiryDate: e.target.value }))} className="app-input w-full px-3 py-2 text-sm disabled:opacity-50" />
+                  <label className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]"><input type="checkbox" checked={stockInModal.noExpiry} onChange={(e) => setStockInModal((m) => ({ ...m, noExpiry: e.target.checked, expiryDate: e.target.checked ? "" : m.expiryDate }))} />No expiry date is printed on this product</label>
                 </div>
 
                 <div>
@@ -2767,6 +2806,14 @@ export function AdminInventoryPageView() {
                     required
                   />
                 </div>
+
+                {adjustModal.type === "ADJUSTMENT_INCREASE" ? (
+                  <div className="space-y-2 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-quiet)] p-3">
+                    <label className="block text-xs font-semibold text-[var(--muted-foreground)]">Expiry date on new stock *</label>
+                    <input type="date" value={adjustModal.expiryDate} disabled={adjustModal.noExpiry} onChange={(e) => setAdjustModal((m) => ({ ...m, expiryDate: e.target.value }))} className="app-input w-full px-3 py-2 text-sm disabled:opacity-50" />
+                    <label className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]"><input type="checkbox" checked={adjustModal.noExpiry} onChange={(e) => setAdjustModal((m) => ({ ...m, noExpiry: e.target.checked, expiryDate: e.target.checked ? "" : m.expiryDate }))} />No expiry date is printed on this product</label>
+                  </div>
+                ) : null}
 
                 <div>
                   <label className="block text-xs font-semibold text-[var(--muted-foreground)]">

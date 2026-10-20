@@ -32,11 +32,17 @@ function expiryMessage(type, batch) {
 }
 
 async function getAdminAlerts() {
-  const now = new Date();
-  const nextSevenDays = new Date(now);
-  nextSevenDays.setDate(now.getDate() + 7);
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Phnom_Penh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const date = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  const todayStart = new Date(`${date.year}-${date.month}-${date.day}T00:00:00+07:00`);
+  const nextSevenDays = new Date(todayStart.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-  const [inventoryRows, expiryRows] = await Promise.all([
+  const [inventoryRows, expiryRows, batchTotals] = await Promise.all([
     prisma.inventory.findMany({
       include: {
         variant: {
@@ -68,7 +74,14 @@ async function getAdminAlerts() {
         expiryDate: "asc",
       },
     }),
+    prisma.inventoryBatch.groupBy({
+      by: ["variantId", "branchId"],
+      where: { remainingQty: { gt: 0 } },
+      _sum: { remainingQty: true },
+    }),
   ]);
+
+  const trackedQtyByLocation = new Map(batchTotals.map((row) => [`${row.variantId}:${row.branchId}`, Number(row._sum.remainingQty || 0)]));
 
   const lowStock = inventoryRows
     .filter((row) => row.quantity > 0 && row.quantity <= (row.variant?.product?.minStockAlert || 5))
@@ -92,8 +105,20 @@ async function getAdminAlerts() {
       createdAt: new Date().toISOString(),
     }));
 
+  const missingBatchTracking = inventoryRows
+    .map((row) => ({ row, missingQty: Math.max(0, Number(row.quantity || 0) - (trackedQtyByLocation.get(`${row.variantId}:${row.branchId}`) || 0)) }))
+    .filter(({ missingQty }) => missingQty > 0)
+    .map(({ row, missingQty }) => ({
+      id: `missing-expiry-${row.id}`,
+      type: "missing_expiry_tracking",
+      severity: "warning",
+      message: `Expiry date not tracked: ${variantProductName(row.variant)} [${row.branch?.name || "Main"}] ${missingQty} units`,
+      href: "/admin/inventory/expiry?tab=noExpiry",
+      createdAt: new Date().toISOString(),
+    }));
+
   const expired = expiryRows
-    .filter((batch) => batch.expiryDate < now)
+    .filter((batch) => batch.expiryDate < todayStart)
     .map((batch) => ({
       id: `expired-${batch.id}`,
       type: "expired",
@@ -104,7 +129,7 @@ async function getAdminAlerts() {
     }));
 
   const expiringSoon = expiryRows
-    .filter((batch) => batch.expiryDate >= now)
+    .filter((batch) => batch.expiryDate >= todayStart)
     .map((batch) => ({
       id: `expiring-${batch.id}`,
       type: "expiring_soon",
@@ -114,7 +139,7 @@ async function getAdminAlerts() {
       createdAt: batch.expiryDate,
     }));
 
-  return { lowStock, outOfStock, expired, expiringSoon };
+  return { lowStock, outOfStock, expired, expiringSoon, missingBatchTracking };
 }
 
 // ─── GET /api/notifications ─────────────────────────────────────────────────
@@ -134,7 +159,7 @@ export async function GET(request) {
 
     // ── ADMIN / SUPER_ADMIN: full inventory alerts + DB notifications ──
     if (role === "ADMIN" || role === "SUPER_ADMIN") {
-      const { lowStock, outOfStock, expired, expiringSoon } = await getAdminAlerts();
+      const { lowStock, outOfStock, expired, expiringSoon, missingBatchTracking } = await getAdminAlerts();
 
       const dbNotifications = await prisma.notification.findMany({
         where: { isRead: false },
@@ -142,11 +167,11 @@ export async function GET(request) {
         take: 50,
       });
 
-      const groups = { lowStock, outOfStock, expired, expiringSoon };
+      const groups = { lowStock, outOfStock, expired, expiringSoon, missingBatchTracking };
 
       return ok({
         data: groups,
-        alerts: [...expired, ...expiringSoon, ...outOfStock, ...lowStock],
+        alerts: [...expired, ...expiringSoon, ...outOfStock, ...missingBatchTracking, ...lowStock],
         total: Object.values(groups).reduce((sum, group) => sum + group.length, 0),
         notifications: dbNotifications,
       });

@@ -43,6 +43,7 @@ import {
   AdminUsersPageView,
 } from "@/components/admin-pages";
 import { AdminReportsPageView } from "@/components/admin/report-management";
+import { AdminShiftCloseReportPageView } from "@/components/admin/shift-close-report";
 import { AdminProductManagementPageView } from "@/components/admin-product-pages";
 import { useAppStore } from "@/components/app-store-provider";
 import { LogoutButton } from "@/components/logout-button";
@@ -63,6 +64,7 @@ import { cn } from "@/lib/utils";
 const adminTabs = [
   { key: "dashboard", label: "Overview", translationKey: "nav_overview", icon: LayoutDashboard, group: "overview" },
   { key: "sales", label: "Reports", translationKey: "nav_reports", icon: BarChart3, group: "overview" },
+  { key: "daily-close", label: "Daily Close", icon: ReceiptText, group: "overview" },
   { key: "products", label: "Products", translationKey: "nav_products", icon: Boxes, group: "catalog" },
   { key: "inventory", label: "Inventory", translationKey: "nav_inventory", icon: ClipboardList, group: "catalog" },
   { key: "orders", label: "Orders", translationKey: "nav_orders", icon: ReceiptText, group: "operations" },
@@ -749,6 +751,7 @@ export function AdminShell({ user, initialTab = "dashboard" }) {
       case "inventory": return <AdminInventoryPageView />;
       case "orders": return <AdminOrderManagementPageView />;
       case "sales": return <AdminReportsPageView />;
+      case "daily-close": return <AdminShiftCloseReportPageView />;
       case "coupons": return <AdminCouponsPageView />;
       case "support": return <AdminSupportInboxPageView user={user} />;
       case "users": return <AdminUsersPageView currentUserId={user?.id} />;

@@ -10,6 +10,7 @@ export default function PurchaseOrderDetailPage({ params }) {
   const [po, setPo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [expiryByItem, setExpiryByItem] = useState({});
 
   useEffect(() => {
     params.then((p) => {
@@ -55,11 +56,27 @@ export default function PurchaseOrderDetailPage({ params }) {
   }
 
   async function handleReceive() {
+    const missingExpiry = po.items.filter((item) => {
+      const entry = expiryByItem[item.id];
+      return !entry?.noExpiry && !entry?.expiryDate;
+    });
+    if (missingExpiry.length) {
+      alert("Enter an expiry date for every received item, or mark items that have no printed expiry date.");
+      return;
+    }
     if (!confirm("Receive items for this purchase order? This will update inventory.")) return;
     setActionLoading(true);
     try {
       const res = await fetch(`/api/admin/procurement/po/${poId}/receive`, {
-        method: "POST"
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: po.items.map((item) => ({
+            purchaseOrderItemId: item.id,
+            expiryDate: expiryByItem[item.id]?.noExpiry ? null : expiryByItem[item.id]?.expiryDate,
+            noExpiry: Boolean(expiryByItem[item.id]?.noExpiry),
+          })),
+        }),
       });
       if (res.ok) {
         loadPO(poId);
@@ -139,6 +156,26 @@ export default function PurchaseOrderDetailPage({ params }) {
         <div className="mx-auto max-w-5xl grid gap-6 lg:grid-cols-[1fr_300px]">
           
           <div className="space-y-6">
+            {po.status === "APPROVED" && (
+              <div className="rounded-[1.2rem] border border-amber-200 bg-amber-50 p-5 dark:border-amber-900/50 dark:bg-amber-950/20">
+                <h2 className="font-semibold text-[var(--foreground)]">Record package expiry dates</h2>
+                <p className="mt-1 text-xs leading-5 text-[var(--muted-foreground)]">Enter the date printed on each received lot. If the product has no printed expiry date, mark that explicitly.</p>
+                <div className="mt-4 space-y-3">
+                  {po.items.map((item) => {
+                    const entry = expiryByItem[item.id] || {};
+                    return (
+                      <div key={item.id} className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] p-3">
+                        <p className="text-xs font-bold text-[var(--foreground)]">{item.variant?.product?.name || item.variant?.name || item.variantId} · {item.orderedQty} units</p>
+                        <div className="mt-2 flex flex-wrap items-center gap-3">
+                          <input type="date" disabled={entry.noExpiry} value={entry.expiryDate || ""} onChange={(event) => setExpiryByItem((current) => ({ ...current, [item.id]: { ...current[item.id], expiryDate: event.target.value, noExpiry: false } }))} aria-label={`Expiry date for ${item.variant?.name || item.variantId}`} className="h-9 rounded-lg border border-[var(--border-soft)] bg-[var(--surface-strong)] px-2 text-xs disabled:opacity-50" />
+                          <label className="inline-flex items-center gap-2 text-xs text-[var(--muted-foreground)]"><input type="checkbox" checked={Boolean(entry.noExpiry)} onChange={(event) => setExpiryByItem((current) => ({ ...current, [item.id]: { ...current[item.id], noExpiry: event.target.checked, expiryDate: event.target.checked ? "" : current[item.id]?.expiryDate || "" } }))} />No printed expiry date</label>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             <div className="rounded-[1.2rem] bg-[var(--surface)] p-6 shadow-sm border border-white/20">
               <h2 className="mb-4 text-lg font-semibold">Items</h2>
               <div className="overflow-x-auto">

@@ -24,6 +24,22 @@ export async function POST(request) {
     for (const row of rows) {
       const identifier = row.variantId || row.productId || row.id || row.sku || row.name;
       const quantity = Number(row.quantity || row.quantityAdded || row.stock || 0);
+      const expiryText = String(row.expiryDate || row.expiry || "").trim();
+      const noExpiry = ["true", "yes", "none", "no"].includes(String(row.noExpiry || "").trim().toLowerCase());
+      let expiryDate = null;
+      if (!noExpiry) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(expiryText)) {
+          skippedCount += 1;
+          continue;
+        }
+        const [year, month, day] = expiryText.split("-").map(Number);
+        const check = new Date(Date.UTC(year, month - 1, day));
+        if (check.getUTCFullYear() !== year || check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day) {
+          skippedCount += 1;
+          continue;
+        }
+        expiryDate = new Date(`${expiryText}T00:00:00+07:00`);
+      }
 
       if (!identifier || !Number.isInteger(quantity) || quantity <= 0) {
         skippedCount += 1;
@@ -80,8 +96,13 @@ export async function POST(request) {
       });
       const branchId = branch?.id;
 
-if (branchId) {
-        await prisma.inventory.upsert({
+      if (!branchId) {
+        skippedCount += 1;
+        continue;
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.inventory.upsert({
           where: {
             variantId_branchId: {
               variantId: variant.id,
@@ -99,7 +120,20 @@ if (branchId) {
             availableQuantity: quantity,
           },
         });
-      }
+
+        await tx.inventoryBatch.create({
+          data: {
+            batchNumber: String(row.batchNumber || `IMPORT-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`).trim().slice(0, 80),
+            variantId: variant.id,
+            branchId,
+            initialQty: quantity,
+            remainingQty: quantity,
+            costPrice: Number(row.costPrice || row.unitCost || variant.costPrice || 0),
+            currency: "USD",
+            expiryDate,
+          },
+        });
+      });
 
       importedCount += 1;
     }
