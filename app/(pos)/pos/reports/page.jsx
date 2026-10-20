@@ -3,6 +3,7 @@
 import {
   ArrowDown,
   ArrowUp,
+  Banknote,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -273,6 +274,83 @@ export default function PosReportsPage() {
   const [dir, setDir] = useState("desc");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [shiftClose, setShiftClose] = useState(null);
+  const [countedCash, setCountedCash] = useState("");
+  const [openingCash, setOpeningCash] = useState("");
+  const [closeNote, setCloseNote] = useState("");
+  const [closingShift, setClosingShift] = useState(false);
+  const [openingShift, setOpeningShift] = useState(false);
+  const [closeMessage, setCloseMessage] = useState("");
+
+  const loadShiftClose = useCallback(async () => {
+    try {
+      const response = await fetch("/api/pos/shifts", { cache: "no-store" });
+      const payload = await response.json();
+      if (!response.ok) {
+        setCloseMessage(payload.error || "Unable to load shift close summary.");
+        return;
+      }
+      setShiftClose(payload.data || null);
+      setCloseMessage("");
+    } catch {
+      setCloseMessage("Unable to load shift close summary.");
+    }
+  }, []);
+
+  useEffect(() => { loadShiftClose(); }, [loadShiftClose]);
+
+  async function submitShiftClose(event) {
+    event.preventDefault();
+    if (!shiftClose || countedCash === "") return;
+    setClosingShift(true);
+    setCloseMessage("");
+    try {
+      const response = await fetch("/api/pos/shifts/close", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endCashPhys: Number(countedCash), note: closeNote }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        setCloseMessage(payload.error || "Unable to close shift.");
+        return;
+      }
+      setShiftClose(null);
+      setCountedCash("");
+      setCloseNote("");
+      setCloseMessage(`Shift closed. Expected ${moneyFormatter(payload.data.endCashCalc)}; counted ${moneyFormatter(payload.data.endCashPhys)}; difference ${moneyFormatter(payload.data.discrepancy)}.`);
+      loadReport();
+    } catch {
+      setCloseMessage("Unable to close shift. Please try again.");
+    } finally {
+      setClosingShift(false);
+    }
+  }
+
+  async function submitShiftOpen(event) {
+    event.preventDefault();
+    setOpeningShift(true);
+    setCloseMessage("");
+    try {
+      const response = await fetch("/api/pos/shifts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ startCash: Number(openingCash || 0) }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        setCloseMessage(payload.error || "Unable to open shift.");
+        return;
+      }
+      setOpeningCash("");
+      await loadShiftClose();
+      setCloseMessage("Shift opened. Record sales against this drawer and close it at the end of the day.");
+    } catch {
+      setCloseMessage("Unable to open shift. Please try again.");
+    } finally {
+      setOpeningShift(false);
+    }
+  }
 
   const loadReport = useCallback(async () => {
     try {
@@ -296,11 +374,12 @@ export default function PosReportsPage() {
     function onVisibilityChange() {
       if (document.visibilityState === "visible") {
         loadReport();
+        loadShiftClose();
       }
     }
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => document.removeEventListener("visibilitychange", onVisibilityChange);
-  }, [loadReport]);
+  }, [loadReport, loadShiftClose]);
 
   // Load on mount and whenever the date range changes
   useEffect(() => {
@@ -448,7 +527,7 @@ export default function PosReportsPage() {
           </button>
           <button
             type="button"
-            onClick={loadReport}
+            onClick={() => { loadReport(); loadShiftClose(); }}
             title="Refresh report data"
             className="inline-flex items-center gap-1 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-strong)] hover:bg-[var(--surface-soft)] px-3 py-2 text-xs font-bold text-[var(--foreground)] shadow-xs transition-all active:scale-[0.98]"
           >
@@ -463,6 +542,59 @@ export default function PosReportsPage() {
           {message}
         </div>
       ) : null}
+
+      <section className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-4 text-[var(--foreground)] shadow-xs sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <span className="grid size-10 place-items-center rounded-xl bg-[var(--pos-action)]/10 text-[var(--pos-action)]"><Banknote className="size-5" /></span>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--pos-action)]">End of shift</p>
+              <h2 className="mt-0.5 text-base font-extrabold">Daily close report</h2>
+              <p className="mt-1 text-xs text-[var(--muted-foreground)]">Reconcile this cashier shift before counting and closing the drawer.</p>
+            </div>
+          </div>
+          {shiftClose ? <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">Shift open</span> : null}
+        </div>
+
+        {shiftClose ? (
+          <>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                ["Transactions", shiftClose.summary.transactionCount],
+                ["Sales total", moneyFormatter(shiftClose.summary.salesTotal)],
+                ["Cash received", moneyFormatter(shiftClose.summary.cashCollected)],
+                ["Other payments", moneyFormatter(shiftClose.summary.nonCashCollected)],
+                ["Cash refunds", `−${moneyFormatter(shiftClose.summary.cashRefunded)}`],
+                ["Cash in / out", `${moneyFormatter(shiftClose.summary.cashIn)} / −${moneyFormatter(shiftClose.summary.cashOut)}`],
+                ["Opening cash", moneyFormatter(shiftClose.startCash)],
+                ["Expected drawer cash", moneyFormatter(shiftClose.summary.expectedCash)],
+              ].map(([label, value]) => <div key={label} className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] p-3"><p className="text-[10px] font-semibold text-[var(--muted-foreground)]">{label}</p><p className="mt-1 text-sm font-extrabold tabular-nums">{value}</p></div>)}
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {Object.entries(shiftClose.summary.paymentTotals || {}).map(([method, amount]) => <span key={method} className="rounded-full border border-[var(--border-soft)] px-2.5 py-1 text-[10px] font-bold">{method}: {moneyFormatter(amount)}</span>)}
+            </div>
+            <form onSubmit={submitShiftClose} className="mt-4 grid gap-3 border-t border-[var(--border-soft)] pt-4 sm:grid-cols-[1fr_1.5fr_auto] sm:items-end">
+              <label className="text-xs font-bold">Counted cash in drawer
+                <input required min="0" step="0.01" type="number" value={countedCash} onChange={(event) => setCountedCash(event.target.value)} placeholder="Enter counted amount" className="mt-1.5 h-10 w-full rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3 text-sm font-semibold outline-none focus:border-[var(--pos-action)]" />
+                {countedCash !== "" ? <span className={`mt-1 block text-[11px] ${Number(countedCash) - shiftClose.summary.expectedCash === 0 ? "text-emerald-600" : "text-amber-600"}`}>Difference: {moneyFormatter(Number(countedCash) - shiftClose.summary.expectedCash)}</span> : null}
+              </label>
+              <label className="text-xs font-bold">Close note <span className="font-normal text-[var(--muted-foreground)]">(optional)</span>
+                <input maxLength={500} value={closeNote} onChange={(event) => setCloseNote(event.target.value)} placeholder="Explain any cash difference" className="mt-1.5 h-10 w-full rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3 text-sm font-medium outline-none focus:border-[var(--pos-action)]" />
+              </label>
+              <button disabled={closingShift || countedCash === ""} className="h-10 rounded-xl bg-[var(--pos-action)] px-5 text-xs font-extrabold text-[var(--pos-action-fg)] disabled:opacity-50">{closingShift ? "Closing…" : "Count & close shift"}</button>
+            </form>
+          </>
+        ) : (
+          <form onSubmit={submitShiftOpen} className="mt-4 flex flex-wrap items-end gap-3 rounded-xl bg-[var(--surface-soft)] p-3">
+            <p className="mr-auto basis-full text-xs font-semibold text-[var(--muted-foreground)]">No shift is open. Start a cashier shift by entering the cash already in the drawer.</p>
+            <label className="min-w-48 flex-1 text-xs font-bold">Opening cash
+              <input min="0" step="0.01" type="number" value={openingCash} onChange={(event) => setOpeningCash(event.target.value)} placeholder="0.00" className="mt-1.5 h-10 w-full rounded-xl border border-[var(--border-soft)] bg-[var(--surface-strong)] px-3 text-sm font-semibold outline-none focus:border-[var(--pos-action)]" />
+            </label>
+            <button disabled={openingShift} className="h-10 rounded-xl bg-[var(--pos-action)] px-5 text-xs font-extrabold text-[var(--pos-action-fg)] disabled:opacity-50">{openingShift ? "Opening…" : "Open shift"}</button>
+          </form>
+        )}
+        {closeMessage ? <p className="mt-3 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3 py-2 text-xs font-semibold">{closeMessage}</p> : null}
+      </section>
 
       {/* Report tabs */}
       <div className="flex flex-wrap gap-1.5 rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] p-1.5 shadow-xs">
