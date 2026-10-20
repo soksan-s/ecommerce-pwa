@@ -1216,7 +1216,11 @@ export function AdminAddProductPageView() {
     stock: "0",
     unit: PRODUCT_UNIT_OPTIONS[0],
     minStockAlert: "5",
+    taxId: "",
   });
+  const [taxRules, setTaxRules] = useState([]);
+  const [newTaxName, setNewTaxName] = useState("");
+  const [newTaxRate, setNewTaxRate] = useState("10");
   const [variantsEnabled, setVariantsEnabled] = useState(false);
   const [variantOptions, setVariantOptions] = useState([
     { name: "Size", values: "Small, Medium, Large" },
@@ -1230,6 +1234,13 @@ export function AdminAddProductPageView() {
   const [publishActive, setPublishActive] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState("");
+
+  useEffect(() => {
+    fetch("/api/admin/taxes", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((result) => setTaxRules(Array.isArray(result?.data) ? result.data : []))
+      .catch(() => setTaxRules([]));
+  }, []);
 
   function update(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -1254,6 +1265,20 @@ export function AdminAddProductPageView() {
     }
 
     setUploading(false);
+  }
+
+  async function addTaxRule() {
+    const response = await fetch("/api/admin/taxes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newTaxName, rate: Number(newTaxRate), type: "EXCLUSIVE" }),
+    });
+    const result = await response.json();
+    if (response.ok && result?.data) {
+      setTaxRules((current) => [...current, result.data]);
+      update("taxId", result.data.id);
+      setNewTaxName("");
+    }
   }
 
   function rebuildVariantRowsFromOptions() {
@@ -1299,6 +1324,7 @@ export function AdminAddProductPageView() {
         stock: Number(form.stock) || 0,
         sku: form.sku,
         minStockAlert: Number(form.minStockAlert) || 5,
+        taxId: form.taxId || null,
       });
 
       if (!productResult.success || !productResult.product) {
@@ -1510,6 +1536,25 @@ export function AdminAddProductPageView() {
                   placeholder="5"
                   className="w-full rounded-full border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-6 py-3 text-sm outline-none transition focus:border-[var(--action)]"
                 />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <label className="ml-1 text-xs font-bold text-[var(--muted-foreground)]">Product Tax Rule</label>
+                <select
+                  value={form.taxId}
+                  onChange={(event) => update("taxId", event.target.value)}
+                  className="w-full rounded-full border border-[var(--border-soft)] bg-[var(--surface-quiet)] px-6 py-3 text-sm outline-none transition focus:border-[var(--action)]"
+                >
+                  <option value="">Use store VAT setting</option>
+                  {taxRules.map((rule) => (
+                    <option key={rule.id} value={rule.id}>{rule.name} · {(Number(rule.rate) * 100).toFixed(2)}% · {rule.type}</option>
+                  ))}
+                </select>
+                <div className="flex flex-wrap gap-2">
+                  <input value={newTaxName} onChange={(event) => setNewTaxName(event.target.value)} placeholder="New rule, e.g. VAT exempt" className="app-input min-w-40 flex-1 px-4 py-2 text-xs" />
+                  <input type="number" min="0" max="100" step="0.01" value={newTaxRate} onChange={(event) => setNewTaxRate(event.target.value)} aria-label="Tax rate percent" className="app-input w-24 px-3 py-2 text-xs" />
+                  <button type="button" onClick={addTaxRule} disabled={newTaxName.trim().length < 2} className="rounded-xl bg-[var(--action)] px-4 py-2 text-xs font-semibold text-[var(--action-foreground)] disabled:opacity-50">Add Rule</button>
+                </div>
+                <p className="ml-1 text-xs text-[var(--muted-foreground)]">Use 0% for exempt products. Rules are stored on the product and used for checkout tax calculations.</p>
               </div>
             </div>
           </section>
@@ -1871,6 +1916,7 @@ function getProductStatusBadge(product) {
 
 export function AdminProductManagementPageView() {
   const store = useAppStore();
+  const [productTaxRules, setProductTaxRules] = useState([]);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
@@ -1886,6 +1932,13 @@ export function AdminProductManagementPageView() {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 9;
+
+  useEffect(() => {
+    fetch("/api/admin/taxes", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((result) => setProductTaxRules(Array.isArray(result?.data) ? result.data : []))
+      .catch(() => setProductTaxRules([]));
+  }, []);
 
   const products = useMemo(() => {
     const lower = query.trim().toLowerCase();
@@ -2053,6 +2106,17 @@ export function AdminProductManagementPageView() {
                 <div>
                   <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted-foreground)]">Stock</p>
                   <p className="mt-2 text-sm font-semibold text-[var(--foreground)]">{totalStock}</p>
+                </div>
+                <div>
+                  <label className="text-xs uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Tax rule</label>
+                  <select
+                    value={product.taxId || ""}
+                    onChange={(event) => store.updateProduct(product.id, { taxId: event.target.value || null })}
+                    className="app-input mt-2 w-full px-3 py-2 text-xs"
+                  >
+                    <option value="">Store default</option>
+                    {productTaxRules.map((rule) => <option key={rule.id} value={rule.id}>{rule.name} ({(Number(rule.rate) * 100).toFixed(2)}%)</option>)}
+                  </select>
                 </div>
                 <div>
                   <Link

@@ -237,6 +237,7 @@ export async function PATCH(request, { params }) {
           ...(body.barcode !== undefined ? { barcode: body.barcode || null } : {}),
           ...(body.brand !== undefined ? { brand: body.brand || null } : {}),
           ...(body.category !== undefined ? { category: body.category } : {}),
+          ...(body.taxId !== undefined ? { taxId: body.taxId || null } : {}),
           ...(body.description !== undefined ? { description: body.description } : {}),
           ...(body.imageUrl !== undefined ? { imageUrl: body.imageUrl } : (body.image !== undefined ? { imageUrl: body.image } : {})),
           ...(price !== undefined ? { price } : {}),

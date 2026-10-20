@@ -146,6 +146,10 @@ export function OrderPrintView({ order }) {
               <td style="text-align: right; color: #c00;">-$${Number(order.couponDiscount).toFixed(2)}</td>
             </tr>
             ` : ""}
+            <tr>
+              <td style="text-align: right;">Tax:</td>
+              <td style="text-align: right;">$${Number(order.taxAmount || 0).toFixed(2)}</td>
+            </tr>
             <tr class="grand-total">
               <td style="text-align: right; padding: 6px 4px;">Grand Total:</td>
               <td style="text-align: right; padding: 6px 4px;">

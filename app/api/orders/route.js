@@ -158,7 +158,7 @@ export async function POST(request) {
     const directVariants = variantIds.length
       ? await prisma.productVariant.findMany({
           where: { id: { in: variantIds }, isActive: true },
-          include: { product: true, unit: true },
+          include: { product: { include: { tax: true } }, unit: true },
         })
       : [];
 
@@ -166,7 +166,7 @@ export async function POST(request) {
     const productVariants = productOnlyIds.length
       ? await prisma.productVariant.findMany({
           where: { productId: { in: productOnlyIds }, isActive: true },
-          include: { product: true, unit: true },
+          include: { product: { include: { tax: true } }, unit: true },
           orderBy: { sortOrder: "asc" },
         })
       : [];
@@ -213,13 +213,13 @@ export async function POST(request) {
               wholesalePrice: legacyProduct.wholesalePrice || null,
               discountPercent: legacyProduct.discountPercent || 0,
             },
-            include: { product: true },
+            include: { product: { include: { tax: true } } },
           });
         } else if (!defaultVariant.isActive) {
           defaultVariant = await prisma.productVariant.update({
             where: { id: defaultVariant.id },
             data: { isActive: true },
-            include: { product: true },
+            include: { product: { include: { tax: true } } },
           });
         }
 
@@ -360,7 +360,7 @@ export async function POST(request) {
       }
     }
 
-    const subtotal = normalizedLines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
+    const subtotal = Number(normalizedLines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0).toFixed(2));
     let coupon = null;
     const today = startOfDay(new Date());
 
@@ -395,6 +395,33 @@ export async function POST(request) {
         : Number(Math.min(Number(coupon.value), subtotal).toFixed(2))
       : 0;
 
+    const posSettings = await prisma.setting.findUnique({ where: { key: "pos-settings" } });
+    const taxSettings = posSettings?.value?.tax || {};
+    const taxEnabled = taxSettings.enabled !== false;
+    const defaultTaxRate = Math.max(0, Number(taxSettings.taxRate ?? 10));
+    const defaultTaxType = String(taxSettings.taxType || "exclusive").toLowerCase();
+    const taxableBase = Math.max(0, subtotal - couponDiscount);
+    let taxAmount = 0;
+    let taxToAdd = 0;
+    if (taxEnabled) {
+      for (const line of normalizedLines) {
+        const lineBase = taxableBase * ((line.unitPrice * line.quantity) / (subtotal || 1));
+        const assignedTax = line.variant.product?.tax;
+        const rate = assignedTax ? Number(assignedTax.rate) * 100 : defaultTaxRate;
+        const type = assignedTax ? String(assignedTax.type || defaultTaxType).toLowerCase() : defaultTaxType;
+        if (assignedTax && !assignedTax.isActive) continue;
+        if (type === "inclusive") {
+          taxAmount += lineBase - lineBase / (1 + rate / 100);
+        } else {
+          const lineTax = lineBase * (rate / 100);
+          taxAmount += lineTax;
+          taxToAdd += lineTax;
+        }
+      }
+    }
+    taxAmount = Number(taxAmount.toFixed(2));
+    const payableTax = Number(taxToAdd.toFixed(2));
+
     // 1. Resolve Customer profile before transaction
     const customer = user?.email
       ? await prisma.customer.findFirst({
@@ -423,7 +450,8 @@ export async function POST(request) {
           note: deliveryNote,
           paymentMethod,
           subtotal,
-          total: subtotal - couponDiscount + totalDeposit,
+          taxAmount,
+          total: Math.max(0, subtotal - couponDiscount + payableTax + totalDeposit),
           status: "PENDING",
           couponCode: coupon?.code || null,
           couponType: coupon ? mapCouponType(coupon.type) : null,

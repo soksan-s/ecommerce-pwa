@@ -101,7 +101,7 @@ export async function POST(request) {
         isActive: true,
       },
       include: {
-        product: true,
+        product: { include: { tax: true } },
         unit: true,
       },
     });
@@ -150,7 +150,7 @@ export async function POST(request) {
             wholesalePrice: Number(item.wholesalePrice || product.wholesalePrice || item.price || product.price || 0),
             isActive: true,
           },
-          include: { product: true, unit: true },
+          include: { product: { include: { tax: true } }, unit: true },
         });
 
         variantById.set(variant.id, variant);
@@ -181,7 +181,29 @@ export async function POST(request) {
     }
 
     const normalizedItems = resolvedItems;
-    const totalMoney = toMoney(body.total);
+    const subtotalMoney = toMoney(normalizedItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0));
+    const discountMoney = Math.min(subtotalMoney, toMoney(body.discount));
+    const taxableBase = Math.max(0, subtotalMoney - discountMoney);
+    const settingRow = await prisma.setting.findUnique({ where: { key: "pos-settings" } });
+    const taxSettings = settingRow?.value?.tax || {};
+    const taxEnabled = taxSettings.enabled !== false;
+    const defaultRate = Math.max(0, Number(taxSettings.taxRate ?? 10));
+    const defaultType = String(taxSettings.taxType || "exclusive").toLowerCase();
+    let taxMoney = 0;
+    let taxToAdd = 0;
+    if (taxEnabled) {
+      for (const item of normalizedItems) {
+        const assignedTax = item.variant.product?.tax;
+        if (assignedTax && !assignedTax.isActive) continue;
+        const rate = assignedTax ? Number(assignedTax.rate) * 100 : defaultRate;
+        const type = assignedTax ? String(assignedTax.type || defaultType).toLowerCase() : defaultType;
+        const base = taxableBase * ((item.unitPrice * item.quantity) / (subtotalMoney || 1));
+        const lineTax = type === "inclusive" ? base - base / (1 + rate / 100) : base * rate / 100;
+        taxMoney += lineTax;
+        if (type !== "inclusive") taxToAdd += lineTax;
+      }
+    }
+    taxMoney = toMoney(taxMoney);
     const paymentMethodName = body.paymentMethod || "Cash";
 
     // 1. Resolve Payment Method before transaction
@@ -194,6 +216,7 @@ export async function POST(request) {
       productId: item.variant.productId,
       quantity: item.quantity,
     })));
+    const totalMoney = toMoney(taxableBase + taxToAdd + totalDeposit);
 
     // 3. Resolve Sale Receipt Number (match POS client Sale ID)
     let assignedReceiptNumber = body.receiptNumber;
@@ -262,9 +285,9 @@ export async function POST(request) {
           cashierName: body.cashierName || user.name || user.email,
           customerId,
           shiftId,
-          subtotal: toMoney(body.subtotal),
-          discount: toMoney(body.discount),
-          tax: toMoney(body.tax),
+          subtotal: subtotalMoney,
+          discount: discountMoney,
+          tax: taxMoney,
           total: totalMoney,
           currency: body.currency || "USD",
           synced: true,

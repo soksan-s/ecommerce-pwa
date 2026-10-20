@@ -72,6 +72,7 @@ export async function POST(request) {
           category: result.data.category,
           description: result.data.description,
           imageUrl: result.data.imageUrl,
+          taxId: result.data.taxId || null,
           price: result.data.price,
           costPrice: result.data.costPrice || null,
           wholesalePrice: result.data.wholesalePrice || null,
@@ -190,6 +191,7 @@ export async function POST(request) {
       const finalProduct = await tx.product.findUnique({
         where: { id: product.id },
         include: {
+          tax: true,
           variants: {
             where: { isActive: true },
             include: {

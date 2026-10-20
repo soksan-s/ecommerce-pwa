@@ -871,6 +871,7 @@ export function AppStoreProvider({ children }) {
               category: input.category,
               description: input.description,
               imageUrl: input.image,
+              taxId: input.taxId || null,
               price: input.price,
               discountPercent: input.discountPercent,
               stock: input.stock,

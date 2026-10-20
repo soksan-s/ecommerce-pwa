@@ -1702,13 +1702,41 @@ export function ClientCheckoutPageView() {
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [khqrPayment, setKhqrPayment] = useState(null);
+  const [taxConfig, setTaxConfig] = useState({ enabled: true, name: "VAT", rate: 10, type: "exclusive" });
+
+  useEffect(() => {
+    fetch("/api/storefront/tax-config", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((result) => { if (result?.data) setTaxConfig(result.data); })
+      .catch(() => {});
+  }, []);
 
   const couponDiscount = !appliedCoupon
     ? 0
     : appliedCoupon.type === "percent"
       ? Number(((store.cartTotal * Number(appliedCoupon.value)) / 100).toFixed(2))
       : Math.min(Number(appliedCoupon.value), store.cartTotal);
-  const checkoutTotal = Math.max(0, store.cartTotal - couponDiscount);
+  const discountedSubtotal = Math.max(0, store.cartTotal - couponDiscount);
+  const checkoutTax = taxConfig.enabled
+    ? Number(store.cartItems.reduce((sum, item) => {
+        const weight = store.cartTotal > 0 ? item.subtotal / store.cartTotal : 0;
+        const taxableBase = discountedSubtotal * weight;
+        const rate = item.product?.taxRate == null ? taxConfig.rate : Number(item.product.taxRate);
+        const type = String(item.product?.taxType || taxConfig.type).toLowerCase();
+        if (item.product?.taxId && item.product.taxName && item.product.taxRate === 0) return sum;
+        return sum + (type === "inclusive" ? taxableBase - taxableBase / (1 + rate / 100) : taxableBase * rate / 100);
+      }, 0).toFixed(2))
+    : 0;
+  const checkoutTaxToAdd = taxConfig.enabled
+    ? Number(store.cartItems.reduce((sum, item) => {
+        const weight = store.cartTotal > 0 ? item.subtotal / store.cartTotal : 0;
+        const taxableBase = discountedSubtotal * weight;
+        const rate = item.product?.taxRate == null ? taxConfig.rate : Number(item.product.taxRate);
+        const type = String(item.product?.taxType || taxConfig.type).toLowerCase();
+        return sum + (type === "inclusive" ? 0 : taxableBase * rate / 100);
+      }, 0).toFixed(2))
+    : 0;
+  const checkoutTotal = Math.max(0, discountedSubtotal + checkoutTaxToAdd);
 
   // Restore in-flight KHQR payment if user refreshed the page during payment
   useEffect(() => {
@@ -2241,8 +2269,8 @@ export function ClientCheckoutPageView() {
                   </div>
                 </div>
                 <div className="flex items-center justify-between text-[var(--muted-foreground)]">
-                  <span>Estimated Tax & Surcharge</span>
-                  <span className="font-semibold text-[var(--foreground)]">$0.00</span>
+                  <span>{taxConfig.name}{taxConfig.enabled ? ` (${taxConfig.rate}% standard rate)` : ""}</span>
+                  <span className="font-semibold text-[var(--foreground)]">{formatCurrency(checkoutTax)}</span>
                 </div>
                 {appliedCoupon ? (
                   <div className="flex items-center justify-between text-emerald-700 dark:text-emerald-400">
@@ -3127,6 +3155,10 @@ export function ClientOrderDetailPageView({ orderId }) {
               <div className="flex justify-between gap-4 text-[var(--muted-foreground)]">
                 <span>Coupon discount</span>
                 <span className="font-semibold text-[var(--foreground)]">{discount ? `-${formatCurrency(discount)}` : formatCurrency(0)}</span>
+              </div>
+              <div className="flex justify-between gap-4 text-[var(--muted-foreground)]">
+                <span>Tax</span>
+                <span className="font-semibold text-[var(--foreground)]">{formatCurrency(order.taxAmount || 0)}</span>
               </div>
               <div className="flex justify-between gap-4 text-[var(--muted-foreground)]">
                 <span>Delivery fee</span>
