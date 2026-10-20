@@ -320,6 +320,13 @@ model User {
   branchId                String?
   name                    String?
   nameKh                  String?
+  addressLine             String?
+  province                String?
+  district                String?
+  commune                 String?
+  village                 String?
+  landmark                String?
+  deliveryInstructions    String?
   avatarUrl               String?
   status                  UserStatus            @default(ACTIVE)
   lastLoginAt             DateTime?

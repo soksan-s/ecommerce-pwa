@@ -1687,14 +1687,15 @@ export function ClientCartPageView() {
 
 const ACTIVE_KHQR_KEY = "ecommerce_active_khqr_session";
 
-export function ClientCheckoutPageView() {
+export function ClientCheckoutPageView({ user }) {
   const store = useAppStore();
   const { t } = useTranslation(store.language);
   const router = useRouter();
 
-  const [shippingAddress, setShippingAddress] = useState("");
+  const savedAddress = [user?.addressLine, user?.village, user?.commune, user?.district, user?.province, user?.landmark && `Near ${user.landmark}`].filter(Boolean).join(", ");
+  const [shippingAddress, setShippingAddress] = useState(savedAddress);
   const [deliveryCoords, setDeliveryCoords] = useState(null);
-  const [deliveryNote, setDeliveryNote] = useState("");
+  const [deliveryNote, setDeliveryNote] = useState(user?.deliveryInstructions || "");
   const [paymentMethod, setPaymentMethod] = useState("CASH_ON_DELIVERY");
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState(null);
@@ -3199,6 +3200,15 @@ export function ClientOrderDetailPageView({ orderId }) {
 
 export function ClientProfilePageView({ user }) {
   const store = useAppStore();
+  const initialProfile = {
+    name: user.name || "", nameKh: user.nameKh || "", email: user.email || "",
+    addressLine: user.addressLine || "", province: user.province || "", district: user.district || "",
+    commune: user.commune || "", village: user.village || "", landmark: user.landmark || "",
+    deliveryInstructions: user.deliveryInstructions || "",
+  };
+  const [profile, setProfile] = useState(initialProfile);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileNotice, setProfileNotice] = useState("");
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [supportNotice, setSupportNotice] = useState("");
@@ -3208,6 +3218,44 @@ export function ClientProfilePageView({ user }) {
 
   const lang = store.language || "en";
   const { t } = useTranslation(lang);
+
+  useEffect(() => {
+    setProfile(initialProfile);
+    // Server-provided account values are the source of truth on navigation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user.id]);
+
+  async function saveProfile(event) {
+    event.preventDefault();
+    setProfileSaving(true);
+    setProfileNotice("");
+    try {
+      const response = await fetch("/api/client/profile", {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(profile),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message || result.error || "Unable to save profile.");
+      setProfile({ ...profile, ...(result.data || result) });
+      setProfileNotice("Profile saved. Your delivery details are ready for checkout.");
+    } catch (error) {
+      setProfileNotice(error.message || "Unable to save profile.");
+    } finally {
+      setProfileSaving(false);
+    }
+  }
+
+  function profileField(name, label, options = {}) {
+    return (
+      <label className={options.className || "block"}>
+        <span className="mb-1.5 block text-sm font-medium text-[var(--foreground)]">{label}</span>
+        {options.multiline ? (
+          <textarea rows={3} maxLength={options.maxLength || 500} value={profile[name]} onChange={(event) => setProfile({ ...profile, [name]: event.target.value })} className="min-h-24 w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--foreground)] outline-none focus:border-[var(--action)]" />
+        ) : (
+          <input type={options.type || "text"} maxLength={options.maxLength || 250} value={profile[name]} onChange={(event) => setProfile({ ...profile, [name]: event.target.value })} className="min-h-11 w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] outline-none focus:border-[var(--action)]" />
+        )}
+      </label>
+    );
+  }
 
   const userTickets = store.supportTickets.filter(
     (ticket) => ticket.messages.some((entry) => entry.authorEmail === user.email) || ticket.messages[0]?.authorEmail === user.email,
@@ -3318,6 +3366,32 @@ export function ClientProfilePageView({ user }) {
             </div>
           </div>
         </div>
+      </Card>
+
+      <Card className="p-4 sm:p-5">
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-[var(--foreground)]">Personal and delivery information</h2>
+          <p className="mt-1 text-sm text-[var(--muted-foreground)]">Save your contact name and Cambodia delivery address. Phone number is verified and cannot be changed here.</p>
+        </div>
+        <form onSubmit={saveProfile} className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {profileField("name", "Full name")}
+            {profileField("nameKh", "Khmer name (optional)")}
+            {profileField("email", "Email (optional)", { type: "email" })}
+            <label className="block"><span className="mb-1.5 block text-sm font-medium text-[var(--foreground)]">Verified phone</span><input disabled value={user.phoneNumber || ""} className="min-h-11 w-full rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3 py-2 text-sm text-[var(--muted-foreground)]" /></label>
+            {profileField("addressLine", "House / street / building")}
+            {profileField("province", "Province / city", { maxLength: 120 })}
+            {profileField("district", "District / khan", { maxLength: 120 })}
+            {profileField("commune", "Commune / sangkat", { maxLength: 120 })}
+            {profileField("village", "Village (optional)", { maxLength: 120 })}
+            {profileField("landmark", "Nearby landmark (optional)", { maxLength: 180 })}
+            {profileField("deliveryInstructions", "Delivery instructions (optional)", { multiline: true, className: "sm:col-span-2" })}
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p aria-live="polite" className="text-sm text-[var(--muted-foreground)]">{profileNotice}</p>
+            <button disabled={profileSaving} className="min-h-11 rounded-full bg-[var(--action)] px-5 text-sm font-semibold text-[var(--action-foreground)] disabled:opacity-60">{profileSaving ? "Saving…" : "Save information"}</button>
+          </div>
+        </form>
       </Card>
 
       <div
