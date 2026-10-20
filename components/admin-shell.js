@@ -44,6 +44,7 @@ import {
 } from "@/components/admin-pages";
 import { AdminReportsPageView } from "@/components/admin/report-management";
 import { AdminShiftCloseReportPageView } from "@/components/admin/shift-close-report";
+import { AdminTaxSettingsPageView } from "@/components/admin/tax-settings";
 import { AdminProductManagementPageView } from "@/components/admin-product-pages";
 import { useAppStore } from "@/components/app-store-provider";
 import { LogoutButton } from "@/components/logout-button";
@@ -71,6 +72,7 @@ const adminTabs = [
   { key: "coupons", label: "Coupons", translationKey: "nav_coupons", icon: Ticket, group: "operations" },
   { key: "support", label: "Support Inbox", translationKey: "nav_support", icon: LifeBuoy, group: "operations" },
   { key: "users", label: "Team & Roles", translationKey: "nav_users", icon: Users, group: "settings" },
+  { key: "tax", label: "Tax & VAT", icon: ReceiptText, group: "settings" },
 ];
 
 const tabGroups = [
@@ -755,6 +757,7 @@ export function AdminShell({ user, initialTab = "dashboard" }) {
       case "coupons": return <AdminCouponsPageView />;
       case "support": return <AdminSupportInboxPageView user={user} />;
       case "users": return <AdminUsersPageView currentUserId={user?.id} />;
+      case "tax": return <AdminTaxSettingsPageView />;
       default: return <AdminDashboardPageView />;
     }
   }
