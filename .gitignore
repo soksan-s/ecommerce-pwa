@@ -21,6 +21,7 @@ screenshots/
 
 # production
 /build
+/backups/
 
 
 # misc
@@ -64,6 +65,7 @@ ai-services/
 *.markdown
 !README.md
 !README.MD
+!DATABASE_BACKUPS.md
 
 # AI tooling logs / dev logs
 context7*

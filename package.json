@@ -10,6 +10,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
+    "db:backup": "node scripts/backup-database.js",
     "seed": "node prisma/seed.js",
     "auth:admin": "node scripts/auth.setup.js",
     "auth:cashier": "node scripts/auth.setup.js",
