@@ -1,5 +1,6 @@
 "use client";
 
+import DatabaseBackupButton from "@/components/admin/database-backup-button";
 import { BarChart3, Home, LogOut, Menu, Package, PanelLeftClose, PanelLeftOpen, ReceiptText, RefreshCw, Settings, ShoppingCart, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -413,6 +414,7 @@ export function PosLayoutShell({ children }) {
             )}
           </div>
         </nav>
+        <DatabaseBackupButton />
 
         {/* Sidebar Bottom */}
         <div className="shrink-0 border-t border-[var(--border-soft)] p-3">
@@ -669,6 +671,7 @@ export function PosLayoutShell({ children }) {
                 )}
               </nav>
             </div>
+            <DatabaseBackupButton />
 
             {/* Mobile Sidebar Bottom */}
             <div className="shrink-0 border-t border-[var(--border-soft)] p-3">

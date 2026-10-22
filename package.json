@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "db:backup:encrypted": "node scripts/save-encrypted-database-backup.js",
     "dev": "next dev --hostname 0.0.0.0",
     "build": "next build",
     "start": "next start",

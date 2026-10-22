@@ -1,5 +1,6 @@
 "use client";
 
+import DatabaseBackupButton from "@/components/admin/database-backup-button";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
@@ -225,6 +226,7 @@ function DesktopSidebar({ user, selectedTab, collapsed, setCollapsed, openTab, t
           );
         })}
       </nav>
+      <DatabaseBackupButton />
 
       {/* Footer Profile & Logout */}
       <div className="border-t border-[var(--border-soft)] p-3 space-y-2">
@@ -326,6 +328,7 @@ function MobileDrawer({ user, selectedTab, drawerOpen, setDrawerOpen, openTab, t
                 );
               })}
             </nav>
+            <DatabaseBackupButton />
 
             <div className="border-t border-[var(--border-soft)] p-3 space-y-3">
               {/* Mobile Language Switcher */}
