@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const SETTINGS_DB = "ecommerce-local-backup";
 const SETTINGS_STORE = "settings";
@@ -119,11 +119,14 @@ async function withBackupLock(callback) {
 
 export default function DatabaseBackupButton() {
   const [open, setOpen] = useState(false);
+  const [activeMode, setActiveMode] = useState("backup");
   const [password, setPassword] = useState("");
+  const [restoreFile, setRestoreFile] = useState(null);
   const [directoryHandle, setDirectoryHandle] = useState(null);
   const [configured, setConfigured] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const restoreFileInput = useRef(null);
 
   useEffect(() => {
     let active = true;
@@ -162,6 +165,63 @@ export default function DatabaseBackupButton() {
       setMessage(`Folder selected: ${handle.name}`);
     } catch (error) {
       if (error.name !== "AbortError") setMessage(error.message || "Could not select that folder.");
+    }
+  }
+
+  async function restoreBackup(selectedFile = null) {
+    setMessage("");
+    if (!selectedFile) {
+      setMessage("Choose an encrypted backup file first.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const bytes = new Uint8Array(await selectedFile.arrayBuffer());
+      const headerLength = 12;
+      const saltLength = 16;
+      const ivLength = 12;
+      const tagLength = 16;
+      if (bytes.length < headerLength + saltLength + ivLength + tagLength ||
+          new TextDecoder().decode(bytes.slice(0, 8)) !== "POSDBBK1") {
+        throw new Error("This file is not a supported encrypted database backup.");
+      }
+      if (!password || password.length < 12) throw new Error("Enter the backup encryption password first.");
+      const iterations = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(8);
+      if (iterations !== KDF_ITERATIONS) throw new Error("Unsupported backup encryption settings.");
+      const salt = bytes.slice(headerLength, headerLength + saltLength);
+      const ivStart = headerLength + saltLength;
+      const iv = bytes.slice(ivStart, ivStart + ivLength);
+      const tagStart = ivStart + ivLength;
+      const tag = bytes.slice(tagStart, tagStart + tagLength);
+      const ciphertext = bytes.slice(tagStart + tagLength);
+      const material = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveKey"]);
+      const key = await crypto.subtle.deriveKey(
+        { name: "PBKDF2", salt, iterations, hash: "SHA-256" }, material,
+        { name: "AES-GCM", length: 256 }, false, ["decrypt"],
+      );
+      const encryptedWithTag = new Uint8Array(ciphertext.length + tag.length);
+      encryptedWithTag.set(ciphertext);
+      encryptedWithTag.set(tag, ciphertext.length);
+      let dump;
+      try {
+        dump = await crypto.subtle.decrypt({ name: "AES-GCM", iv, tagLength: 128 }, key, encryptedWithTag);
+      } catch {
+        throw new Error("The backup password is incorrect or the backup file is damaged.");
+      }
+      const confirmation = window.prompt("This will REPLACE DATA in the live application database with this backup. Current data changed since the backup may be lost. Type OVERWRITE LIVE DATABASE to continue.");
+      if (confirmation !== "OVERWRITE LIVE DATABASE") return;
+      const response = await fetch("/api/admin/database-backup/restore", {
+        method: "POST",
+        headers: { "Content-Type": "application/octet-stream" },
+        body: dump,
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Restore failed. Check the server logs.");
+      setMessage("Backup restored successfully. The live database now contains the selected backup.");
+    } catch (error) {
+      if (error.name !== "AbortError") setMessage(error.message || "Could not restore this backup.");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -204,45 +264,115 @@ export default function DatabaseBackupButton() {
         type="button"
         onClick={() => {
           setMessage("");
+          setActiveMode("backup");
           setOpen(true);
         }}
         className="w-full rounded-lg border border-[var(--border-soft)] px-3 py-2 text-left text-sm font-semibold hover:bg-[var(--surface-quiet)]"
       >
         {configured ? "Backup settings" : "Set up automatic backup"}
       </button>
-      {message && <p role="status" className="mt-2 break-words text-xs">{message}</p>}
+      {!open && message && <p role="status" className="mt-2 break-words text-xs">{message}</p>}
 
       {open ? (
         <div className="fixed inset-0 z-[100] grid place-items-center bg-black/50 p-4">
-          <form onSubmit={enableAutomaticBackup} className="w-full max-w-md space-y-4 rounded-xl bg-[var(--surface-strong)] p-5 text-[var(--foreground)] shadow-xl">
+          <form onSubmit={enableAutomaticBackup} className="max-h-[calc(100vh-2rem)] w-full max-w-md space-y-4 overflow-y-auto rounded-xl bg-[var(--surface-strong)] p-5 text-[var(--foreground)] shadow-xl">
             <div>
-              <h2 className="text-lg font-bold">Automatic database backup</h2>
-              <p className="mt-1 text-sm text-[var(--muted-foreground)]">Choose a folder and a password of at least 12 characters. This PC will save an encrypted backup when the app opens, at most once per day.</p>
+              <h2 className="text-lg font-bold">Database backup</h2>
+              <p className="mt-1 text-sm text-[var(--muted-foreground)]">Save a secure copy or recover from an existing backup.</p>
             </div>
 
-            <label className="block text-sm font-medium">
-              Encryption password
-              <input
-                type="password"
-                autoComplete="new-password"
-                minLength={12}
-                required
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                className="app-input mt-1 w-full px-3 py-2"
-              />
-              <span className="mt-1 block text-xs font-normal text-[var(--muted-foreground)]">Keep this password safe; you need it to decrypt the backup.</span>
-            </label>
+            <div role="tablist" aria-label="Database backup actions" className="grid grid-cols-2 rounded-xl bg-[var(--surface-quiet)] p-1">
+              {[
+                ["backup", "Backup"],
+                ["restore", "Restore"],
+              ].map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeMode === mode}
+                  onClick={() => {
+                    setActiveMode(mode);
+                    setMessage("");
+                  }}
+                  className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${activeMode === mode ? "bg-[var(--surface-strong)] text-[var(--foreground)] shadow-sm" : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
 
-            <button type="button" onClick={chooseFolder} className="w-full rounded-lg border border-[var(--border-soft)] px-3 py-2 text-sm font-semibold">
-              {directoryHandle ? `Folder: ${directoryHandle.name}` : "Choose backup folder"}
-            </button>
+            {message && <p role="status" aria-live="polite" className="break-words rounded-lg bg-[var(--surface-quiet)] px-3 py-2 text-sm">{message}</p>}
+
+            {activeMode === "backup" ? (
+              <div className="space-y-4">
+                <p className="text-sm text-[var(--muted-foreground)]">Create an encrypted backup in a folder on this computer. Automatic backups run when the app opens, at most once per day.</p>
+                <label className="block text-sm font-medium">
+                  Encryption password
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    minLength={12}
+                    required
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    className="app-input mt-1 w-full px-3 py-2"
+                  />
+                  <span className="mt-1 block text-xs font-normal text-[var(--muted-foreground)]">Use at least 12 characters and keep the password safe.</span>
+                </label>
+                <button type="button" onClick={chooseFolder} className="w-full rounded-lg border border-[var(--border-soft)] px-3 py-2 text-sm font-semibold hover:bg-[var(--surface-quiet)]">
+                  {directoryHandle ? `Backup folder: ${directoryHandle.name}` : "Choose backup folder"}
+                </button>
+                <button type="submit" disabled={busy} className="w-full rounded-lg bg-[var(--action)] px-3 py-2 text-sm font-semibold text-white disabled:opacity-60">
+                  {busy ? "Saving backup…" : "Save encrypted backup"}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-sm text-[var(--muted-foreground)]">Choose or drop an encrypted backup file, then enter its password.</p>
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-[var(--foreground)]">
+                  Restoring replaces live database objects from the backup. Changes made since that backup may be lost.
+                </div>
+                <input
+                  ref={restoreFileInput}
+                  type="file"
+                  accept=".enc,application/octet-stream"
+                  className="hidden"
+                  onChange={(event) => setRestoreFile(event.target.files?.[0] || null)}
+                />
+                <button type="button" onClick={() => restoreFileInput.current?.click()} className="w-full rounded-lg border border-[var(--border-soft)] px-3 py-2 text-sm font-semibold hover:bg-[var(--surface-quiet)]">
+                  {restoreFile ? "Choose a different backup file" : "Choose encrypted backup file"}
+                </button>
+                <div
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    setRestoreFile(event.dataTransfer.files?.[0] || null);
+                  }}
+                  className="rounded-lg border border-dashed border-[var(--border-soft)] px-3 py-5 text-center text-sm text-[var(--muted-foreground)]"
+                >
+                  {restoreFile ? <span className="break-all font-medium text-[var(--foreground)]">{restoreFile.name}</span> : "Or drag a .dump.enc file here"}
+                </div>
+                <label className="block text-sm font-medium">
+                  Backup password
+                  <input
+                    type="password"
+                    autoComplete="current-password"
+                    minLength={12}
+                    required
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    className="app-input mt-1 w-full px-3 py-2"
+                  />
+                </label>
+                <button type="button" onClick={() => restoreBackup(restoreFile)} disabled={busy || !restoreFile || password.length < 12} className="w-full rounded-lg bg-[var(--action)] px-3 py-2 text-sm font-semibold text-white disabled:opacity-60">
+                  {busy ? "Restoring database…" : "Restore live database"}
+                </button>
+              </div>
+            )}
 
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setOpen(false)} className="rounded-lg px-3 py-2 text-sm">Cancel</button>
-              <button type="submit" disabled={busy} className="rounded-lg bg-[var(--action)] px-3 py-2 text-sm font-semibold text-white disabled:opacity-60">
-                {busy ? "Saving backup..." : "Save and back up now"}
-              </button>
             </div>
           </form>
         </div>
