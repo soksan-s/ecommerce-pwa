@@ -117,7 +117,7 @@ async function withBackupLock(callback) {
   }
 }
 
-export default function DatabaseBackupButton() {
+export default function DatabaseBackupButton({ compact = false }) {
   const [open, setOpen] = useState(false);
   const [activeMode, setActiveMode] = useState("backup");
   const [password, setPassword] = useState("");
@@ -259,7 +259,7 @@ export default function DatabaseBackupButton() {
   }
 
   return (
-    <div className="p-2">
+    <div className={compact ? "p-2" : "min-w-0 p-2"}>
       <button
         type="button"
         onClick={() => {
@@ -267,9 +267,15 @@ export default function DatabaseBackupButton() {
           setActiveMode("backup");
           setOpen(true);
         }}
-        className="w-full rounded-lg border border-[var(--border-soft)] px-3 py-2 text-left text-sm font-semibold hover:bg-[var(--surface-quiet)]"
+        aria-label={configured ? "Backup settings" : "Set up automatic backup"}
+        title={compact ? (configured ? "Backup settings" : "Set up automatic backup") : undefined}
+        className={`flex min-h-10 w-full min-w-0 items-center rounded-lg border border-[var(--border-soft)] px-3 py-2 text-sm font-semibold hover:bg-[var(--surface-quiet)] ${compact ? "justify-center px-2" : "text-left"}`}
       >
-        {configured ? "Backup settings" : "Set up automatic backup"}
+        {compact ? (
+          <span aria-hidden="true" className="text-base leading-none">{configured ? "✓" : "↓"}</span>
+        ) : (
+          <span className="block min-w-0 break-words">{configured ? "Backup settings" : "Set up automatic backup"}</span>
+        )}
       </button>
       {!open && message && <p role="status" className="mt-2 break-words text-xs">{message}</p>}
 
@@ -340,7 +346,10 @@ export default function DatabaseBackupButton() {
                   className="hidden"
                   onChange={(event) => setRestoreFile(event.target.files?.[0] || null)}
                 />
-                <button type="button" onClick={() => restoreFileInput.current?.click()} className="w-full rounded-lg border border-[var(--border-soft)] px-3 py-2 text-sm font-semibold hover:bg-[var(--surface-quiet)]">
+                <button type="button" onClick={() => {
+                  if (restoreFileInput.current) restoreFileInput.current.value = "";
+                  restoreFileInput.current?.click();
+                }} className="w-full rounded-lg border border-[var(--border-soft)] px-3 py-2 text-sm font-semibold hover:bg-[var(--surface-quiet)]">
                   {restoreFile ? "Choose a different backup file" : "Choose encrypted backup file"}
                 </button>
                 <div

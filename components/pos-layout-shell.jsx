@@ -414,7 +414,7 @@ export function PosLayoutShell({ children }) {
             )}
           </div>
         </nav>
-        <DatabaseBackupButton />
+        <DatabaseBackupButton compact={sidebarCollapsed} />
 
         {/* Sidebar Bottom */}
         <div className="shrink-0 border-t border-[var(--border-soft)] p-3">

@@ -23,8 +23,11 @@ export async function POST() {
     });
   } catch (error) {
     console.error("Admin database backup failed:", error);
+    const missingTool = error?.code === "ENOENT" || /spawn .* ENOENT/i.test(error?.message || "");
     return NextResponse.json(
-      { error: "Could not create the database backup. Check server logs." },
+      { error: missingTool
+        ? "PostgreSQL backup tools are missing on the application server. Install pg_dump and pg_restore or configure PG_DUMP_PATH and PG_RESTORE_PATH."
+        : "Could not create the database backup. Check the server database connection and logs." },
       { status: 500 },
     );
   }

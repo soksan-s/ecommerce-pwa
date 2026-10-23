@@ -226,7 +226,7 @@ function DesktopSidebar({ user, selectedTab, collapsed, setCollapsed, openTab, t
           );
         })}
       </nav>
-      <DatabaseBackupButton />
+      <DatabaseBackupButton compact={collapsed} />
 
       {/* Footer Profile & Logout */}
       <div className="border-t border-[var(--border-soft)] p-3 space-y-2">
